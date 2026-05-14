@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Replace with your device's vendor & product ID -->
+    <usb-device vendor-id="1234" product-id="5678" />
+    <!-- Or match all CDC serial devices -->
+    <usb-device class="2" subclass="2" />
+</resources>
