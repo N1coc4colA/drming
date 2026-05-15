@@ -10,6 +10,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QProcess>
 #include <QThread>
 
 // See https://docs.kernel.org/gpu/vkms.html
@@ -204,6 +205,20 @@ bool isVkmsConfigEnabled()
     return false;
 }
 
+bool loadVkmsModule()
+{
+    std::cout << "Insenting vkms\n";
+
+    QProcess process{};
+    process.start("modprobe", {"vkms", "enable_cursor=1"});
+
+    while (!process.waitForFinished()) {
+        ;
+    }
+
+    return process.exitCode() == 0;
+}
+
 DispSetup::DispSetup(const QString &instanceName)
     : m_instanceName(instanceName)
     , m_basePath(configfsRootPath() + "/vkms/" + instanceName)
@@ -262,12 +277,15 @@ bool DispSetup::makeEnvChecks()
     }
 
     if (!isVkmsModuleLoaded()) {
-        std::cerr << "VKMS kernel module is not loaded.\n";
+        if (!loadVkmsModule()) {
+            std::cerr << "VKMS kernel module is not loaded. Its loading failed. You can load it with: modprobe vkms enable_cursor=1\n";
+        }
+
         return false;
     }
 
     if (!isVkmsConfigEnabled()) {
-        std::cerr << "VKMS is not enabled in kernel config.\n";
+        std::cerr << "VKMS is not enabled in kernel config, please enable it.\n";
         return false;
     }
 
