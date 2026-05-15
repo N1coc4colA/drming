@@ -38,5 +38,20 @@ Obviously, only GNU/Linux is supported for desktop, and has been tested on Fedor
 Concerning android, it has been tested on Android 14, and Fedora 43 & 44.
 
 ## Building
+You can build using:
+```
+cmake
+make
+```
+
+You can use this from the top dir, in which case it will build both android and desktop for the same platform.
+However, you can also go in each dir, and build android and desktop separately if you aim for different platforms & architectures.
 
 ## Usage
+To use this project, you first need to run drming_desktop, as root to have the rights, then you can connect to it using drming_android.
+You can load yourself the vkms driver, or let drming_desktop do it. The usual way to load vkms is the following, with the parameter used
+to enable the use of the cursor plane (or you may won't see your mouse cursor):
+
+```
+modprobe vkms enable_cursor=1
+```
