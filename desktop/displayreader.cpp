@@ -498,7 +498,7 @@ QImage DisplayReader::imageFromFrameBuffer(const uint8_t *data, uint32_t width, 
 
     const QImage::Format fmt = qtImageFormatFromDrm(format);
     if (fmt == QImage::Format_Invalid) {
-        std::cerr << "Image format for frame is invalid.\n";
+        qWarning() << "Image format for frame is invalid.";
         return {};
     }
 

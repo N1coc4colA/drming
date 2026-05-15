@@ -9,8 +9,6 @@
 #include <QTimer>
 #include <QtEndian>
 
-#include <iostream>
-
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
@@ -40,24 +38,24 @@ int main(int argc, char *argv[])
 
     const int port = portName.toInt(&portIsValid);
     if (!portIsValid) {
-        std::cerr << "It seems the port is not base 10, and could not be parsed.\n";
+        qCritical() << "It seems the port is not base 10, and could not be parsed.";
         return EXIT_FAILURE;
     }
 
     if (port < 1 || port > 65535) {
-        std::cerr << qPrintable(QObject::tr("Port number is not within the right range.")) << '\n';
+        qCritical() << QObject::tr("Port number is not within the right range.");
         return EXIT_FAILURE;
     }
 
     if (serviceHostIp.isNull()) {
-        std::cerr << "The supplied service exposure IP is invalid.\n";
+        qCritical() << "The supplied service exposure IP is invalid.";
         return EXIT_FAILURE;
     }
 
     auto publisher = new AvahiPublisher(serviceName, "_drming._tcp", static_cast<uint16_t>(port));
     QObject::connect(&app, &QCoreApplication::aboutToQuit, publisher, &AvahiPublisher::stop);
-    QObject::connect(publisher, &AvahiPublisher::started, []() { std::cout << "Service publishing started.\n"; });
-    QObject::connect(publisher, &AvahiPublisher::stopped, []() { std::cout << "Service publishing stopped.\n"; });
+    QObject::connect(publisher, &AvahiPublisher::started, []() { qInfo() << "Service publishing started."; });
+    QObject::connect(publisher, &AvahiPublisher::stopped, []() { qInfo() << "Service publishing stopped."; });
 
     if (!parser.parser().isSet("no-advertise")) {
         publisher->start();
@@ -67,7 +65,7 @@ int main(int argc, char *argv[])
     if (!setup.isSetup()) {
         return EXIT_FAILURE;
     }
-    std::cout << "Setup display on connector " << qPrintable(setup.virtualConnectorName()) << '\n';
+    qInfo() << "Setup display on connector " << setup.virtualConnectorName();
 
     Server server{};
     if (!server.listen(serviceHostIp, port)) {
@@ -79,13 +77,19 @@ int main(int argc, char *argv[])
     QTimer timer{};
     timer.setInterval(60);
 
+    bool primaryFailureNotice = false;
+
     QObject::connect(&server, &Server::clientConnected, &timer, qOverload<>(&QTimer::start));
     QObject::connect(&server, &Server::noClient, &timer, &QTimer::stop);
-    QObject::connect(&timer, &QTimer::timeout, [&reader, &server]() {
+    QObject::connect(&timer, &QTimer::timeout, [&reader, &server, &primaryFailureNotice]() {
         VkmsFrameBuffer fb{};
         CursorFrameBuffer cursorFb{};
         if (!reader.getVkmsFrameBuffer(fb)) {
-            std::cout << "Failed to get primary" << std::endl;
+            if (!primaryFailureNotice) {
+                primaryFailureNotice = true;
+                qCritical() << "Failed to get primary";
+            }
+
             return;
         }
         const bool hasCursor = reader.getCursorFrameBuffer(cursorFb, fb);
@@ -120,7 +124,7 @@ int main(int argc, char *argv[])
         server.broadcast(pixelBuffer);
     });
 
-    std::cout << "Ready!\n";
+    qInfo() << "Ready!";
 
     if (server.hasClient()) {
         timer.start();

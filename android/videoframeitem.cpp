@@ -4,8 +4,9 @@
 
 QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
 {
-    if (itemSize.isEmpty() || imgSize.isEmpty())
+    if (itemSize.isEmpty() || imgSize.isEmpty()) {
         return QRectF();
+    }
 
     const qreal sx = itemSize.width() / imgSize.width();
     const qreal sy = itemSize.height() / imgSize.height();
@@ -26,12 +27,24 @@ VideoFrameItem::VideoFrameItem(QQuickItem* parent)
     setFlag(ItemHasContents, true);
 }
 
+inline void submit(QQuickWindow* window, const QRectF& dst, const QImage& localImage, QSGSimpleTextureNode*& node)
+{
+    if (!node) {
+        node = new QSGSimpleTextureNode();
+        node->setFiltering(QSGTexture::Linear);
+    }
+
+    node->setTexture(window->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque));
+    node->setOwnsTexture(true);
+    node->setRect(dst);
+    node->markDirty(QSGNode::DirtyMaterial | QSGNode::DirtyGeometry);
+}
+
 QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* data)
 {
     Q_UNUSED(data);
-    auto* node = static_cast<QSGSimpleTextureNode*>(oldNode);
 
-    QImage localImage;
+    QImage localImage{};
     bool dirty = false;
     {
         QMutexLocker locker(&m_mtx);
@@ -42,32 +55,24 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
         }
     }
 
-    if (!dirty && node) {
-        return node;
-    }
-
     if (localImage.isNull()) {
-        delete node;
         return nullptr;
     }
 
-    if (!node) {
-        node = new QSGSimpleTextureNode();
-        node->setFiltering(QSGTexture::Linear);
+    auto* node = static_cast<QSGSimpleTextureNode*>(oldNode);
+
+    if (dirty) {
+        const QRectF dst = fitKeepAspect(QSizeF(width(), height()), QSizeF(localImage.size()));
+        if (!node) {
+            node = new QSGSimpleTextureNode();
+            node->setFiltering(QSGTexture::Linear);
+        }
+
+        node->setTexture(window()->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque));
+        node->setOwnsTexture(true);
+        node->setRect(dst);
+        node->markDirty(QSGNode::DirtyMaterial | QSGNode::DirtyGeometry);
     }
-
-    const QRectF dst = fitKeepAspect(QSizeF(width(), height()), QSizeF(localImage.size()));
-
-    // createTextureFromImage() is safe here because we ARE on the render thread
-    QSGTexture* newTex = window()->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque);
-
-    // setOwnsTexture(true) means the node destroys the OLD texture automatically
-    // when you call setTexture() with a new one — but ONLY if it already owns one.
-    // Set it before replacing, so the old texture is freed correctly.
-    node->setOwnsTexture(true);
-    node->setTexture(newTex);
-    node->setRect(dst);
-    node->markDirty(QSGNode::DirtyMaterial | QSGNode::DirtyGeometry);
 
     return node;
 }

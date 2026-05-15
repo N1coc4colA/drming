@@ -1,8 +1,8 @@
 #include "commandparser.h"
 
 #include <QCoreApplication>
+#include <QDebug>
 
-#include <iostream>
 #include <stdlib.h>
 
 CommandParser::CommandParser()
@@ -22,7 +22,7 @@ CommandParser::CommandParser()
 bool CommandParser::parse()
 {
     if (!m_parser.parse(qApp->arguments())) {
-        std::cerr << qPrintable(m_parser.errorText()) << '\n';
+        qCritical() << m_parser.errorText();
         return false;
     }
 

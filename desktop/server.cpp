@@ -1,13 +1,11 @@
 #include "server.h"
 
-#include <iostream>
-
 Server::Server(QObject *parent)
     : QObject(parent)
 {
     connect(&m_server, &QTcpServer::newConnection, this, &Server::onNewConnection);
     connect(&m_server, &QTcpServer::acceptError, [](const QAbstractSocket::SocketError socketError) {
-        std::cout << "Acceptation error occured: " << socketError << '\n';
+        qInfo() << "Acceptation error occured: " << socketError;
     });
 }
 
@@ -15,9 +13,9 @@ bool Server::listen(const QHostAddress &address, const quint16 port)
 {
     const bool success = m_server.listen(address, port);
     if (!success) {
-        std::cerr << "Failed to listen: " << qPrintable(m_server.errorString()) << '\n';
+        qCritical() << "Failed to listen: " << m_server.errorString();
     } else {
-        std::cout << "Exposing service on: " << qPrintable(address.toString()) << ':' << port << '\n';
+        qInfo() << "Exposing service on: " << address.toString() << ':' << port;
     }
 
     return success;

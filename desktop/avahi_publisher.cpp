@@ -1,20 +1,20 @@
 #include "avahi_publisher.h"
 
+#include <QDebug>
+
 #include <avahi-client/publish.h>
 #include <avahi-common/error.h>
 #include <avahi-common/simple-watch.h>
-
-#include <iostream>
 
 void AvahiPublisher::group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state, AvahiPublisher *c)
 {
     switch (state) {
     case AVAHI_ENTRY_GROUP_ESTABLISHED: {
-        std::cerr << "Service established\n";
+        qCritical() << "Service established";
         break;
     }
     case AVAHI_ENTRY_GROUP_FAILURE: {
-        std::cerr << "Group failure\n";
+        qCritical() << "Group failure";
         avahi_simple_poll_quit(c->m_poll);
         break;
     }
@@ -43,7 +43,7 @@ void AvahiPublisher::client_callback(AvahiClient *client, AvahiClientState state
                                                   nullptr);
 
     if (ret < 0) {
-        std::cerr << "Add error: " << avahi_strerror(ret) << "\n";
+        qCritical() << "Add error: " << avahi_strerror(ret);
     } else {
         avahi_entry_group_commit(c->m_group);
     }
@@ -79,7 +79,7 @@ void AvahiPublisher::start()
                                                this,
                                                &error);
         if (!client) {
-            std::cerr << "Client error: " << avahi_strerror(error) << "\n";
+            qCritical() << "Client error: " << avahi_strerror(error);
             return;
         }
 

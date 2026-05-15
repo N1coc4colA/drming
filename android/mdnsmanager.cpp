@@ -13,7 +13,7 @@
 #include <avahi-common/error.h>
 #include <avahi-common/malloc.h>
 #include <avahi-common/simple-watch.h>
-#include <iostream>
+#include <set>
 #include <thread>
 #endif
 
@@ -40,7 +40,7 @@ public:
         m_thread = std::thread([this]() {
             // All Avahi objects created here, on the poll thread
             if (!(m_poll = avahi_simple_poll_new())) {
-                std::cerr << "Failed to create simple poll object." << std::endl;
+                qCritical() << "Failed to create simple poll object.";
                 m_running = false;
                 return;
             }
@@ -52,7 +52,7 @@ public:
                                         this,
                                         &error);
             if (!m_client) {
-                std::cerr << "Failed to create client: " << avahi_strerror(error) << std::endl;
+                qWarning() << "Failed to create client: " << avahi_strerror(error);
                 avahi_simple_poll_free(m_poll);
                 m_poll = nullptr;
                 m_running = false;
@@ -68,7 +68,7 @@ public:
                                              (AvahiServiceBrowserCallback) browse_callback,
                                              this); // pass 'this', not m_client
             if (!m_sb) {
-                std::cerr << "Failed to create service browser: " << avahi_strerror(avahi_client_errno(m_client)) << std::endl;
+                qCritical() << "Failed to create service browser: " << avahi_strerror(avahi_client_errno(m_client));
                 avahi_client_free(m_client);
                 m_client = nullptr;
                 avahi_simple_poll_free(m_poll);
@@ -131,8 +131,8 @@ private:
 
         switch (event) {
         case AVAHI_RESOLVER_FAILURE: {
-            std::cerr << "(Resolver) Failed to resolve service '" << name << "' of type '" << type << "' in domain '" << domain
-                      << "': " << avahi_strerror(avahi_client_errno(client)) << std::endl;
+            qWarning() << "(Resolver) Failed to resolve service '" << name << "' of type '" << type << "' in domain '" << domain
+                       << "': " << avahi_strerror(avahi_client_errno(client));
             break;
         }
         case AVAHI_RESOLVER_FOUND: {
@@ -161,7 +161,7 @@ private:
     {
         switch (event) {
         case AVAHI_BROWSER_FAILURE: {
-            std::cerr << "(Browser) " << avahi_strerror(avahi_client_errno(c->m_client)) << std::endl;
+            qCritical() << "(Browser) " << avahi_strerror(avahi_client_errno(c->m_client));
             return;
         }
         case AVAHI_BROWSER_NEW: {
@@ -182,7 +182,7 @@ private:
             if (resolver) {
                 c->m_pendingResolvers.insert(resolver);
             } else {
-                std::cerr << "Failed to resolve service '" << name << "': " << avahi_strerror(avahi_client_errno(c->m_client)) << std::endl;
+                qWarning() << "Failed to resolve service '" << name << "': " << avahi_strerror(avahi_client_errno(c->m_client));
             }
             break;
         }
@@ -192,7 +192,7 @@ private:
         }
         case AVAHI_BROWSER_ALL_FOR_NOW:
         case AVAHI_BROWSER_CACHE_EXHAUSTED: {
-            std::cout << "(Browser) " << (event == AVAHI_BROWSER_CACHE_EXHAUSTED ? "CACHE_EXHAUSTED" : "ALL_FOR_NOW") << std::endl;
+            qInfo() << "(Browser) " << (event == AVAHI_BROWSER_CACHE_EXHAUSTED ? "CACHE_EXHAUSTED" : "ALL_FOR_NOW");
             break;
         }
         }
@@ -201,7 +201,7 @@ private:
     static void client_callback(AvahiClient *client, AvahiClientState state, AvahiDiscoverer *c)
     {
         if (state == AVAHI_CLIENT_FAILURE) {
-            std::cerr << "Server connection failure: " << avahi_strerror(avahi_client_errno(client)) << std::endl;
+            qCritical() << "Server connection failure: " << avahi_strerror(avahi_client_errno(client));
             //avahi_simple_poll_quit(c->m_poll);
         }
     }

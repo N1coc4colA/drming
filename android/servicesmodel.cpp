@@ -1,5 +1,4 @@
 #include "servicesmodel.h"
-#include <QDebug>
 
 ServicesModel::ServicesModel(QObject *parent)
     : QAbstractListModel(parent)

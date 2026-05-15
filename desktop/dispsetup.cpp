@@ -49,7 +49,7 @@ bool makeSymlink(const QString &linkPath, const QString &target)
     const QByteArray link = linkPath.toLocal8Bit();
     const QByteArray tgt = target.toLocal8Bit();
     if (::symlink(tgt.constData(), link.constData()) != 0) {
-        std::cout << ">> symlink(" << tgt.constData() << ", " << link.constData() << ") failed: " << ::strerror(errno) << "\n";
+        qCritical() << ">> symlink(" << tgt.constData() << ", " << link.constData() << ") failed: " << ::strerror(errno);
         return false;
     }
 
@@ -207,7 +207,7 @@ bool isVkmsConfigEnabled()
 
 bool loadVkmsModule()
 {
-    std::cout << "Insenting vkms\n";
+    qInfo() << "Insenting vkms";
 
     QProcess process{};
     process.start("modprobe", {"vkms", "enable_cursor=1"});
@@ -254,7 +254,7 @@ DispSetup::DispSetup(const QString &instanceName)
 
     // Write enabled=1 to register the device with the kernel
     if (!writeFile(m_enabledPath, "1")) {
-        std::cerr << "Failed to enable VKMS instance.\n";
+        qCritical() << "Failed to enable VKMS instance.";
         return;
     }
 
@@ -265,27 +265,27 @@ DispSetup::DispSetup(const QString &instanceName)
     m_setup = !m_virtualConnectorName.isEmpty();
 
     if (!m_setup) {
-        std::cerr << "VKMS device enabled but no Virtual connector found in /sys/class/drm\n";
+        qCritical() << "VKMS device enabled but no Virtual connector found in /sys/class/drm";
     }
 }
 
 bool DispSetup::makeEnvChecks()
 {
     if (!isConfigfsMounted()) {
-        std::cerr << "configfs is not mounted.\n";
+        qCritical() << "configfs is not mounted.";
         return false;
     }
 
     if (!isVkmsModuleLoaded()) {
         if (!loadVkmsModule()) {
-            std::cerr << "VKMS kernel module is not loaded. Its loading failed. You can load it with: modprobe vkms enable_cursor=1\n";
+            qCritical() << "VKMS kernel module is not loaded. Its loading failed. You can load it with: modprobe vkms enable_cursor=1";
         }
 
         return false;
     }
 
     if (!isVkmsConfigEnabled()) {
-        std::cerr << "VKMS is not enabled in kernel config, please enable it.\n";
+        qCritical() << "VKMS is not enabled in kernel config, please enable it.";
         return false;
     }
 
@@ -295,7 +295,7 @@ bool DispSetup::makeEnvChecks()
 bool DispSetup::makeVkmsInstance()
 {
     if (!QDir().mkpath(m_basePath)) {
-        std::cerr << "Failed to create VKMS instance: " << qPrintable(m_basePath) << '\n';
+        qCritical() << "Failed to create VKMS instance: " << m_basePath << '\n';
         return false;
     }
 
@@ -305,7 +305,7 @@ bool DispSetup::makeVkmsInstance()
 bool DispSetup::makeCrtc()
 {
     if (!QDir().mkpath(m_crtcPath)) {
-        std::cerr << "Failed to create CRTC: " << qPrintable(m_crtcPath) << '\n';
+        qCritical() << "Failed to create CRTC: " << m_crtcPath << '\n';
         return false;
     }
 
@@ -315,7 +315,7 @@ bool DispSetup::makeCrtc()
 bool DispSetup::makeEncoder()
 {
     if (!QDir().mkpath(m_encoderPath)) {
-        std::cerr << "Failed to create encoder: " << qPrintable(m_encoderPath) << '\n';
+        qCritical() << "Failed to create encoder: " << m_encoderPath << '\n';
         return false;
     }
 
@@ -325,7 +325,7 @@ bool DispSetup::makeEncoder()
 bool DispSetup::makePrimaryPlane()
 {
     if (!QDir().mkpath(m_primaryPlanePath)) {
-        std::cerr << "Failed to create primary plane: " << qPrintable(m_primaryPlanePath) << '\n';
+        qCritical() << "Failed to create primary plane: " << m_primaryPlanePath << '\n';
         return false;
     }
 
@@ -335,7 +335,7 @@ bool DispSetup::makePrimaryPlane()
 bool DispSetup::makeCursorPlane()
 {
     if (!QDir().mkpath(m_cursorPlanePath)) {
-        std::cerr << "Failed to create cursor plane: " << qPrintable(m_cursorPlanePath) << '\n';
+        qCritical() << "Failed to create cursor plane: " << m_cursorPlanePath << '\n';
         return false;
     }
 
@@ -346,7 +346,7 @@ bool DispSetup::setPrimaryPlaneType()
 {
     // DRM_PLANE_TYPE_PRIMARY = 1
     if (!writeFile(m_primaryPlanePath + "/type", QString::number(DRM_PLANE_TYPE_PRIMARY).toLocal8Bit())) {
-        std::cerr << "Failed to set plane type to primary.\n";
+        qCritical() << "Failed to set plane type to primary.";
         return false;
     }
 
@@ -356,7 +356,7 @@ bool DispSetup::setPrimaryPlaneType()
 bool DispSetup::setCursorPlaneType()
 {
     if (!writeFile(m_cursorPlanePath + "/type", QString::number(DRM_PLANE_TYPE_CURSOR).toLocal8Bit())) {
-        std::cerr << "Failed to set plane type to cursor.\n";
+        qCritical() << "Failed to set plane type to cursor.";
         return false;
     }
 
@@ -373,7 +373,7 @@ bool DispSetup::linkPrimaryPlaneToCrtc()
     const QByteArray link = linkPath.toLocal8Bit();
     const QByteArray tgt = m_crtcPath.toLocal8Bit();
     if (::symlink(tgt.constData(), link.constData()) != 0) {
-        std::cerr << "Failed to symlink primary plane → crtc: " << qPrintable(linkPath) << " (" << ::strerror(errno) << ")\n";
+        qCritical() << "Failed to symlink primary plane → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
         return false;
     }
 
@@ -390,7 +390,7 @@ bool DispSetup::linkCursorPlaneToCrtc()
     const QByteArray link = linkPath.toLocal8Bit();
     const QByteArray tgt = m_crtcPath.toLocal8Bit();
     if (::symlink(tgt.constData(), link.constData()) != 0) {
-        std::cerr << "Failed to symlink cursor plane → crtc: " << qPrintable(linkPath) << " (" << ::strerror(errno) << ")\n";
+        qCritical() << "Failed to symlink cursor plane → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
         return false;
     }
 
@@ -407,7 +407,7 @@ bool DispSetup::linkEncoderToCrtc()
     const QByteArray link = linkPath.toLocal8Bit();
     const QByteArray tgt = m_crtcPath.toLocal8Bit();
     if (::symlink(tgt.constData(), link.constData()) != 0) {
-        std::cerr << "Failed to symlink encoder → crtc: " << qPrintable(linkPath) << " (" << ::strerror(errno) << ")\n";
+        qCritical() << "Failed to symlink encoder → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
         return false;
     }
 
@@ -424,7 +424,7 @@ bool DispSetup::linkConnectorToEncoder()
     const QByteArray link = linkPath.toLocal8Bit();
     const QByteArray tgt = m_encoderPath.toLocal8Bit();
     if (::symlink(tgt.constData(), link.constData()) != 0) {
-        std::cerr << "Failed to symlink connector → encoder: " << qPrintable(linkPath) << " (" << ::strerror(errno) << ")\n";
+        qCritical() << "Failed to symlink connector → encoder: " << linkPath << " (" << ::strerror(errno) << ")";
         return false;
     }
 
@@ -434,7 +434,7 @@ bool DispSetup::linkConnectorToEncoder()
 bool DispSetup::makeConnector()
 {
     if (!QDir().mkpath(m_connectorPath)) {
-        std::cerr << "Failed to create connector: " << qPrintable(m_connectorPath) << '\n';
+        qCritical() << "Failed to create connector: " << m_connectorPath << '\n';
         return false;
     }
 
@@ -446,7 +446,7 @@ bool DispSetup::writeEdidAndEnable()
     const QString statusPath = m_connectorPath + "/status";
     writeFile(statusPath, "0");
     if (!writeFile(statusPath, "1")) {
-        std::cerr << "Failed to set connector status.\n";
+        qCritical() << "Failed to set connector status.";
         return false;
     }
 

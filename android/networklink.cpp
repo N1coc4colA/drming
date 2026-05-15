@@ -4,8 +4,6 @@
 #include <QDebug>
 #include <QtEndian>
 
-#include <iostream>
-
 NetworkLink::NetworkLink(QObject *parent)
     : QObject{parent}
     , m_socket(new QTcpSocket(this))
@@ -14,10 +12,10 @@ NetworkLink::NetworkLink(QObject *parent)
     QAbstractSocket::connect(m_socket, &QTcpSocket::disconnected, this, &NetworkLink::onDisconnected);
     QAbstractSocket::connect(m_socket, &QTcpSocket::readyRead, this, &NetworkLink::onDataAvailable);
     QAbstractSocket::connect(m_socket, &QTcpSocket::errorOccurred, [](const QAbstractSocket::SocketError error) {
-        std::cout << "Connection error occurred: " << error << '\n';
+        qWarning() << "Connection error occurred: " << error;
     });
     QAbstractSocket::connect(m_socket, &QTcpSocket::stateChanged, [](const QAbstractSocket::SocketState socketState) {
-        std::cout << "State changed: " << socketState << std::endl;
+        qInfo() << "State changed: " << socketState;
     });
 }
 
@@ -41,7 +39,7 @@ void NetworkLink::connect(const QString &address, const int port)
         return;
     }
 
-    qDebug() << "Connecting to:" << address << port;
+    qInfo() << "Connecting to:" << address << port;
     m_socket->connectToHost(address, port);
 }
 
@@ -52,7 +50,7 @@ void NetworkLink::onError(const QAbstractSocket::SocketError error)
 
 void NetworkLink::onConnected()
 {
-    std::cout << "Connected\n";
+    qInfo() << "Connected";
 }
 
 void NetworkLink::onDisconnected()
@@ -97,5 +95,6 @@ void NetworkLink::onDataAvailable()
     m_buffer.remove(0, m_imageSize);
     m_imageSize = 0;
 
+    qInfo() << "Pushing";
     Q_EMIT imageReady(img);
 }
