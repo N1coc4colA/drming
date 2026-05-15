@@ -92,6 +92,10 @@ int main(int argc, char *argv[])
 
             return;
         }
+        if (primaryFailureNotice) {
+            primaryFailureNotice = false;
+        }
+
         const bool hasCursor = reader.getCursorFrameBuffer(cursorFb, fb);
 
         QByteArray headerBuffer{};
