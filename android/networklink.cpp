@@ -17,6 +17,9 @@ NetworkLink::NetworkLink(QObject *parent)
     QAbstractSocket::connect(m_socket, &QTcpSocket::stateChanged, [](const QAbstractSocket::SocketState socketState) {
         qInfo() << "State changed: " << socketState;
     });
+
+    m_socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);  // disables Nagle
+    m_socket->setSocketOption(QAbstractSocket::KeepAliveOption, 1); // optional: enable keepalive
 }
 
 NetworkLink::~NetworkLink()
@@ -61,7 +64,7 @@ void NetworkLink::onDisconnected()
 
 void NetworkLink::onDataAvailable()
 {
-    static constexpr qsizetype headerSize = sizeof(quint16) + sizeof(quint32) * 3;
+    static constexpr qsizetype headerSize = sizeof(qsizetype);
     m_buffer += m_socket->readAll();
 
     if (m_imageSize == 0) {
@@ -71,12 +74,7 @@ void NetworkLink::onDataAvailable()
 
         QDataStream reader(m_buffer);
         reader.setByteOrder(QDataStream::BigEndian);
-        reader >> m_format;
-        reader >> m_width;
-        reader >> m_height;
-        reader >> m_stride;
-
-        m_imageSize = static_cast<qsizetype>(m_stride) * static_cast<qsizetype>(m_height);
+        reader >> m_imageSize;
         m_buffer.remove(0, headerSize);
     }
 
@@ -84,17 +82,10 @@ void NetworkLink::onDataAvailable()
         return;
     }
 
-    // We need to detach the image's buffer too.
-    const auto img = QImage(reinterpret_cast<const uchar *>(m_buffer.constData()),
-                            static_cast<int>(m_width),
-                            static_cast<int>(m_height),
-                            static_cast<int>(m_stride),
-                            static_cast<QImage::Format>(m_format))
-                         .copy();
+    const auto img = QImage::fromData(m_buffer, "JPEG");
 
     m_buffer.remove(0, m_imageSize);
     m_imageSize = 0;
 
-    qInfo() << "Pushing";
     Q_EMIT imageReady(img);
 }

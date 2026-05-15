@@ -33,15 +33,15 @@ int main(int argc, char *argv[])
     const QString serviceName = parser.parser().value("service");
     const QString portName = parser.parser().value("port");
     const QString serviceIp = parser.parser().value("ip");
+    const QString compressionLevel = parser.parser().value("compression");
     const auto serviceHostIp = serviceIp.isEmpty() ? QHostAddress::Any : QHostAddress(serviceIp);
-    bool portIsValid = false;
+    bool valid = false;
 
-    const int port = portName.toInt(&portIsValid);
-    if (!portIsValid) {
+    const int port = portName.toInt(&valid);
+    if (!valid) {
         qCritical() << "It seems the port is not base 10, and could not be parsed.";
         return EXIT_FAILURE;
     }
-
     if (port < 1 || port > 65535) {
         qCritical() << QObject::tr("Port number is not within the right range.");
         return EXIT_FAILURE;
@@ -49,6 +49,16 @@ int main(int argc, char *argv[])
 
     if (serviceHostIp.isNull()) {
         qCritical() << "The supplied service exposure IP is invalid.";
+        return EXIT_FAILURE;
+    }
+
+    const int jpegCompression = compressionLevel.toInt(&valid);
+    if (!valid) {
+        qCritical() << QObject::tr("The supplied compression level is not base 10, and could not be parsed.");
+        return EXIT_FAILURE;
+    }
+    if (jpegCompression < -1 || jpegCompression > 100) {
+        qCritical() << QObject::tr("The compression level is not within the right range.");
         return EXIT_FAILURE;
     }
 
@@ -81,9 +91,8 @@ int main(int argc, char *argv[])
 
     QObject::connect(&server, &Server::clientConnected, &timer, qOverload<>(&QTimer::start));
     QObject::connect(&server, &Server::noClient, &timer, &QTimer::stop);
-    QObject::connect(&timer, &QTimer::timeout, [&reader, &server, &primaryFailureNotice]() {
+    QObject::connect(&timer, &QTimer::timeout, [&reader, &server, &primaryFailureNotice, jpegCompression]() {
         VkmsFrameBuffer fb{};
-        CursorFrameBuffer cursorFb{};
         if (!reader.getVkmsFrameBuffer(fb)) {
             if (!primaryFailureNotice) {
                 primaryFailureNotice = true;
@@ -96,36 +105,29 @@ int main(int argc, char *argv[])
             primaryFailureNotice = false;
         }
 
+        CursorFrameBuffer cursorFb{};
         const bool hasCursor = reader.getCursorFrameBuffer(cursorFb, fb);
 
-        QByteArray headerBuffer{};
-        QByteArray pixelBuffer{};
+        QByteArray output{};
+        QImage result = reader.imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, fb.format);
         if (hasCursor) {
-            const auto primaryImg = reader.imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, fb.format);
-            const auto result = reader.compositeWithCursor(primaryImg, cursorFb);
+            result = reader.compositeWithCursor(result, cursorFb);
+        }
 
-            pixelBuffer = QByteArray((const char *) result.constBits(), result.height() * result.bytesPerLine());
-            QDataStream stream(&headerBuffer, QIODevice::WriteOnly);
-            stream.setByteOrder(QDataStream::BigEndian);
-            stream << static_cast<quint16>(result.format());
-            stream << static_cast<quint32>(result.width());
-            stream << static_cast<quint32>(result.height());
-            stream << static_cast<quint32>(result.bytesPerLine());
-        } else {
-            pixelBuffer = QByteArray((const char *) fb.data, fb.height * fb.stride);
+        {
+            QBuffer buf(&output);
+            buf.open(QIODevice::WriteOnly);
+            // high quality = 90, trade CPU vs size
+            result.save(&buf, "JPEG", jpegCompression);
+            buf.close();
 
-            QDataStream stream(&headerBuffer, QIODevice::WriteOnly);
-            stream.setByteOrder(QDataStream::BigEndian);
-            stream << static_cast<quint16>(qtImageFormatFromDrm(fb.format));
-            stream << static_cast<quint32>(fb.width);
-            stream << static_cast<quint32>(fb.height);
-            stream << static_cast<quint32>(fb.stride);
+            const qsizetype size = qToBigEndian(static_cast<qsizetype>(output.size()));
+            output.prepend(reinterpret_cast<const char *>(&size), sizeof(size));
         }
 
         reader.releaseVkmsFrameBuffer(fb);
 
-        server.broadcast(headerBuffer);
-        server.broadcast(pixelBuffer);
+        server.broadcast(output);
     });
 
     qInfo() << "Ready!";

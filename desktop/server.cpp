@@ -58,6 +58,9 @@ void Server::onNewConnection()
 
         connect(client, &QTcpSocket::disconnected, this, &Server::onClientDisconnected);
         connect(client, &QTcpSocket::disconnected, client, &QObject::deleteLater);
+
+        client->setSocketOption(QAbstractSocket::LowDelayOption, 1);  // disables Nagle
+        client->setSocketOption(QAbstractSocket::KeepAliveOption, 1); // optional: enable keepalive
     }
 }
 

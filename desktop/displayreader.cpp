@@ -502,7 +502,7 @@ QImage DisplayReader::imageFromFrameBuffer(const uint8_t *data, uint32_t width, 
         return {};
     }
 
-    return QImage(reinterpret_cast<const uchar *>(data), static_cast<int>(width), static_cast<int>(height), static_cast<int>(stride), fmt).copy();
+    return QImage(reinterpret_cast<const uchar *>(data), static_cast<int>(width), static_cast<int>(height), static_cast<int>(stride), fmt);
 }
 
 QPixmap DisplayReader::pixmapFromFrameBuffer(const uint8_t *data, uint32_t width, uint32_t height, uint32_t stride, uint32_t format)

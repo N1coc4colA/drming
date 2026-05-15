@@ -16,6 +16,7 @@ CommandParser::CommandParser()
          {{"s", "service"}, QObject::tr("Sets the sevices' name when advertising through mDNS."), QObject::tr("service-name"), "DRMing"},
          {{"a", "no-advertise"}, QObject::tr("Sets whether or not to disable advertising on the network using mDNS. An non-null value evaluates to true.")},
          {{"i", "ip"}, QObject::tr("IP address on which to expose the service."), QObject::tr("ip-address"), ""},
+         {{"c", "compression"}, QObject::tr("Sets the JPEG compression level. 0 to 100, 100 meaning best quality. You can use -1 to let Qt use its default quality level."), QObject::tr("compression"), "70"},
     });
 }
 
