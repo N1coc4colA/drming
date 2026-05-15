@@ -14,12 +14,10 @@ set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -O0")
 set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -g -O0")
 
 
-find_package(Qt6 REQUIRED COMPONENTS Core Quick Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick Network)
 
 
-set(
-PROJECT_SOURCES
-    ../packets.h
+set(PROJECT_SOURCES
     main.cpp
     mdnsmanager.h mdnsmanager.cpp
     native.h native.cpp
@@ -61,6 +59,7 @@ target_link_libraries(
 drming_android
     PRIVATE
         Qt6::Core
+        Qt6::Gui
         Qt6::Network
         Qt6::Quick
 )

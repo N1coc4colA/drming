@@ -12,6 +12,7 @@ The project has two main directories:
 Dependencies of desktop:
 ```
 QtCore
+QtGui
 QtNetwork
 QtDBus
 QtQuick
@@ -22,6 +23,7 @@ VKMS
 Dependencies of android:
 ```
 QtCore
+QtGui
 QtNetwork
 QtQuick
 ```

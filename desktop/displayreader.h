@@ -4,6 +4,7 @@
 #include <QImage>
 #include <QPixmap>
 #include <QString>
+
 #include "vkmsfb.h"
 
 class DisplayReader
@@ -13,6 +14,11 @@ public:
 
     bool getVkmsFrameBuffer(VkmsFrameBuffer &fb);
     static void releaseVkmsFrameBuffer(VkmsFrameBuffer &fb);
+
+    bool getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFrameBuffer &primary);
+    static void releaseCursorFrameBuffer(CursorFrameBuffer &cursor);
+
+    static QImage compositeWithCursor(const QImage &primary, const CursorFrameBuffer &cursor);
 
     static QImage imageFromFrameBuffer(const uint8_t *data, uint32_t width, uint32_t height, uint32_t stride, uint32_t format);
     static QPixmap pixmapFromFrameBuffer(const uint8_t *data, uint32_t width, uint32_t height, uint32_t stride, uint32_t format);

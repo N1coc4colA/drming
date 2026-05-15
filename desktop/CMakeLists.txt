@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 23)
 
 
-find_package(Qt6 REQUIRED COMPONENTS Core Network DBus)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network DBus)
 find_package(Libdrm REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(AVAHI REQUIRED avahi-client)
@@ -39,6 +39,7 @@ target_link_libraries(
 drming_desktop
     PRIVATE
         Qt6::Core
+        Qt6::Gui
         Qt6::Network
         Qt6::DBus
         ${AVAHI_LIBRARIES}

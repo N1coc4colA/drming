@@ -17,9 +17,12 @@ private:
     bool makeVkmsInstance();
     bool makeCrtc();
     bool makeEncoder();
-    bool makePlane();
+    bool makePrimaryPlane();
+    bool makeCursorPlane();
     bool setPrimaryPlaneType();
-    bool linkPlaneToCrtc();
+    bool setCursorPlaneType();
+    bool linkPrimaryPlaneToCrtc();
+    bool linkCursorPlaneToCrtc();
     bool linkEncoderToCrtc();
     bool makeConnector();
     bool linkConnectorToEncoder();
@@ -31,7 +34,8 @@ private:
     QString m_basePath;
     QString m_crtcPath;
     QString m_encoderPath;
-    QString m_planePath;
+    QString m_primaryPlanePath;
+    QString m_cursorPlanePath;
     QString m_connectorPath;
     QString m_enabledPath;
     QString m_virtualConnectorName;

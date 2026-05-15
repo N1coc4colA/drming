@@ -83,13 +83,29 @@ int main(int argc, char *argv[])
     QObject::connect(&server, &Server::noClient, &timer, &QTimer::stop);
     QObject::connect(&timer, &QTimer::timeout, [&reader, &server]() {
         VkmsFrameBuffer fb{};
+        CursorFrameBuffer cursorFb{};
         if (!reader.getVkmsFrameBuffer(fb)) {
+            std::cout << "Failed to get primary" << std::endl;
             return;
         }
+        const bool hasCursor = reader.getCursorFrameBuffer(cursorFb, fb);
 
-        QByteArray pixelBuffer(static_cast<const char *>(fb.data), static_cast<int>(fb.stride * fb.height));
         QByteArray headerBuffer{};
-        {
+        QByteArray pixelBuffer{};
+        if (hasCursor) {
+            const auto primaryImg = reader.imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, fb.format);
+            const auto result = reader.compositeWithCursor(primaryImg, cursorFb);
+
+            pixelBuffer = QByteArray((const char *) result.constBits(), result.height() * result.bytesPerLine());
+            QDataStream stream(&headerBuffer, QIODevice::WriteOnly);
+            stream.setByteOrder(QDataStream::BigEndian);
+            stream << static_cast<quint16>(result.format());
+            stream << static_cast<quint32>(result.width());
+            stream << static_cast<quint32>(result.height());
+            stream << static_cast<quint32>(result.bytesPerLine());
+        } else {
+            pixelBuffer = QByteArray((const char *) fb.data, fb.height * fb.stride);
+
             QDataStream stream(&headerBuffer, QIODevice::WriteOnly);
             stream.setByteOrder(QDataStream::BigEndian);
             stream << static_cast<quint16>(qtImageFormatFromDrm(fb.format));

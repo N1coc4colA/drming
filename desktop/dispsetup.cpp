@@ -3,14 +3,16 @@
 #include <cerrno>
 #include <cstring>
 #include <iostream>
+
 #include <unistd.h>
+#include <xf86drmMode.h>
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QLabel>
 #include <QThread>
-#include <QVBoxLayout>
+
+// See https://docs.kernel.org/gpu/vkms.html
 
 namespace {
 
@@ -90,8 +92,10 @@ QByteArray buildSyntheticEdid()
     edid[23] = 0x78; // Gamma 2.2
     edid[24] = 0x0A; // Feature support
 
-    for (int i = 25; i < 35; ++i)
+    for (int i = 25; i < 35; ++i) {
         edid[i] = 0x00; // Chromaticity
+    }
+
     edid[35] = 0x00;
     edid[36] = 0x00;
     edid[37] = 0x00; // Established timings
@@ -128,8 +132,9 @@ QByteArray buildSyntheticEdid()
     edid[75] = 0xFC;
     edid[76] = 0x00;
     const char *name = "VirtDisp\n   ";
-    for (int i = 0; i < 13; ++i)
+    for (int i = 0; i < 13; ++i) {
         edid[77 + i] = static_cast<unsigned char>(name[i]);
+    }
 
     // Descriptors 3 & 4: dummy
     edid[90] = 0x00;
@@ -204,18 +209,22 @@ DispSetup::DispSetup(const QString &instanceName)
     , m_basePath(configfsRootPath() + "/vkms/" + instanceName)
     , m_crtcPath(m_basePath + "/crtcs/crtc0")
     , m_encoderPath(m_basePath + "/encoders/encoder0")
-    , m_planePath(m_basePath + "/planes/plane0")
+    , m_primaryPlanePath(m_basePath + "/planes/plane0")
+    , m_cursorPlanePath(m_basePath + "/planes/plane1")
     , m_connectorPath(m_basePath + "/connectors/connector0")
     , m_enabledPath(m_basePath + "/enabled")
 {
-    const std::array<bool (DispSetup::*)(), 11> funcs{
+    const std::array<bool (DispSetup::*)(), 14> funcs{
         &DispSetup::makeEnvChecks,
         &DispSetup::makeVkmsInstance,
         &DispSetup::makeCrtc,
         &DispSetup::makeEncoder,
-        &DispSetup::makePlane,
+        &DispSetup::makePrimaryPlane,
         &DispSetup::setPrimaryPlaneType,
-        &DispSetup::linkPlaneToCrtc,
+        &DispSetup::makeCursorPlane,
+        &DispSetup::setCursorPlaneType,
+        &DispSetup::linkPrimaryPlaneToCrtc,
+        &DispSetup::linkCursorPlaneToCrtc,
         &DispSetup::linkEncoderToCrtc,
         &DispSetup::makeConnector,
         &DispSetup::linkConnectorToEncoder,
@@ -295,10 +304,20 @@ bool DispSetup::makeEncoder()
     return true;
 }
 
-bool DispSetup::makePlane()
+bool DispSetup::makePrimaryPlane()
 {
-    if (!QDir().mkpath(m_planePath)) {
-        std::cerr << "Failed to create plane: " << qPrintable(m_planePath) << '\n';
+    if (!QDir().mkpath(m_primaryPlanePath)) {
+        std::cerr << "Failed to create primary plane: " << qPrintable(m_primaryPlanePath) << '\n';
+        return false;
+    }
+
+    return true;
+}
+
+bool DispSetup::makeCursorPlane()
+{
+    if (!QDir().mkpath(m_cursorPlanePath)) {
+        std::cerr << "Failed to create cursor plane: " << qPrintable(m_cursorPlanePath) << '\n';
         return false;
     }
 
@@ -308,7 +327,7 @@ bool DispSetup::makePlane()
 bool DispSetup::setPrimaryPlaneType()
 {
     // DRM_PLANE_TYPE_PRIMARY = 1
-    if (!writeFile(m_planePath + "/type", "2")) {
+    if (!writeFile(m_primaryPlanePath + "/type", QString::number(DRM_PLANE_TYPE_PRIMARY).toLocal8Bit())) {
         std::cerr << "Failed to set plane type to primary.\n";
         return false;
     }
@@ -316,9 +335,19 @@ bool DispSetup::setPrimaryPlaneType()
     return true;
 }
 
-bool DispSetup::linkPlaneToCrtc()
+bool DispSetup::setCursorPlaneType()
 {
-    const QString linkPath = m_planePath + "/possible_crtcs/crtc0";
+    if (!writeFile(m_cursorPlanePath + "/type", QString::number(DRM_PLANE_TYPE_CURSOR).toLocal8Bit())) {
+        std::cerr << "Failed to set plane type to cursor.\n";
+        return false;
+    }
+
+    return true;
+}
+
+bool DispSetup::linkPrimaryPlaneToCrtc()
+{
+    const QString linkPath = m_primaryPlanePath + "/possible_crtcs/crtc0";
     if (QFileInfo::exists(linkPath)) {
         return true;
     }
@@ -326,7 +355,24 @@ bool DispSetup::linkPlaneToCrtc()
     const QByteArray link = linkPath.toLocal8Bit();
     const QByteArray tgt = m_crtcPath.toLocal8Bit();
     if (::symlink(tgt.constData(), link.constData()) != 0) {
-        std::cerr << "Failed to symlink plane → crtc: " << qPrintable(linkPath) << " (" << ::strerror(errno) << ")\n";
+        std::cerr << "Failed to symlink primary plane → crtc: " << qPrintable(linkPath) << " (" << ::strerror(errno) << ")\n";
+        return false;
+    }
+
+    return true;
+}
+
+bool DispSetup::linkCursorPlaneToCrtc()
+{
+    const QString linkPath = m_cursorPlanePath + "/possible_crtcs/crtc0";
+    if (QFileInfo::exists(linkPath)) {
+        return true;
+    }
+
+    const QByteArray link = linkPath.toLocal8Bit();
+    const QByteArray tgt = m_crtcPath.toLocal8Bit();
+    if (::symlink(tgt.constData(), link.constData()) != 0) {
+        std::cerr << "Failed to symlink cursor plane → crtc: " << qPrintable(linkPath) << " (" << ::strerror(errno) << ")\n";
         return false;
     }
 
