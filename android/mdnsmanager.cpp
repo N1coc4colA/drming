@@ -187,7 +187,7 @@ private:
             break;
         }
         case AVAHI_BROWSER_REMOVE: {
-            Q_EMIT c->m_manager.dispatchServiceLost(name);
+            Q_EMIT c->m_manager.dispatchServiceLost(name, domain);
             break;
         }
         case AVAHI_BROWSER_ALL_FOR_NOW:
@@ -261,20 +261,35 @@ void MdnsManager::onServiceFound(const QString &name, const QString &type)
 {
     qDebug() << "Found:" << name << type;
 
+    const auto fullName = name + "*";
     const ServiceInfo info{name, type, "", "", -1};
-    m_services[name] = info;
+    m_services[fullName] = info;
 
-    Q_EMIT serviceFound(info);
+    Q_EMIT serviceFound(fullName, info);
     Q_EMIT countChanged(count());
 }
 
-void MdnsManager::onServiceLost(const QString &name)
+void MdnsManager::onServiceLost(const QString &name, const QString &ip)
 {
     qDebug() << "Lost:" << name;
 
-    m_services.remove(name);
+    const auto fullName = name + "*" + ip;
+    m_services.remove(fullName);
+    if (ip.isEmpty()) {
+        QStringList keys{};
+        for (const auto &key : m_services.keys()) {
+            if (key.startsWith(name)) {
+                keys.append(key);
+            }
+        }
 
-    Q_EMIT serviceLost(name);
+        for (const auto &key : keys) {
+            m_services.remove(key);
+            Q_EMIT serviceLost(key);
+        }
+    }
+
+    Q_EMIT serviceLost(fullName);
     Q_EMIT countChanged(count());
 }
 
@@ -282,11 +297,11 @@ void MdnsManager::onServiceResolved(const QString &name, const QString &host, co
 {
     qDebug() << "Resolved:" << name << host << ip << port;
 
-    if (m_services.contains(name)) {
-        m_services[name].host = host;
-        m_services[name].ip = ip;
-        m_services[name].port = port;
+    const auto fullName = name + "*" + ip;
+    m_services[fullName].name = name;
+    m_services[fullName].host = host;
+    m_services[fullName].ip = ip;
+    m_services[fullName].port = port;
 
-        Q_EMIT serviceResolved(m_services[name]);
-    }
+    Q_EMIT serviceResolved(fullName, m_services[fullName]);
 }

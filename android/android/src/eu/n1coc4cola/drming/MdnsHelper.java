@@ -49,7 +49,7 @@ public class MdnsHelper {
             @Override
             public void onServiceLost(NsdServiceInfo serviceInfo) {
                 Log.d(TAG, "Service lost: " + serviceInfo.getServiceName());
-                nativeOnServiceLost(serviceInfo.getServiceName());
+                nativeOnServiceLost(serviceInfo.getServiceName(), "");
             }
 
             @Override
@@ -91,42 +91,45 @@ public class MdnsHelper {
 
             @Override
             public void onServiceResolved(NsdServiceInfo serviceInfo) {
-                String host = "";
-                String ip = "";
+                final String serviceName = serviceInfo.getServiceName();
+                final int port = serviceInfo.getPort();
+
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                    List<InetAddress> addresses = serviceInfo.getHostAddresses();
-                    if (addresses != null && !addresses.isEmpty()) {
-                        ip = addresses.get(0).getHostAddress();
-                    }
-                    for (InetAddress addr : addresses) {
-                        String vip = addr.getHostAddress();
-                        if (!vip.isEmpty()) {
-                            String hn = addr.getCanonicalHostName();
-                            if (hn != vip) {
+                    for (final InetAddress addr : serviceInfo.getHostAddresses()) {
+                        final String ip = addr.getHostAddress();
+                        String host = "";
+                        if (!ip.isEmpty()) {
+                            final String hn = addr.getCanonicalHostName();
+                            if (hn != ip) {
                                 host = hn;
-                                break;
                             }
                         }
+
+                        nativeOnServiceResolved(serviceName, host, ip, port);
                     }
-                } else {
-                    InetAddress addr = serviceInfo.getHost();
-                    if (addr != null) {
-                        ip = addr.getHostAddress();
-                        String hn = addr.getCanonicalHostName();
+
+                    return;
+                }
+
+                final InetAddress addr = serviceInfo.getHost();
+                if (addr != null) {
+                    final String ip = addr.getHostAddress();
+                    String host = "";
+                    if (!ip.isEmpty()) {
+                        final String hn = addr.getCanonicalHostName();
                         if (hn != ip) {
                             host = hn;
                         }
                     }
-                }
 
-                int port = serviceInfo.getPort();
-                nativeOnServiceResolved(serviceInfo.getServiceName(), host, ip, port);
+                    nativeOnServiceResolved(serviceName, host, ip, port);
+                }
             }
         };
     }
 
     // Native callbacks (must be registered from C++)
     private static native void nativeOnServiceFound(String name, String type);
-    private static native void nativeOnServiceLost(String name);
+    private static native void nativeOnServiceLost(String name, String ip);
     private static native void nativeOnServiceResolved(String name, String host, String ip, int port);
 }

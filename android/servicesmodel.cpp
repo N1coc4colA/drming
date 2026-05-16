@@ -39,7 +39,7 @@ QVariant ServicesModel::data(const QModelIndex &index, int role) const
         return {};
     }
 
-    const ServiceInfo &s = m_services.at(index.row());
+    const ServiceInfo &s = m_services.at(index.row()).second;
 
     switch (role) {
     case NameRole: return s.name;
@@ -64,14 +64,14 @@ QVariantMap ServicesModel::get(int index) const
         return {};
     }
 
-    const ServiceInfo &s = m_services.at(index);
+    const ServiceInfo &s = m_services.at(index).second;
     return {{"name", s.name}, {"host", s.host}, {"ip", s.ip}, {"port", s.port}, {"type", s.type}};
 }
 
-int ServicesModel::findServiceIndex(const QString &name) const
+int ServicesModel::findServiceIndex(const QString &key) const
 {
     for (int i = 0; i < m_services.size(); ++i) {
-        if (m_services.at(i).name == name) {
+        if (m_services.at(i).first == key) {
             return i;
         }
     }
@@ -79,27 +79,27 @@ int ServicesModel::findServiceIndex(const QString &name) const
     return -1;
 }
 
-void ServicesModel::onServiceFound(const ServiceInfo &info)
+void ServicesModel::onServiceFound(const QString &key, const ServiceInfo &info)
 {
     // If already known, update existing entry (avoid duplicates)
     const int idx = findServiceIndex(info.name);
     if (idx != -1) {
-        m_services[idx].type = info.type;
+        m_services[idx].second.type = info.type;
 
         Q_EMIT dataChanged(index(idx), index(idx));
         return;
     }
 
-    beginInsertRows(QModelIndex(), m_services.count(), m_services.count());
-    m_services.append(info);
+    /*beginInsertRows(QModelIndex(), m_services.count(), m_services.count());
+    m_services.append({key, info});
     endInsertRows();
 
-    Q_EMIT countChanged();
+    Q_EMIT countChanged();*/
 }
 
-void ServicesModel::onServiceLost(const QString &name)
+void ServicesModel::onServiceLost(const QString &key)
 {
-    const int idx = findServiceIndex(name);
+    const int idx = findServiceIndex(key);
     if (idx == -1) {
         return;
     }
@@ -111,20 +111,20 @@ void ServicesModel::onServiceLost(const QString &name)
     Q_EMIT countChanged();
 }
 
-void ServicesModel::onServiceResolved(const ServiceInfo &info)
+void ServicesModel::onServiceResolved(const QString &key, const ServiceInfo &info)
 {
     const int idx = findServiceIndex(info.name);
     if (idx == -1) {
         // If we didn't have the service yet, insert it
         beginInsertRows(QModelIndex(), m_services.count(), m_services.count());
-        m_services.append(info);
+        m_services.append({key, info});
         endInsertRows();
 
         Q_EMIT countChanged();
         return;
     }
 
-    m_services[idx] = info;
+    m_services[idx] = {key, info};
 
     Q_EMIT dataChanged(index(idx), index(idx));
 }

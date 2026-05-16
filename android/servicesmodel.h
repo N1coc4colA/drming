@@ -29,12 +29,12 @@ Q_SIGNALS:
     void countChanged();
 
 private Q_SLOTS:
-    void onServiceFound(const ServiceInfo &info);
-    void onServiceLost(const QString &name);
-    void onServiceResolved(const ServiceInfo &info);
+    void onServiceFound(const QString &key, const ServiceInfo &info);
+    void onServiceLost(const QString &key);
+    void onServiceResolved(const QString &key, const ServiceInfo &info);
 
 private:
-    QList<ServiceInfo> m_services{};
+    QList<QPair<QString, ServiceInfo>> m_services{};
 
     int findServiceIndex(const QString &name) const;
 };

@@ -59,13 +59,13 @@ public:
 
 public Q_SLOTS:
     void onServiceFound(const QString &name, const QString &type);
-    void onServiceLost(const QString &name);
+    void onServiceLost(const QString &name, const QString &ip);
     void onServiceResolved(const QString &name, const QString &host, const QString &ip, int port);
 
 Q_SIGNALS:
-    void serviceFound(const ServiceInfo &info);
-    void serviceLost(const QString &name);
-    void serviceResolved(const ServiceInfo &info);
+    void serviceFound(const QString &key, const ServiceInfo &info);
+    void serviceLost(const QString &key);
+    void serviceResolved(const QString &key, const ServiceInfo &info);
     void countChanged(int count);
 
 private:

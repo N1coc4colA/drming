@@ -16,20 +16,23 @@ void onServiceFound(JNIEnv *env, jclass clazz, jstring jname, jstring jtype)
     const char *name = env->GetStringUTFChars(jname, nullptr);
     const char *type = env->GetStringUTFChars(jtype, nullptr);
 
-    // Forward to your Qt class (e.g., MdnsManager singleton)
     MdnsManager::instance().onServiceFound(QString::fromUtf8(name), QString::fromUtf8(type));
 
     env->ReleaseStringUTFChars(jname, name);
     env->ReleaseStringUTFChars(jtype, type);
 }
 
-void onServiceLost(JNIEnv *env, jclass clazz, jstring jname)
+void onServiceLost(JNIEnv *env, jclass clazz, jstring jname, jstring jip)
 {
     Q_UNUSED(clazz);
 
     const char *name = env->GetStringUTFChars(jname, nullptr);
-    MdnsManager::instance().onServiceLost(QString::fromUtf8(name));
+    const char *ip = env->GetStringUTFChars(jip, nullptr);
+
+    MdnsManager::instance().onServiceLost(QString::fromUtf8(name), QString::fromUtf8(ip));
+
     env->ReleaseStringUTFChars(jname, name);
+    env->ReleaseStringUTFChars(jip, ip);
 }
 
 void onServiceResolved(JNIEnv *env, jclass clazz, jstring jname, jstring jhost, jstring jip, jint port)
@@ -43,8 +46,8 @@ void onServiceResolved(JNIEnv *env, jclass clazz, jstring jname, jstring jhost, 
     MdnsManager::instance().onServiceResolved(QString::fromUtf8(name), QString::fromUtf8(host), QString::fromUtf8(ip), port);
 
     env->ReleaseStringUTFChars(jname, name);
-    env->ReleaseStringUTFChars(jip, host);
     env->ReleaseStringUTFChars(jhost, host);
+    env->ReleaseStringUTFChars(jip, ip);
 }
 
 void onConnectivityChanged(JNIEnv *env, jclass clazz, jboolean connected)
@@ -68,11 +71,18 @@ bool registerNativeMethods_MdnsHelper(QJniObject &m_javaHelper)
     }
 
     const std::vector<JNINativeMethod> methods = {{"nativeOnServiceFound", "(Ljava/lang/String;Ljava/lang/String;)V", (void *) ::onServiceFound},
-                                                  {"nativeOnServiceLost", "(Ljava/lang/String;)V", (void *) ::onServiceLost},
+                                                  {"nativeOnServiceLost", "(Ljava/lang/String;Ljava/lang/String;)V", (void *) ::onServiceLost},
                                                   {"nativeOnServiceResolved",
                                                    "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V",
                                                    (void *) ::onServiceResolved}};
-    env->RegisterNatives(clazz, methods.data(), methods.size());
+    const jint regResult = env->RegisterNatives(clazz, methods.data(), methods.size());
+    if (regResult != 0) {
+        qWarning() << "Failed to register native methods for MdnsHelper:" << regResult;
+        env->DeleteLocalRef(clazz);
+        return false;
+    }
+
+    qDebug() << "Registered native methods for MdnsHelper";
     env->DeleteLocalRef(clazz);
 
     return true;
@@ -92,7 +102,14 @@ bool registerNativeMethods_NetworkHelper(QJniObject &m_javaHelper)
     }
 
     const std::vector<JNINativeMethod> methods = {{"nativeOnConnectivityChanged", "(Z)V", (void *) ::onConnectivityChanged}};
-    env->RegisterNatives(clazz, methods.data(), methods.size());
+    const jint regResult = env->RegisterNatives(clazz, methods.data(), methods.size());
+    if (regResult != 0) {
+        qWarning() << "Failed to register native methods for NetworkHelper:" << regResult;
+        env->DeleteLocalRef(clazz);
+        return false;
+    }
+
+    qDebug() << "Registered native methods for NetworkHelper";
     env->DeleteLocalRef(clazz);
 
     return true;
