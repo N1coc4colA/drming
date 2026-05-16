@@ -51,7 +51,7 @@ public:
     static MdnsManager &instance();
 
     Q_INVOKABLE void startDiscovery();
-    void stopDiscovery();
+    Q_INVOKABLE void stopDiscovery();
 
     Q_INVOKABLE inline int count() const { return m_services.count(); }
 

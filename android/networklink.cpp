@@ -11,12 +11,7 @@ NetworkLink::NetworkLink(QObject *parent)
     QAbstractSocket::connect(m_socket, &QTcpSocket::connected, this, &NetworkLink::onConnected);
     QAbstractSocket::connect(m_socket, &QTcpSocket::disconnected, this, &NetworkLink::onDisconnected);
     QAbstractSocket::connect(m_socket, &QTcpSocket::readyRead, this, &NetworkLink::onDataAvailable);
-    QAbstractSocket::connect(m_socket, &QTcpSocket::errorOccurred, [](const QAbstractSocket::SocketError error) {
-        qWarning() << "Connection error occurred: " << error;
-    });
-    QAbstractSocket::connect(m_socket, &QTcpSocket::stateChanged, [](const QAbstractSocket::SocketState socketState) {
-        qInfo() << "State changed: " << socketState;
-    });
+    QAbstractSocket::connect(m_socket, &QTcpSocket::errorOccurred, this, &NetworkLink::onError);
 
     m_socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);  // disables Nagle
     m_socket->setSocketOption(QAbstractSocket::KeepAliveOption, 1); // optional: enable keepalive
@@ -48,7 +43,12 @@ void NetworkLink::connect(const QString &address, const int port)
 
 void NetworkLink::onError(const QAbstractSocket::SocketError error)
 {
-    Q_EMIT NetworkLink::error("Something happened");
+    qWarning() << "Connection error occurred: " << error;
+    if (m_socket) {
+        Q_EMIT NetworkLink::error(m_socket->errorString());
+    } else {
+        Q_EMIT NetworkLink::error(tr("A network error occurred."));
+    }
 }
 
 void NetworkLink::onConnected()

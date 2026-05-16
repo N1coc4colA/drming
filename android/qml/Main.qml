@@ -78,7 +78,56 @@ Window {
 
         onSubmitted: function() {
             networkLink.connect(authDialog.hostIp, authDialog.hostPort);
-            stackView.replace(streamViewerComponent);
+            stackView.push(streamViewerComponent);
+        }
+    }
+
+    Dialog {
+        id: errorDialog
+        title: qsTr("Connection error")
+        modal: true
+        standardButtons: Dialog.Ok
+        onAccepted: {
+            stackView.push(servicesView)
+        }
+
+        Label {
+            id: errorLabel
+            text: ""
+            wrapMode: Text.Wrap
+            width: parent.width - 32
+            horizontalAlignment: Text.AlignHCenter
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.margins: 16
+        }
+    }
+
+    Connections {
+        target: networkLink
+
+        function onError(message) {
+            // Show the message and return to the base services view
+            errorLabel.text = message || qsTr("Unknown connection error");
+            errorDialog.open();
+
+            networkLink.close();
+
+            stackView.pop()
+        }
+    }
+
+    Keys.onReleased: {
+        if (event.key === Qt.Key_Back) {
+            if (window.isStreaming && stackView.depth > 1) {
+                // Leave the stream and go back to services list
+                try { networkLink.close() } catch(e) {}
+                window.isStreaming = false
+                stackView.pop()
+                event.accepted = true
+            } else {
+                // Not streaming: allow default Android behavior (or quit)
+                // event.accepted = false
+            }
         }
     }
 

@@ -22,7 +22,7 @@ Rectangle {
         anchors.fill: parent
         spacing: 8
         clip: true
-        model: servicesModel  // Use the C++ model directly
+        model: servicesModel
 
         delegate: Rectangle {
             width: listView.width
@@ -95,5 +95,13 @@ Rectangle {
         font.pixelSize: 16
         color: "#999999"
         visible: servicesModel.count === 0
+    }
+
+    onVisibleChanged: function(visibility) {
+        if (visibility) {
+            mdnsManager.startDiscovery();
+        } else {
+            mdnsManager.stopDiscovery();
+        }
     }
 }
