@@ -47,7 +47,7 @@ Window {
                         searchQuery: searchBar.searchText
 
                         onServiceSelected: (service) => {
-                            window.selectedService = service
+                            window.selectedService = service;
                             authDialog.hostIp = service.ip;
                             authDialog.hostPort = service.port;
                             authDialog.open();
@@ -75,6 +75,8 @@ Window {
 
     LoginDialog {
         id: authDialog
+        x: (window.width - width)/2
+        y: (window.height - height)/2
 
         onSubmitted: function() {
             networkLink.connect(authDialog.hostIp, authDialog.hostPort);
@@ -84,11 +86,13 @@ Window {
 
     Dialog {
         id: errorDialog
+        x: (window.width - width)/2
+        y: (window.height - height)/2
         title: qsTr("Connection error")
         modal: true
         standardButtons: Dialog.Ok
         onAccepted: {
-            stackView.push(servicesView)
+            stackView.push(servicesView);
         }
 
         Label {
@@ -108,30 +112,24 @@ Window {
         function onError(message) {
             // Show the message and return to the base services view
             errorLabel.text = message || qsTr("Unknown connection error");
-            errorDialog.open();
-
             networkLink.close();
-
-            stackView.pop()
+            stackView.pop();
+            errorDialog.open();
         }
     }
 
     Keys.onReleased: {
         if (event.key === Qt.Key_Back) {
             if (window.isStreaming && stackView.depth > 1) {
-                // Leave the stream and go back to services list
-                try { networkLink.close() } catch(e) {}
-                window.isStreaming = false
-                stackView.pop()
-                event.accepted = true
-            } else {
-                // Not streaming: allow default Android behavior (or quit)
-                // event.accepted = false
+                networkLink.close();
+                window.isStreaming = false;
+                stackView.pop();
+                event.accepted = true;
             }
         }
     }
 
     Component.onCompleted: {
-        mdnsManager.startDiscovery()
+        mdnsManager.startDiscovery();
     }
 }
