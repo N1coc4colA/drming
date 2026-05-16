@@ -68,5 +68,6 @@ vcpkg_installed/
 Testing/
 .cache/
 
-# Qt
+# IDEs
 .qtcreator/
+.idea/
