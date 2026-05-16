@@ -9,6 +9,7 @@ Window {
     height: 480
     visible: true
     title: qsTr("Device Remote Manager")
+    color: "black"
 
     enum ViewState {
         ServiceList,
