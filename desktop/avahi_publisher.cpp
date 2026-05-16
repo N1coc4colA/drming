@@ -43,7 +43,7 @@ void AvahiPublisher::client_callback(AvahiClient *client, AvahiClientState state
                                                   nullptr);
 
     if (ret < 0) {
-        qCritical() << "Add error: " << avahi_strerror(ret);
+        qCritical() << "Avahi Group creation error: " << avahi_strerror(ret);
     } else {
         avahi_entry_group_commit(c->m_group);
     }
@@ -71,18 +71,26 @@ void AvahiPublisher::start()
     }
 
     m_thread = std::thread([this]() {
+        m_ready = true;
+
         m_poll = avahi_simple_poll_new();
-        int error = 0;
-        AvahiClient *client = avahi_client_new(avahi_simple_poll_get(m_poll),
-                                               (AvahiClientFlags) 0,
-                                               (AvahiClientCallback) &client_callback,
-                                               this,
-                                               &error);
-        if (!client) {
-            qCritical() << "Client error: " << avahi_strerror(error);
+        if (!m_poll) {
+            qCritical() << "Avahi poll creation failed.";
+            m_ready = false;
             return;
         }
 
+        int error = 0;
+        m_client = avahi_client_new(avahi_simple_poll_get(m_poll), (AvahiClientFlags) 0, (AvahiClientCallback) &client_callback, this, &error);
+        if (!m_client) {
+            qCritical() << "Avahi Client creation error: " << avahi_strerror(error);
+            avahi_simple_poll_free(m_poll);
+            m_poll = nullptr;
+            m_ready = false;
+            return;
+        }
+
+        m_ready = false;
         m_running = true;
         Q_EMIT dispatchStarted();
         avahi_simple_poll_loop(m_poll);
@@ -91,12 +99,26 @@ void AvahiPublisher::start()
 
 void AvahiPublisher::stop()
 {
-    if (!m_running) {
+    if (!m_running && !m_ready) {
         return;
     }
 
+    if (m_group) {
+        avahi_entry_group_free(m_group);
+        m_group = nullptr;
+    }
+
+    if (m_client) {
+        avahi_client_free(m_client);
+        m_client = nullptr;
+    }
+
     if (m_poll) {
-        avahi_simple_poll_quit(m_poll);
+        if (m_running) {
+            avahi_simple_poll_quit(m_poll);
+        }
+
+        avahi_simple_poll_free(m_poll);
         m_poll = nullptr;
     }
 

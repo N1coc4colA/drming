@@ -34,6 +34,8 @@ private:
     AvahiSimplePoll *m_poll = nullptr;
     AvahiClient *m_client = nullptr;
     std::atomic<bool> m_running = false;
+    std::atomic<bool> m_ready = false;
+
     const uint16_t m_port;
 
     static void group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state, AvahiPublisher *c);
