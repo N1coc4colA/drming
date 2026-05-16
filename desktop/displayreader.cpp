@@ -4,7 +4,6 @@
 
 #include <drm_fourcc.h>
 #include <fcntl.h>
-#include <iostream>
 #include <unistd.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
@@ -228,6 +227,14 @@ bool mapCursorFramebuffer(CursorFrameBuffer &cursor, int drmFd, uint32_t handle)
     return false;
 }
 
+inline void split_fourcc(const uint32_t code, uint8_t &a, uint8_t &b, uint8_t &c, uint8_t &d)
+{
+    a = (uint8_t) (code >> 0) & 0xff;
+    b = (uint8_t) (code >> 8) & 0xff;
+    c = (uint8_t) (code >> 16) & 0xff;
+    d = (uint8_t) (code >> 24) & 0xff;
+}
+
 } // namespace Drm
 
 QImage::Format qtImageFormatFromDrm(const uint32_t drmFormat)
@@ -448,6 +455,7 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
 
         // fd is borrowed from the primary — do not close it in releaseCursorFrameBuffer
         cursor.fd = primary.fd;
+
         return true;
     }
 
@@ -498,7 +506,10 @@ QImage DisplayReader::imageFromFrameBuffer(const uint8_t *data, uint32_t width, 
 
     const QImage::Format fmt = qtImageFormatFromDrm(format);
     if (fmt == QImage::Format_Invalid) {
-        qWarning() << "Image format for frame is invalid.";
+        uint8_t a, b, c, d;
+        Drm::split_fourcc(format, a, b, c, d);
+
+        qWarning() << "Image format for frame is invalid:" << format << ";" << a << b << c << d;
         return {};
     }
 
