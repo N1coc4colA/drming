@@ -2,7 +2,6 @@
 
 #include <cerrno>
 #include <cstring>
-#include <iostream>
 
 #include <unistd.h>
 #include <xf86drmMode.h>
@@ -34,6 +33,7 @@ bool writeFile(const QString &path, const QByteArray &value)
 {
     QFile f(path);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        qCritical() << f.errorString();
         return false;
     }
 
@@ -207,7 +207,7 @@ bool isVkmsConfigEnabled()
 
 bool loadVkmsModule()
 {
-    qInfo() << "Insenting vkms";
+    qInfo() << "Inserting vkms";
 
     QProcess process{};
     process.start("modprobe", {"vkms", "enable_cursor=1"});
@@ -279,9 +279,8 @@ bool DispSetup::makeEnvChecks()
     if (!isVkmsModuleLoaded()) {
         if (!loadVkmsModule()) {
             qCritical() << "VKMS kernel module is not loaded. Its loading failed. You can load it with: modprobe vkms enable_cursor=1";
+            return false;
         }
-
-        return false;
     }
 
     if (!isVkmsConfigEnabled()) {
@@ -444,7 +443,33 @@ bool DispSetup::makeConnector()
 bool DispSetup::writeEdidAndEnable()
 {
     const QString statusPath = m_connectorPath + "/status";
-    writeFile(statusPath, "0");
+
+#ifdef EDID_READY
+    const QString edidPath = m_connectorPath + "/edid";
+    const QString edidEnablePath = m_connectorPath + "/edid_enabled";
+
+    // Disconnect first so the connector state/EDID is updated cleanly.
+    if (!writeFile(statusPath, "0")) {
+        qWarning() << "Failed to disconnect connector before setting EDID.";
+    }
+
+    const QByteArray edid = buildSyntheticEdid();
+    if (edid.size() != 128) {
+        qCritical() << "Synthetic EDID has invalid size:" << edid.size();
+        return false;
+    }
+
+    if (!writeFile(edidPath, edid)) {
+        qCritical() << "Failed to write EDID:" << edidPath;
+        return false;
+    }
+
+    if (!writeFile(edidEnablePath, "1")) {
+        qCritical() << "Failed to enable EDID.";
+        return false;
+    }
+#endif
+
     if (!writeFile(statusPath, "1")) {
         qCritical() << "Failed to set connector status.";
         return false;
