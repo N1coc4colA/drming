@@ -71,3 +71,9 @@ Testing/
 # IDEs
 .qtcreator/
 .idea/
+
+# Kernel build
+*.cmd
+*.symvers
+*.ko
+*.order
