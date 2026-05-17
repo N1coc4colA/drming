@@ -281,6 +281,9 @@ bool DispSetup::makeEnvChecks()
             qCritical() << "VKMS kernel module is not loaded. Its loading failed. You can load it with: modprobe vkms enable_cursor=1";
             return false;
         }
+        // We need to wait for the module to load, it is async.
+        // Otherwise, the program will continue too quickly and fail.
+        sleep(1);
     }
 
     if (!isVkmsConfigEnabled()) {
