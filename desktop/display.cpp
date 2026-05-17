@@ -73,4 +73,5 @@ void Display::onDisconnected()
 {
     m_timer.stop();
     m_client = nullptr;
+    Q_EMIT nowFree(this);
 }

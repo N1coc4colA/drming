@@ -51,16 +51,14 @@ void Server::onNewConnection()
             continue;
         }
 
-        m_clients.append(client);
-        if (m_clients.size() == 1) {
-            Q_EMIT clientConnected();
-        }
-
         connect(client, &QTcpSocket::disconnected, this, &Server::onClientDisconnected);
         connect(client, &QTcpSocket::disconnected, client, &QObject::deleteLater);
 
         client->setSocketOption(QAbstractSocket::LowDelayOption, 1);  // disables Nagle
         client->setSocketOption(QAbstractSocket::KeepAliveOption, 1); // optional: enable keepalive
+
+        m_clients.append(client);
+        Q_EMIT clientConnected(client);
     }
 }
 

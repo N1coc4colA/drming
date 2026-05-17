@@ -17,11 +17,10 @@ public:
     void close();
 
     inline bool hasClient() const { return !m_clients.isEmpty(); }
-    inline QTcpSocket *getClient() { return m_clients.first(); }
 
 Q_SIGNALS:
     void noClient();
-    void clientConnected();
+    void clientConnected(QTcpSocket *client);
 
 public Q_SLOTS:
     void broadcast(const QByteArray &data);

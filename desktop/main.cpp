@@ -1,7 +1,6 @@
 #include "avahi_publisher.h"
 #include "commandparser.h"
-#include "display.h"
-#include "dispsetup.h"
+#include "displaymanager.h"
 #include "parameters.h"
 #include "server.h"
 
@@ -28,21 +27,14 @@ int main(int argc, char *argv[])
         publisher->start();
     }
 
-    DispSetup setup(Parameters::instance.targetScreen);
-    if (!setup.isSetup()) {
-        return EXIT_FAILURE;
-    }
-    qInfo() << "Setup display on connector " << setup.virtualConnectorName();
-
+    DisplayManager manager{};
     Server server{};
+
+    QObject::connect(&server, &Server::clientConnected, &manager, &DisplayManager::registerClient);
+
     if (!server.listen(Parameters::instance.serviceHostIp, Parameters::instance.port)) {
         return EXIT_FAILURE;
     }
-
-    QObject::connect(&server, &Server::clientConnected, [&server, setup]() {
-        auto disp = new Display(setup.virtualConnectorName(), qApp);
-        disp->setClient(server.getClient());
-    });
 
     qInfo() << "Ready!";
 

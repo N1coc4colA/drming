@@ -1,10 +1,24 @@
 #ifndef DISPLAYMANAGER_H
 #define DISPLAYMANAGER_H
 
-class DisplayManager
+#include <QObject>
+#include <QQueue>
+#include <QSet>
+
+class QTcpSocket;
+class Display;
+
+class DisplayManager : public QObject
 {
 public:
-    DisplayManager();
+    explicit DisplayManager(QObject *parent = nullptr);
+    ~DisplayManager();
+
+    void registerClient(QTcpSocket *client);
+
+private:
+    QQueue<Display *> m_freeDisplays{};
+    QSet<Display *> m_usedDisplays{};
 };
 
 #endif // DISPLAYMANAGER_H

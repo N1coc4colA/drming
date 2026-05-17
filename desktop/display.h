@@ -18,6 +18,9 @@ public:
 public Q_SLOTS:
     void setClient(QTcpSocket *client);
 
+Q_SIGNALS:
+    void nowFree(Display *);
+
 private:
     DisplayReader m_reader;
     QTimer m_timer{};
