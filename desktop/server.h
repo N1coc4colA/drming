@@ -17,6 +17,7 @@ public:
     void close();
 
     inline bool hasClient() const { return !m_clients.isEmpty(); }
+    inline QTcpSocket *getClient() { return m_clients.first(); }
 
 Q_SIGNALS:
     void noClient();

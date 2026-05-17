@@ -1,14 +1,11 @@
 #include "avahi_publisher.h"
 #include "commandparser.h"
-#include "displayreader.h"
+#include "display.h"
 #include "dispsetup.h"
 #include "parameters.h"
 #include "server.h"
 
-#include <QBuffer>
 #include <QCoreApplication>
-#include <QTimer>
-#include <QtEndian>
 
 int main(int argc, char *argv[])
 {
@@ -42,59 +39,12 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    DisplayReader reader(setup.virtualConnectorName());
-
-    QTimer timer{};
-    timer.setInterval(60);
-
-    bool primaryFailureNotice = false;
-
-    QObject::connect(&server, &Server::clientConnected, &timer, qOverload<>(&QTimer::start));
-    QObject::connect(&server, &Server::noClient, &timer, &QTimer::stop);
-    QObject::connect(&timer, &QTimer::timeout, [&reader, &server, &primaryFailureNotice]() {
-        VkmsFrameBuffer fb{};
-        if (!reader.getVkmsFrameBuffer(fb)) {
-            if (!primaryFailureNotice) {
-                primaryFailureNotice = true;
-                qCritical() << "Failed to get primary";
-            }
-
-            return;
-        }
-        if (primaryFailureNotice) {
-            primaryFailureNotice = false;
-        }
-
-        CursorFrameBuffer cursorFb{};
-        const bool hasCursor = reader.getCursorFrameBuffer(cursorFb, fb);
-
-        QByteArray output{};
-        QImage result = reader.imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, fb.format);
-        if (hasCursor) {
-            result = reader.compositeWithCursor(result, cursorFb);
-        }
-
-        {
-            QBuffer buf(&output);
-            buf.open(QIODevice::WriteOnly);
-            // high quality = 90, trade CPU vs size
-            result.save(&buf, "JPEG", Parameters::instance.jpegCompression);
-            buf.close();
-
-            const qsizetype size = qToBigEndian(static_cast<qsizetype>(output.size()));
-            output.prepend(reinterpret_cast<const char *>(&size), sizeof(size));
-        }
-
-        reader.releaseVkmsFrameBuffer(fb);
-
-        server.broadcast(output);
+    QObject::connect(&server, &Server::clientConnected, [&server, setup]() {
+        auto disp = new Display(setup.virtualConnectorName(), qApp);
+        disp->setClient(server.getClient());
     });
 
     qInfo() << "Ready!";
-
-    if (server.hasClient()) {
-        timer.start();
-    }
 
     return app.exec();
 }

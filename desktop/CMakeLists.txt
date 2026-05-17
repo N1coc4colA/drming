@@ -33,6 +33,8 @@ qt_add_executable(
 drming_desktop
     MANUAL_FINALIZATION
     ${PROJECT_SOURCES}
+    displaymanager.h displaymanager.cpp
+    display.h display.cpp
 
 )
 
