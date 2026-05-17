@@ -384,6 +384,7 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
     // Must be set before drmModeGetPlaneResources, otherwise the kernel
     // hides cursor and overlay planes from us.
     drmSetClientCap(primary.fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
+    drmSetClientCap(primary.fd, DRM_CLIENT_CAP_ATOMIC, 1);
 
     DrmPlaneResPtr planeRes(drmModeGetPlaneResources(primary.fd));
     if (!planeRes) {
