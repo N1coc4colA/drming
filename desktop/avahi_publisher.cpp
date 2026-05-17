@@ -1,5 +1,6 @@
 #include "avahi_publisher.h"
 
+#include <QCoreApplication>
 #include <QDebug>
 
 #include <avahi-client/publish.h>
@@ -55,8 +56,11 @@ AvahiPublisher::AvahiPublisher(const QString &serviceName, const QString &protoc
     , m_protocol(protocol)
     , m_port(port)
 {
+    connect(this, &AvahiPublisher::started, []() { qInfo() << "Service publishing started."; });
+    connect(this, &AvahiPublisher::stopped, []() { qInfo() << "Service publishing stopped."; });
     connect(this, &AvahiPublisher::dispatchStopped, this, &AvahiPublisher::stopped, Qt::QueuedConnection);
     connect(this, &AvahiPublisher::dispatchStarted, this, &AvahiPublisher::started, Qt::QueuedConnection);
+    connect(qApp, &QCoreApplication::aboutToQuit, this, &AvahiPublisher::stop);
 }
 
 AvahiPublisher::~AvahiPublisher()

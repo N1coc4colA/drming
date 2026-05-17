@@ -6,10 +6,15 @@
 class CommandParser
 {
 public:
+    enum Exit {
+        Failure,
+        Stop,
+        Continue,
+    };
+
     CommandParser();
 
-    bool parse();
-    inline QCommandLineParser &parser() { return m_parser; }
+    Exit parse();
 
 private:
     QCommandLineParser m_parser{};

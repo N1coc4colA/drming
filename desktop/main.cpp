@@ -2,6 +2,7 @@
 #include "commandparser.h"
 #include "displayreader.h"
 #include "dispsetup.h"
+#include "parameters.h"
 #include "server.h"
 
 #include <QBuffer>
@@ -16,69 +17,28 @@ int main(int argc, char *argv[])
     app.setApplicationVersion("1.0");
 
     CommandParser parser{};
-    if (!parser.parse()) {
+    switch (parser.parse()) {
+    case CommandParser::Failure:
         return EXIT_FAILURE;
-    }
-
-    if (parser.parser().isSet("help")) {
-        parser.parser().showHelp(EXIT_SUCCESS);
-    }
-
-    if (parser.parser().isSet("version")) {
-        parser.parser().showVersion();
+    case CommandParser::Stop:
         return EXIT_SUCCESS;
+    case CommandParser::Continue:
+        break;
     }
 
-    const QString targetScreen = parser.parser().value("display");
-    const QString serviceName = parser.parser().value("service");
-    const QString portName = parser.parser().value("port");
-    const QString serviceIp = parser.parser().value("ip");
-    const QString compressionLevel = parser.parser().value("compression");
-    const auto serviceHostIp = serviceIp.isEmpty() ? QHostAddress::Any : QHostAddress(serviceIp);
-    bool valid = false;
-
-    const int port = portName.toInt(&valid);
-    if (!valid) {
-        qCritical() << "It seems the port is not base 10, and could not be parsed.";
-        return EXIT_FAILURE;
-    }
-    if (port < 1 || port > 65535) {
-        qCritical() << QObject::tr("Port number is not within the right range.");
-        return EXIT_FAILURE;
-    }
-
-    if (serviceHostIp.isNull()) {
-        qCritical() << "The supplied service exposure IP is invalid.";
-        return EXIT_FAILURE;
-    }
-
-    const int jpegCompression = compressionLevel.toInt(&valid);
-    if (!valid) {
-        qCritical() << QObject::tr("The supplied compression level is not base 10, and could not be parsed.");
-        return EXIT_FAILURE;
-    }
-    if (jpegCompression < -1 || jpegCompression > 100) {
-        qCritical() << QObject::tr("The compression level is not within the right range.");
-        return EXIT_FAILURE;
-    }
-
-    auto publisher = new AvahiPublisher(serviceName, "_drming._tcp", static_cast<uint16_t>(port));
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, publisher, &AvahiPublisher::stop);
-    QObject::connect(publisher, &AvahiPublisher::started, []() { qInfo() << "Service publishing started."; });
-    QObject::connect(publisher, &AvahiPublisher::stopped, []() { qInfo() << "Service publishing stopped."; });
-
-    if (!parser.parser().isSet("no-advertise")) {
+    if (!Parameters::instance.advertise) {
+        auto publisher = new AvahiPublisher(Parameters::instance.serviceName, "_drming._tcp", static_cast<uint16_t>(Parameters::instance.port), &app);
         publisher->start();
     }
 
-    DispSetup setup(targetScreen);
+    DispSetup setup(Parameters::instance.targetScreen);
     if (!setup.isSetup()) {
         return EXIT_FAILURE;
     }
     qInfo() << "Setup display on connector " << setup.virtualConnectorName();
 
     Server server{};
-    if (!server.listen(serviceHostIp, port)) {
+    if (!server.listen(Parameters::instance.serviceHostIp, Parameters::instance.port)) {
         return EXIT_FAILURE;
     }
 
@@ -91,7 +51,7 @@ int main(int argc, char *argv[])
 
     QObject::connect(&server, &Server::clientConnected, &timer, qOverload<>(&QTimer::start));
     QObject::connect(&server, &Server::noClient, &timer, &QTimer::stop);
-    QObject::connect(&timer, &QTimer::timeout, [&reader, &server, &primaryFailureNotice, jpegCompression]() {
+    QObject::connect(&timer, &QTimer::timeout, [&reader, &server, &primaryFailureNotice]() {
         VkmsFrameBuffer fb{};
         if (!reader.getVkmsFrameBuffer(fb)) {
             if (!primaryFailureNotice) {
@@ -118,7 +78,7 @@ int main(int argc, char *argv[])
             QBuffer buf(&output);
             buf.open(QIODevice::WriteOnly);
             // high quality = 90, trade CPU vs size
-            result.save(&buf, "JPEG", jpegCompression);
+            result.save(&buf, "JPEG", Parameters::instance.jpegCompression);
             buf.close();
 
             const qsizetype size = qToBigEndian(static_cast<qsizetype>(output.size()));

@@ -5,6 +5,8 @@
 
 #include <stdlib.h>
 
+#include "parameters.h"
+
 CommandParser::CommandParser()
 {
     m_parser.setApplicationDescription("Utility to share a new screen over the network.");
@@ -20,12 +22,64 @@ CommandParser::CommandParser()
     });
 }
 
-bool CommandParser::parse()
+CommandParser::Exit CommandParser::parse()
 {
     if (!m_parser.parse(qApp->arguments())) {
         qCritical() << m_parser.errorText();
-        return false;
+        return Failure;
     }
 
-    return true;
+    if (m_parser.isSet("help")) {
+        m_parser.showHelp(EXIT_SUCCESS);
+    }
+
+    if (m_parser.isSet("version")) {
+        m_parser.showVersion();
+        return Stop;
+    }
+
+    const QString targetScreen = m_parser.value("display");
+    const QString serviceName = m_parser.value("service");
+    const QString portName = m_parser.value("port");
+    const QString serviceIp = m_parser.value("ip");
+    const QString compressionLevel = m_parser.value("compression");
+    const auto serviceHostIp = serviceIp.isEmpty() ? QHostAddress::Any : QHostAddress(serviceIp);
+    bool valid = false;
+
+    const int port = portName.toInt(&valid);
+    if (!valid) {
+        qCritical() << "It seems the port is not base 10, and could not be parsed.";
+        return Failure;
+    }
+    if (port < 1 || port > 65535) {
+        qCritical() << QObject::tr("Port number is not within the right range.");
+        return Failure;
+    }
+
+    if (serviceHostIp.isNull()) {
+        qCritical() << "The supplied service exposure IP is invalid.";
+        return Failure;
+    }
+
+    const int jpegCompression = compressionLevel.toInt(&valid);
+    if (!valid) {
+        qCritical() << QObject::tr("The supplied compression level is not base 10, and could not be parsed.");
+        return Failure;
+    }
+    if (jpegCompression < -1 || jpegCompression > 100) {
+        qCritical() << QObject::tr("The compression level is not within the right range.");
+        return Failure;
+    }
+
+    Parameters::instance = Parameters{
+        .targetScreen = targetScreen,
+        .serviceName = serviceName,
+        .serviceIp = serviceIp,
+        .serviceHostIp = serviceHostIp,
+        .jpegCompression = jpegCompression,
+        .port = port,
+        .advertise = m_parser.isSet("no-advertise"),
+    };
+
+    return Continue;
 }
