@@ -77,3 +77,4 @@ Testing/
 *.symvers
 *.ko
 *.order
+*.mod.c
