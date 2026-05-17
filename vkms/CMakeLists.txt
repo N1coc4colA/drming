@@ -1,25 +1,24 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(driver VERSION 0.1.0 LANGUAGES C)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-add_definitions(-D__KERNEL__ -DMODULE)
 
+# Headers discovery
 if (NOT DEFINED KERNELHEADERS_DIR)
     execute_process(
         COMMAND uname -r
         OUTPUT_VARIABLE KERNEL_RELEASE
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-
     set(_possible_dirs
         /lib/modules/${KERNEL_RELEASE}/build
         /usr/src/kernels/${KERNEL_RELEASE}
         /usr/src/linux-headers-${KERNEL_RELEASE}
         /usr/src/linux-headers-${KERNEL_RELEASE}-generic
     )
-
     foreach (_d IN LISTS _possible_dirs)
         if (EXISTS "${_d}")
             set(KERNELHEADERS_DIR "${_d}")
@@ -31,33 +30,106 @@ endif ()
 if (NOT DEFINED KERNELHEADERS_DIR OR NOT EXISTS "${KERNELHEADERS_DIR}")
     message(FATAL_ERROR "Could not find kernel build directory. Set -DKERNELHEADERS_DIR=/lib/modules/$(uname -r)/build")
 endif ()
+message(STATUS "Kernel headers dir: ${KERNELHEADERS_DIR}")
 
-message(STATUS "Kernel build dir: ${KERNELHEADERS_DIR}")
+# Collect the include paths that kbuild itself would use.
+#
+# The kernel splits its headers across several directories:
+#   include/                  – portable headers (linux/slab.h lives here)
+#   arch/<arch>/include/      – arch-specific headers
+#   arch/<arch>/include/generated/ – generated arch headers (asm/*)
+#   include/generated/        – generated portable headers (linux/version.h…)
+#   include/uapi/ and arch/.../uapi/ – userspace-exported headers (needed by
+#                                      some kernel headers that include them)
+#
+# On Fedora/RHEL the kernel-headers package puts everything under
+# /usr/src/kernels/<release>/ and there is no separate build tree,
+# so all of these sub-directories live right there.
+execute_process(
+    COMMAND uname -m
+    OUTPUT_VARIABLE HOST_ARCH_RAW
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
 
-include_directories("${KERNELHEADERS_DIR}/include")
 
+# Normalise to the kernel arch name (x86_64 → x86, aarch64 → arm64, …)
+if (HOST_ARCH_RAW MATCHES "x86_64|i[3-6]86")
+    set(KERNEL_ARCH "x86")
+elseif (HOST_ARCH_RAW MATCHES "aarch64|arm64")
+    set(KERNEL_ARCH "arm64")
+elseif (HOST_ARCH_RAW MATCHES "arm")
+    set(KERNEL_ARCH "arm")
+elseif (HOST_ARCH_RAW MATCHES "riscv")
+    set(KERNEL_ARCH "riscv")
+else()
+    set(KERNEL_ARCH "${HOST_ARCH_RAW}")
+endif()
+message(STATUS "Kernel arch: ${KERNEL_ARCH}")
+
+
+# Build the canonical list of include directories, adding only those that
+# actually exist (so this works whether you have a full build tree or just
+# the distro header package).
+set(KERNEL_INCLUDE_DIRS "")
+foreach (_candidate
+        "${KERNELHEADERS_DIR}/include"
+        "${KERNELHEADERS_DIR}/include/generated"
+        "${KERNELHEADERS_DIR}/include/uapi"
+        "${KERNELHEADERS_DIR}/arch/${KERNEL_ARCH}/include"
+        "${KERNELHEADERS_DIR}/arch/${KERNEL_ARCH}/include/generated"
+        "${KERNELHEADERS_DIR}/arch/${KERNEL_ARCH}/include/uapi"
+        "${KERNELHEADERS_DIR}/arch/${KERNEL_ARCH}/include/generated/uapi"
+)
+    if (EXISTS "${_candidate}")
+        list(APPEND KERNEL_INCLUDE_DIRS "${_candidate}")
+    endif ()
+endforeach ()
+message(STATUS "Kernel include dirs: ${KERNEL_INCLUDE_DIRS}")
+
+
+# For IDE support
+add_definitions(-D__KERNEL__ -DMODULE)
+
+# A dummy INTERFACE target so that CMake records the include paths and
+# defines in compile_commands.json without trying to compile anything itself.
+add_library(kernel_includes INTERFACE)
+target_include_directories(kernel_includes INTERFACE ${KERNEL_INCLUDE_DIRS})
+target_compile_definitions(kernel_includes INTERFACE
+    __KERNEL__
+    MODULE
+    # The IDE needs this to resolve asm/ → arch/<arch>/include/asm
+    CONFIG_X86_64   # adjust if cross-compiling, or detect dynamically
+)
+
+
+# Sources
 file(GLOB_RECURSE VKMS_C_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
 )
 file(GLOB_RECURSE VKMS_H_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
 )
-
 if (NOT VKMS_C_SOURCES)
-    message("C sources: ${VKMS_C_SOURCES}")
     message(FATAL_ERROR "No C sources found under ${CMAKE_CURRENT_SOURCE_DIR}/src")
 endif ()
 
-# Make sources visible to the IDE
-add_custom_target(vkms_sources
-    SOURCES
-        ${VKMS_C_SOURCES}
-        ${VKMS_H_SOURCES}
+
+# IDE Support
+add_library(vkms_ide_target STATIC EXCLUDE_FROM_ALL
+    ${VKMS_C_SOURCES}
+    ${VKMS_H_SOURCES}
+)
+target_link_libraries(vkms_ide_target PRIVATE kernel_includes)
+
+# Suppress CMake's own compiler from actually trying to link a kernel module
+# (it would fail). The target exists only for IDE/compile_commands purposes.
+set_target_properties(vkms_ide_target PROPERTIES
+    EXCLUDE_FROM_ALL TRUE
 )
 
-# Generate kbuild Makefile in src/
-set(SRC_MAKEFILE "${CMAKE_CURRENT_SOURCE_DIR}/src/Makefile")
 
+# Generate the kbuild Makefile in src/
+set(SRC_MAKEFILE "${CMAKE_CURRENT_SOURCE_DIR}/src/Makefile")
 set(OBJ_LIST "")
 foreach (_src IN LISTS VKMS_C_SOURCES)
     get_filename_component(_bn "${_src}" NAME_WE)
@@ -66,7 +138,6 @@ endforeach ()
 
 set(MAKEFILE_TEXT "# autogenerated by CMake for kbuild\n\n")
 set(MAKEFILE_TEXT "${MAKEFILE_TEXT}vkms-objs := \\\n")
-
 list(LENGTH OBJ_LIST _count)
 math(EXPR _last_idx "${_count} - 1")
 foreach (idx RANGE 0 ${_last_idx})
@@ -77,19 +148,34 @@ foreach (idx RANGE 0 ${_last_idx})
         set(MAKEFILE_TEXT "${MAKEFILE_TEXT}    ${_obj} \\\n")
     endif ()
 endforeach ()
-
 set(MAKEFILE_TEXT "${MAKEFILE_TEXT}\nobj-$(CONFIG_DRM_VKMS) += vkms.o\n")
-
 file(WRITE "${SRC_MAKEFILE}" "${MAKEFILE_TEXT}")
 
-set(DRIVER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src/vkms.ko")
 
+# Actual kbuild invocation
+#
+# EXTRA_CFLAGS threads our extra include directories into kbuild's compiler
+# calls. Without this, kbuild only uses its own internal include search path
+# and never sees the -I flags CMake would pass to its own compiler.
+
+# Build the -I flags string for EXTRA_CFLAGS
+set(EXTRA_CFLAGS_LIST "")
+foreach (_inc IN LISTS KERNEL_INCLUDE_DIRS)
+    list(APPEND EXTRA_CFLAGS_LIST "-I${_inc}")
+endforeach ()
+# Convert list to a space-separated string
+list(JOIN EXTRA_CFLAGS_LIST " " EXTRA_CFLAGS_STR)
+
+set(DRIVER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src/vkms.ko")
 add_custom_command(
     OUTPUT "${DRIVER_PATH}"
-    COMMAND "${CMAKE_MAKE_PROGRAM}" -C "${KERNELHEADERS_DIR}" "M=${CMAKE_CURRENT_SOURCE_DIR}/src" modules
+    COMMAND "${CMAKE_MAKE_PROGRAM}"
+            -C "${KERNELHEADERS_DIR}"
+            "M=${CMAKE_CURRENT_SOURCE_DIR}/src"
+            "EXTRA_CFLAGS=${EXTRA_CFLAGS_STR}"
+            modules
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src"
     DEPENDS ${VKMS_C_SOURCES} ${VKMS_H_SOURCES} "${SRC_MAKEFILE}"
     VERBATIM
 )
-
 add_custom_target(driver ALL DEPENDS "${DRIVER_PATH}")
