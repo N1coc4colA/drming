@@ -5,7 +5,7 @@
 #include <QTcpSocket>
 #include <QtEndian>
 
-#include "../Parser.h"
+#include "../parser.h"
 #include "parameters.h"
 
 Display::Display(const QString &connectorName, QObject *parent)

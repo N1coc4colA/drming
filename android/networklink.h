@@ -5,7 +5,7 @@
 #include <QObject>
 #include <QTcpSocket>
 
-#include "../Parser.h"
+#include "../parser.h"
 
 class NetworkLink : public QObject, Packets::Parser<NetworkLink>
 {

@@ -65,31 +65,6 @@ void NetworkLink::onDisconnected()
 
 void NetworkLink::onDataAvailable()
 {
-    /*static constexpr qsizetype headerSize = sizeof(qsizetype);
-    m_buffer += m_socket->readAll();
-
-    if (m_imageSize == 0) {
-        if (m_buffer.size() < headerSize) {
-            return;
-        }
-
-        QDataStream reader(m_buffer);
-        reader.setByteOrder(QDataStream::BigEndian);
-        reader >> m_imageSize;
-        m_buffer.remove(0, headerSize);
-    }
-
-    if (m_buffer.size() < m_imageSize) {
-        return;
-    }
-
-    const auto img = QImage::fromData(m_buffer, "JPEG");
-
-    m_buffer.remove(0, m_imageSize);
-    m_imageSize = 0;
-
-    Q_EMIT imageReady(img);*/
-
     addData(m_socket->readAll());
 }
 
@@ -97,7 +72,10 @@ void NetworkLink::processPacket(const Packets::ServerImage &srvImg)
 {
     const auto img = QImage::fromData(srvImg.data, "JPEG");
 
-    Q_EMIT imageReady(img);
+    if (!img.isNull()) {
+        [[likely]];
+        Q_EMIT imageReady(img);
+    }
 }
 
 void NetworkLink::processPacket(const Packets::ServerBrightness &brightness)
