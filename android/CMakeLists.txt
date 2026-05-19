@@ -8,7 +8,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -O0")
 set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -g -O0")
@@ -18,6 +18,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick Network)
 
 
 set(PROJECT_SOURCES
+    ../parser.h
     main.cpp
     mdnsmanager.h mdnsmanager.cpp
     native.h native.cpp

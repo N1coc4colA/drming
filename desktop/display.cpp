@@ -5,6 +5,7 @@
 #include <QTcpSocket>
 #include <QtEndian>
 
+#include "../Parser.h"
 #include "parameters.h"
 
 Display::Display(const QString &connectorName, QObject *parent)
@@ -40,23 +41,20 @@ void Display::forward()
     CursorFrameBuffer cursorFb{};
     const bool hasCursor = m_reader.getCursorFrameBuffer(cursorFb, fb);
 
-    QByteArray output{};
+    Packets::ServerImage servImg{};
     QImage result = m_reader.imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, fb.format);
     if (hasCursor) {
         result = m_reader.compositeWithCursor(result, cursorFb);
     }
 
     {
-        QBuffer buf(&output);
+        QBuffer buf(&servImg.data);
         buf.open(QIODevice::WriteOnly);
-        // high quality = 90, trade CPU vs size
         result.save(&buf, "JPEG", Parameters::instance.jpegCompression);
         buf.close();
-
-        const qsizetype size = qToBigEndian(static_cast<qsizetype>(output.size()));
-        output.prepend(reinterpret_cast<const char *>(&size), sizeof(size));
     }
 
+    QByteArray output = Packets::Writer::generate(servImg);
     m_reader.releaseVkmsFrameBuffer(fb);
 
     if (m_client && m_client->state() == QAbstractSocket::ConnectedState) {

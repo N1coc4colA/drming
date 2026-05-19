@@ -5,13 +5,19 @@
 #include <QObject>
 #include <QTcpSocket>
 
-class NetworkLink : public QObject
+#include "../Parser.h"
+
+class NetworkLink : public QObject, Packets::Parser<NetworkLink>
 {
     Q_OBJECT
 
 public:
     explicit NetworkLink(QObject *parent = nullptr);
     ~NetworkLink();
+
+    void processPacket(const Packets::ServerImage &img);
+    inline void processPacket(const Packets::ClientResolution &res) { Q_UNUSED(res); }
+    void processPacket(const Packets::ServerBrightness &brightness);
 
 Q_SIGNALS:
     void error(const QString &explanation);

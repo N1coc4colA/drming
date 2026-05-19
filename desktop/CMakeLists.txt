@@ -18,9 +18,12 @@ pkg_check_modules(AVAHI REQUIRED avahi-client)
 
 
 set(PROJECT_SOURCES
+    ../parser.h
     main.cpp
     avahi_publisher.h avahi_publisher.cpp
     commandparser.h commandparser.cpp
+    display.h display.cpp
+    displaymanager.h displaymanager.cpp
     displayreader.h displayreader.cpp
     dispsetup.h dispsetup.cpp
     parameters.h parameters.cpp
@@ -33,8 +36,6 @@ qt_add_executable(
 drming_desktop
     MANUAL_FINALIZATION
     ${PROJECT_SOURCES}
-    displaymanager.h displaymanager.cpp
-    display.h display.cpp
 
 )
 

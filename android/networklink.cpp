@@ -6,6 +6,7 @@
 
 NetworkLink::NetworkLink(QObject *parent)
     : QObject{parent}
+    , Packets::Parser<NetworkLink>(*this)
     , m_socket(new QTcpSocket(this))
 {
     QAbstractSocket::connect(m_socket, &QTcpSocket::connected, this, &NetworkLink::onConnected);
@@ -64,7 +65,7 @@ void NetworkLink::onDisconnected()
 
 void NetworkLink::onDataAvailable()
 {
-    static constexpr qsizetype headerSize = sizeof(qsizetype);
+    /*static constexpr qsizetype headerSize = sizeof(qsizetype);
     m_buffer += m_socket->readAll();
 
     if (m_imageSize == 0) {
@@ -87,5 +88,19 @@ void NetworkLink::onDataAvailable()
     m_buffer.remove(0, m_imageSize);
     m_imageSize = 0;
 
+    Q_EMIT imageReady(img);*/
+
+    addData(m_socket->readAll());
+}
+
+void NetworkLink::processPacket(const Packets::ServerImage &srvImg)
+{
+    const auto img = QImage::fromData(srvImg.data, "JPEG");
+
     Q_EMIT imageReady(img);
+}
+
+void NetworkLink::processPacket(const Packets::ServerBrightness &brightness)
+{
+    Q_UNUSED(brightness);
 }
