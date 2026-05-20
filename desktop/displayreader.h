@@ -5,12 +5,16 @@
 #include <QPixmap>
 #include <QString>
 
+#include <stdfloat>
+
 #include "vkmsfb.h"
 
 class DisplayReader
 {
 public:
     explicit DisplayReader(const QString &connectorName);
+
+    bool getConnectorBrightness(const VkmsFrameBuffer &fb, qfloat16 &brightness);
 
     bool getVkmsFrameBuffer(VkmsFrameBuffer &fb);
     static void releaseVkmsFrameBuffer(VkmsFrameBuffer &fb);

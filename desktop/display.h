@@ -25,6 +25,7 @@ private:
     DisplayReader m_reader;
     QTimer m_timer{};
     QTcpSocket *m_client = nullptr;
+    qfloat16 m_brightness = -1.f;
     bool primaryFailureNotice = false;
 
 private Q_SLOTS:

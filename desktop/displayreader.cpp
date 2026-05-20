@@ -255,6 +255,53 @@ DisplayReader::DisplayReader(const QString &connectorName)
     : m_connectorName(connectorName)
 {}
 
+bool DisplayReader::getConnectorBrightness(const VkmsFrameBuffer &fb, qfloat16 &brightness)
+{
+    using namespace Drm;
+
+    if (fb.fd < 0) {
+        return false;
+    }
+
+    DrmResourcesPtr resources(drmModeGetResources(fb.fd));
+    if (!resources) {
+        return false;
+    }
+
+    for (int i = 0; i < resources->count_connectors; ++i) {
+        DrmConnectorPtr connector(drmModeGetConnector(fb.fd, resources->connectors[i]));
+        if (!connector) {
+            continue;
+        }
+
+        DrmObjectPropsPtr props(drmModeObjectGetProperties(fb.fd, connector->connector_id, DRM_MODE_OBJECT_CONNECTOR));
+        if (!props) {
+            break;
+        }
+
+        for (uint32_t j = 0; j < props->count_props; ++j) {
+            DrmPropertyPtr prop(drmModeGetProperty(fb.fd, props->props[j]));
+            if (!prop) {
+                continue;
+            }
+
+            if (QLatin1String(prop->name) == QLatin1String("Brightness")) {
+                const uint64_t minVal = prop->values[0];
+                const uint64_t maxVal = prop->values[1];
+                const uint64_t raw = props->prop_values[j];
+
+                brightness = static_cast<qfloat16>((maxVal > minVal) ? static_cast<float>(raw - minVal) / static_cast<float>(maxVal - minVal) : -1.0f);
+
+                return true;
+            }
+        }
+
+        break;
+    }
+
+    return false;
+}
+
 bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
 {
     using namespace Drm;

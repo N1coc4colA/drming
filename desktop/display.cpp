@@ -38,6 +38,9 @@ void Display::forward()
 
     primaryFailureNotice = false;
 
+    qfloat16 brightness = static_cast<qfloat16>(-1.f);
+    Q_UNUSED(m_reader.getConnectorBrightness(fb, brightness));
+
     CursorFrameBuffer cursorFb{};
     const bool hasCursor = m_reader.getCursorFrameBuffer(cursorFb, fb);
 
@@ -58,6 +61,11 @@ void Display::forward()
     m_reader.releaseVkmsFrameBuffer(fb);
 
     if (m_client && m_client->state() == QAbstractSocket::ConnectedState) {
+        if (m_brightness != brightness) {
+            m_brightness = brightness;
+            m_client->write(Packets::Writer::generate(Packets::ServerBrightness{.brightness = brightness}));
+        }
+
         m_client->write(output);
     }
 }
