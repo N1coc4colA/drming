@@ -359,6 +359,27 @@ public:
 
         return output;
     }
+
+    template<typename T>
+        requires(!has_variableMembers<T>::value)
+    static QByteArray generate(const T &t)
+    {
+        static constexpr size_t membersCount = has_members<T>::value ? (std::end(T::members) - std::begin(T::members)) : 0;
+
+        QByteArray output{};
+        QDataStream stream(&output, QIODeviceBase::WriteOnly);
+        stream.setByteOrder(QDataStream::BigEndian);
+
+        // Write packet type header
+        stream << static_cast<quint16>(T::type);
+
+        // Write fixed-size members
+        for (size_t i = 0; i < membersCount; i++) {
+            std::visit([&](auto ptr) { stream << t.*ptr; }, T::members[i]);
+        }
+
+        return output;
+    }
 };
 
 } // namespace Packets
