@@ -14,7 +14,7 @@ public:
     explicit DisplayManager(QObject *parent = nullptr);
     ~DisplayManager();
 
-    void registerClient(QTcpSocket *client);
+    bool registerClient(QTcpSocket *client);
 
 private:
     QQueue<Display *> m_freeDisplays{};

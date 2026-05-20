@@ -30,7 +30,12 @@ int main(int argc, char *argv[])
     DisplayManager manager{};
     Server server{};
 
-    QObject::connect(&server, &Server::clientConnected, &manager, &DisplayManager::registerClient);
+    QObject::connect(&server, &Server::clientConnected, [&manager](QTcpSocket *client) {
+        // An error occurred.
+        if (!manager.registerClient(client)) {
+            client->close();
+        }
+    });
 
     if (!server.listen(Parameters::instance.serviceHostIp, Parameters::instance.port)) {
         return EXIT_FAILURE;

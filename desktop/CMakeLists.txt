@@ -28,6 +28,7 @@ set(PROJECT_SOURCES
     dispsetup.h dispsetup.cpp
     parameters.h parameters.cpp
     server.h server.cpp
+    settings.h
     vkmsfb.h
 )
 

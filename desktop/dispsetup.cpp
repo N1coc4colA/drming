@@ -485,20 +485,38 @@ QString DispSetup::findVirtualConnectorName() const
 {
     const QDir drmDir(QStringLiteral("/sys/class/drm"));
     const auto entries = drmDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+
     for (const QString &entry : entries) {
         if (!entry.contains(QStringLiteral("-Virtual-"))) {
             continue;
         }
 
+        // Check if connector is connected (just in case)
         QFile status(drmDir.filePath(entry) + QStringLiteral("/status"));
         if (!status.open(QIODevice::ReadOnly)) {
             continue;
         }
 
-        if (status.readAll().trimmed() == "connected") {
+        if (status.readAll().trimmed() != "connected") {
+            continue;
+        }
+
+        // Verify this connector belongs to our instance by checking the device symlink
+        const QFileInfo deviceInfo(drmDir.filePath(entry));
+        if (!deviceInfo.isSymLink()) {
+            continue;
+        }
+
+        // Read the symlink target to get the device name
+        const QString target = deviceInfo.symLinkTarget();
+
+        // The symlink target should contain our instance name
+        // e.g., "../../../drming_0" or "/sys/devices/faux/drming_0"
+        if (target.contains(m_instanceName)) {
             return entry;
         }
     }
 
+    qCritical() << "No matching virtual connector found for instance:" << m_instanceName;
     return {};
 }

@@ -5,6 +5,7 @@
 #include "display.h"
 #include "dispsetup.h"
 #include "parameters.h"
+#include "settings.h"
 
 DisplayManager::DisplayManager(QObject *parent)
     : QObject(parent)
@@ -19,15 +20,20 @@ DisplayManager::~DisplayManager()
     m_usedDisplays.clear();
 }
 
-void DisplayManager::registerClient(QTcpSocket *client)
+bool DisplayManager::registerClient(QTcpSocket *client)
 {
+    const auto number = QString::number(Parameters::instance.servedScreens);
     if (m_freeDisplays.isEmpty()) {
-        DispSetup setup(Parameters::instance.targetScreen + "_" + QString::number(Parameters::instance.servedScreens));
-        if (!setup.isSetup()) {
-            return;
+        if (Parameters::instance.servedScreens > Settings::maximumDisplayCount) {
+            return false;
         }
 
-        qInfo() << "Setup display on connector " << setup.virtualConnectorName();
+        const auto instance = Parameters::instance.targetScreen + "_" + QString(Settings::maximumDisplayCountLength - number.size(), '0') + number;
+        DispSetup setup(instance);
+        if (!setup.isSetup()) {
+            return false;
+        }
+
         Parameters::instance.servedScreens++;
         m_freeDisplays.enqueue(new Display(setup.virtualConnectorName(), this));
     }
@@ -37,4 +43,6 @@ void DisplayManager::registerClient(QTcpSocket *client)
     disp->setClient(client);
 
     connect(disp, &Display::nowFree, this, [this](Display *disp) { m_freeDisplays.enqueue(disp); });
+
+    return true;
 }
