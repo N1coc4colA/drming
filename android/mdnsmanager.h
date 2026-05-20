@@ -81,7 +81,7 @@ private:
 
 Q_SIGNALS:
     void dispatchServiceFound(const QString &name, const QString &type);
-    void dispatchServiceLost(const QString &name);
+    void dispatchServiceLost(const QString &name, const QString &ip);
     void dispatchServiceResolved(const QString &name, const QString &host, const QString &ip, int port);
 
     friend class AvahiDiscoverer;
