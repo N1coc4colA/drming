@@ -4,8 +4,7 @@
 
 #include "native.h"
 
-NetworkState::NetworkState(QObject *parent)
-    : QObject{parent}
+    NetworkState::NetworkState(QObject *parent) : QObject{parent }
 {
 #ifdef Q_OS_ANDROID
     if (!createNativeObject_NetworkHelper(m_javaHelper)) {

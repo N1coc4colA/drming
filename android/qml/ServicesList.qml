@@ -1,11 +1,12 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Shapes
 
-Rectangle {
-    id: servicesList
-    color: "transparent"
+Item {
+    id: root
 
+    property real topMargin: 10
     property string searchQuery: ""
     property var selectedService: ({
         name: "",
@@ -24,76 +25,104 @@ Rectangle {
         clip: true
         model: servicesModel
 
-        delegate: Rectangle {
+        ScrollBar.vertical: ScrollBar {
+            id: scrollBar
+            active: servicesModel.count > 0
+            background: Rectangle {
+                color: palette.dark
+                opacity: scrollBar.contentItem.opacity
+            }
+        }
+
+        header: Item {
+            id: topSpacer
+            height: topMargin * 1.5
+            width: listView.width
+        }
+
+        footer: Item {
+            height: listView.spacing
+            width: listView.width
+        }
+
+        delegate: Item {
             width: listView.width
             height: visible ? 140 : 0
-            color: "#ffffff"
-            radius: 8
-            border.color: "#e0e0e0"
-            border.width: 1
-
-            // Filter based on search query
             visible: model.name.toLowerCase().includes(searchQuery.toLowerCase())
 
-            MouseArea {
+            Rectangle {
+                radius: 8
+                color: palette.mid
+                border.color: palette.dark
+                border.width: 1
                 anchors.fill: parent
-                onClicked: function() {
-                    selectedService.name = model.name;
-                    selectedService.host = model.host;
-                    selectedService.ip = model.ip;
-                    selectedService.port = model.port;
-                    selectedService.type = model.type;
+                anchors.leftMargin: 5
+                anchors.rightMargin: anchors.leftMargin
 
-                    servicesList.serviceSelected(selectedService);
-                }
-
-                ColumnLayout {
-                    id: cl
+                MouseArea {
                     anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 4
+                    onClicked: function() {
+                        selectedService.name = model.name;
+                        selectedService.host = model.host;
+                        selectedService.ip = model.ip;
+                        selectedService.port = model.port;
+                        selectedService.type = model.type;
 
-                    Text {
-                        text: model.name
-                        font.pixelSize: 18
-                        font.bold: true
-                        color: "#333333"
+                        root.serviceSelected(selectedService);
                     }
 
-                    Text {
-                        text: qsTr("Host: %1").arg(model.host)
-                        font.pixelSize: 14
-                        color: "#666666"
-                        Layout.maximumWidth: 100;
-                    }
+                    ColumnLayout {
+                        id: cl
+                        anchors.fill: parent
+                        anchors.margins: 16
+                        spacing: 4
 
-                    Text {
-                        text: qsTr("IP: %1").arg(model.ip)
-                        font.pixelSize: 14
-                        color: "#666666"
-                        Layout.maximumWidth: 100;
-                    }
+                        Label {
+                            text: model.name
+                            font.pixelSize: 18
+                            font.bold: true
+                        }
 
-                    Text {
-                        text: qsTr("Port: %1").arg(model.port)
-                        font.pixelSize: 14
-                        color: "#666666"
-                        Layout.maximumWidth: 100;
+                        Label {
+                            text: qsTr("Host: %1").arg(model.host)
+                            font.pixelSize: 14
+                            Layout.maximumWidth: 100;
+                        }
+
+                        Label {
+                            text: qsTr("IP: %1").arg(model.ip)
+                            font.pixelSize: 14
+                            Layout.maximumWidth: 100;
+                        }
+
+                        Label {
+                            text: qsTr("Port: %1").arg(model.port)
+                            font.pixelSize: 14
+                            Layout.maximumWidth: 100;
+                        }
                     }
                 }
             }
         }
+    }
 
-        ScrollBar.vertical: ScrollBar {
-            active: servicesModel.count > 0
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+
+        height: topMargin + listView.spacing
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: palette.window }
+            GradientStop { position: 0.5; color: palette.window }
+            GradientStop { position: 1.0; color: "transparent" }
         }
     }
 
-    Text {
+    Label {
         anchors.centerIn: parent
         text: networkState.connected ?  qsTr("No services found") : qsTr("No internet connection")
         font.pixelSize: 16
-        color: "#999999"
         visible: servicesModel.count === 0
     }
 

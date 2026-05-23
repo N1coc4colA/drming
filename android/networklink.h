@@ -3,7 +3,8 @@
 
 #include <QImage>
 #include <QObject>
-#include <QTcpSocket>
+#include <QSslSocket>
+#include <QSslError>
 
 #include "../parser.h"
 
@@ -33,11 +34,13 @@ private Q_SLOTS:
     void onConnected();
     void onDisconnected();
     void onError(QAbstractSocket::SocketError err);
+    void onSslErrors(const QList<QSslError> &errors);
     void onDataAvailable();
 
 private:
+    const QList<QSslCertificate> m_trustedCerts;
     QByteArray m_buffer{};
-    QTcpSocket *m_socket = nullptr;
+    QSslSocket *m_socket = nullptr;
     quint16 m_format = 0;
     quint32 m_width = 0;
     quint32 m_height = 0;

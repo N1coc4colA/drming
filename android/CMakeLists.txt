@@ -40,10 +40,19 @@ qt_add_qml_module(drming_android
     URI drming
     QML_FILES
         qml/Main.qml
-        qml/LoginDialog.qml
+
+        qml/HomePage.qml
+        qml/CertificatesPages.qml
+        qml/KeysPage.qml
+        qml/ServicesPage.qml
+
         qml/SearchBar.qml
         qml/ServicesList.qml
         qml/ServiceSelector.qml
+        qml/LoginDialog.qml
+
+    RESOURCES
+        assets.qrc
 )
 
 set_target_properties(

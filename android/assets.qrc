@@ -1,0 +1,17 @@
+<RCC>
+    <qresource prefix="/">
+        <file>assets/dark/document-new.svg</file>
+        <file>assets/dark/edit-clear.svg</file>
+        <file>assets/dark/edit-find.svg</file>
+        <file>assets/dark/help-about.svg</file>
+        <file>assets/light/document-new.svg</file>
+        <file>assets/light/edit-clear.svg</file>
+        <file>assets/light/edit-find.svg</file>
+        <file>assets/light/help-about.svg</file>
+        <file>assets/application-certificate.svg</file>
+        <file>assets/application-x-pem-key.svg</file>
+        <file>assets/edit-delete.svg</file>
+        <file>assets/user-desktop.svg</file>
+        <file>qml/CardButton.qml</file>
+    </qresource>
+</RCC>

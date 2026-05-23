@@ -2,13 +2,14 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-Popup {
+Dialog {
     id: popup
     anchors.centerIn: parent
     width: Math.min(parent.width - 40, 400)
     height: contentHeight + 40
     modal: true
     focus: true
+    title: qsTr("Connect to Service?")
 
     signal accepted
     signal rejected
@@ -25,18 +26,9 @@ Popup {
         anchors.centerIn: parent
         spacing: 16
 
-        Text {
-            text: qsTr("Connect to Service?")
-            font.pixelSize: 20
-            font.bold: true
-            color: "#333333"
-            Layout.fillWidth: true
-        }
-
         Rectangle {
             Layout.fillWidth: true
             height: 1
-            color: "#e0e0e0"
         }
 
         ColumnLayout {
@@ -46,48 +38,16 @@ Popup {
             Text {
                 text: qsTr("Service: %1").arg(popup.serviceInfo ? name : "")
                 font.pixelSize: 14
-                color: "#333333"
             }
 
             Text {
                 text: qsTr("Host: %1").arg(popup.serviceInfo ? host : "")
                 font.pixelSize: 14
-                color: "#666666"
             }
 
             Text {
                 text: qsTr("Port: %1").arg(popup.serviceInfo ? port : "")
                 font.pixelSize: 14
-                color: "#666666"
-            }
-        }
-
-        Rectangle {
-            Layout.fillWidth: true
-            height: 1
-            color: "#e0e0e0"
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
-
-            Button {
-                text: qsTr("Cancel")
-                Layout.fillWidth: true
-                onClicked: {
-                    popup.rejected()
-                    popup.close()
-                }
-            }
-
-            Button {
-                text: qsTr("Accept")
-                Layout.fillWidth: true
-                onClicked: {
-                    popup.accepted()
-                    popup.close()
-                }
             }
         }
     }

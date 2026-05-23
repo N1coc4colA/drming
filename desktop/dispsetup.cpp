@@ -283,7 +283,7 @@ bool DispSetup::makeEnvChecks()
         }
         // We need to wait for the module to load, it is async.
         // Otherwise, the program will continue too quickly and fail.
-        sleep(1);
+        sleep(2);
     }
 
     if (!isVkmsConfigEnabled()) {

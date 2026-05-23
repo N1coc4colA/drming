@@ -2,20 +2,39 @@
 
 #include <QBuffer>
 #include <QDebug>
+#include <QDir>
+#include <QSslCertificate>
+#include <QSslConfiguration>
 #include <QtEndian>
 
 NetworkLink::NetworkLink(QObject *parent)
     : QObject{parent}
     , Packets::Parser<NetworkLink>(*this)
-    , m_socket(new QTcpSocket(this))
+    , m_trustedCerts(
+          QSslCertificate::fromPath("/home/nicolas/Documents/repos/github/drming/certs/valids/*", QSsl::Pem, QSslCertificate::PatternSyntax::Wildcard))
+    , m_socket(new QSslSocket(this))
 {
-    QAbstractSocket::connect(m_socket, &QTcpSocket::connected, this, &NetworkLink::onConnected);
-    QAbstractSocket::connect(m_socket, &QTcpSocket::disconnected, this, &NetworkLink::onDisconnected);
-    QAbstractSocket::connect(m_socket, &QTcpSocket::readyRead, this, &NetworkLink::onDataAvailable);
-    QAbstractSocket::connect(m_socket, &QTcpSocket::errorOccurred, this, &NetworkLink::onError);
+    if (m_trustedCerts.isEmpty()) {
+        qWarning() << "No trusted certificates found in /home/nicolas/Documents/repos/github/drming/certs/valids/";
+    } else {
+        qInfo() << "Loaded" << m_trustedCerts.size() << "trusted certificate(s) from /home/nicolas/Documents/repos/github/drming/certs/valids/";
+    }
 
-    m_socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);  // disables Nagle
-    m_socket->setSocketOption(QAbstractSocket::KeepAliveOption, 1); // optional: enable keepalive
+    // Disable all default CA verification — we do our own allowlist check
+    QSslConfiguration conf = QSslConfiguration::defaultConfiguration();
+    conf.setCaCertificates({});
+    conf.setPeerVerifyMode(QSslSocket::VerifyNone); // Avoid chain validation
+    m_socket->setSslConfiguration(conf);
+
+    QAbstractSocket::connect(m_socket, &QSslSocket::connected, this, &NetworkLink::onConnected);
+    QAbstractSocket::connect(m_socket, &QSslSocket::disconnected, this, &NetworkLink::onDisconnected);
+    QAbstractSocket::connect(m_socket, &QSslSocket::readyRead, this, &NetworkLink::onDataAvailable);
+    QAbstractSocket::connect(m_socket, &QSslSocket::errorOccurred, this, &NetworkLink::onError);
+    QAbstractSocket::connect(m_socket, &QSslSocket::encrypted, this, &NetworkLink::onConnected);
+    QAbstractSocket::connect(m_socket, &QSslSocket::sslErrors, this, &NetworkLink::onSslErrors);
+
+    m_socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
+    m_socket->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
 }
 
 NetworkLink::~NetworkLink()
@@ -39,7 +58,8 @@ void NetworkLink::connect(const QString &address, const int port)
     }
 
     qInfo() << "Connecting to:" << address << port;
-    m_socket->connectToHost(address, port);
+    // Use encrypted connection
+    m_socket->connectToHostEncrypted(address, port);
 }
 
 void NetworkLink::onError(const QAbstractSocket::SocketError error)
@@ -54,7 +74,10 @@ void NetworkLink::onError(const QAbstractSocket::SocketError error)
 
 void NetworkLink::onConnected()
 {
-    qInfo() << "Connected";
+    qInfo() << "Connected (encrypted:" << m_socket->isEncrypted() << ")";
+    if (m_socket->isEncrypted()) {
+        Q_EMIT opened();
+    }
 }
 
 void NetworkLink::onDisconnected()
@@ -66,6 +89,40 @@ void NetworkLink::onDisconnected()
 void NetworkLink::onDataAvailable()
 {
     addData(m_socket->readAll());
+}
+
+void NetworkLink::onSslErrors(const QList<QSslError> &errors)
+{
+    const QSslCertificate serverCert = m_socket->peerCertificate();
+
+    if (serverCert.isNull()) {
+        qWarning() << "Server provided no certificate, aborting.";
+        m_socket->abort();
+        return;
+    }
+
+    if (!m_trustedCerts.contains(serverCert)) {
+        qWarning() << "Server certificate is not in the trusted list, aborting.";
+        m_socket->abort();
+        return;
+    }
+
+    // Cert is in our allowlist — we only tolerate hostname mismatch errors.
+    // Chain/expiry/revocation errors are still fatal.
+    QList<QSslError> ignorable;
+    for (const QSslError &e : errors) {
+        if (e.error() == QSslError::HostNameMismatch) {
+            ignorable.append(e);
+        } else {
+            qWarning() << "Unacceptable SSL error:" << e.errorString();
+        }
+    }
+
+    if (ignorable.size() == errors.size()) {
+        m_socket->ignoreSslErrors(ignorable);
+    } else {
+        m_socket->abort();
+    }
 }
 
 void NetworkLink::processPacket(const Packets::ServerImage &srvImg)

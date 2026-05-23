@@ -4,41 +4,39 @@ import QtQuick.Layouts
 
 Rectangle {
     id: searchBar
-    color: "#ffffff"
-    radius: 8
-    border.color: "#e0e0e0"
+    radius: 5
+    color: palette.mid
+    border.color: textInput.focus ? palette.highlight : palette.dark
     border.width: 1
 
+    property bool darkMode: Application.styleHints.colorScheme === Qt.ColorScheme.Dark
     property alias searchText: textInput.text
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 8
-        spacing: 8
+        anchors.margins: 3
+        anchors.leftMargin: 10
+        anchors.rightMargin: 10
+        spacing: 5
 
-        Text {
-            text: "🔍"
-            font.pixelSize: 20
+        Image {
+            fillMode: Image.PreserveAspectFit
+            source: darkMode ? "qrc:/assets/dark/edit-find.svg" : "qrc:/assets/light/edit-find.svg"
         }
 
         TextField {
             id: textInput
             Layout.fillWidth: true
-            Layout.fillHeight: true
             placeholderText: qsTr("Search services...")
-            background: Rectangle {
-                color: "transparent"
-            }
+            background: Item {}
             font.pixelSize: 16
         }
 
         Button {
-            text: "✕"
+            icon.source: darkMode ? "qrc:/assets/dark/edit-clear.svg" : "qrc:/assets/light/edit-clear.svg"
             visible: textInput.text.length > 0
             onClicked: textInput.text = ""
-            background: Rectangle {
-                color: "transparent"
-            }
+            background: Item {}
         }
     }
 }

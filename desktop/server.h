@@ -3,8 +3,8 @@
 
 #include <QList>
 #include <QObject>
-#include <QTcpServer>
-#include <QTcpSocket>
+#include <QSslServer>
+#include <QSslSocket>
 
 class Server : public QObject
 {
@@ -20,18 +20,20 @@ public:
 
 Q_SIGNALS:
     void noClient();
-    void clientConnected(QTcpSocket *client);
+    void clientConnected(QSslSocket *client);
 
 public Q_SLOTS:
     void broadcast(const QByteArray &data);
 
 private Q_SLOTS:
-    void onNewConnection();
+    void onNewConnection(QSslSocket *socket);
     void onClientDisconnected();
 
 private:
-    QTcpServer m_server{};
-    QList<QTcpSocket *> m_clients{};
+    QSslServer m_server{};
+    QList<QSslSocket *> m_clients{};
+
+    static bool loadServerSslConfig(QSslConfiguration &outConfig);
 };
 
-#endif // SERVER_H
+#endif

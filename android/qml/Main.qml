@@ -9,79 +9,81 @@ Window {
     height: 480
     visible: true
     title: qsTr("Device Remote Manager")
-    color: "black"
+    color: palette.window
 
     enum ViewState {
-        ServiceList,
-        Confirmed
+        HomePage,
+        CertificatesPages,
+        KeysPage,
+        ServicesPage,
+        Streaming
     }
 
-    property int viewState: Main.ViewState.ServiceList
-    property var selectedService: null
+    property int viewState: Main.ViewState.HomePage
 
     StackView {
         id: stackView
         anchors.fill: parent
 
-        initialItem: servicesView
+        initialItem: homeView
 
         Component {
-            id: servicesView
-            Rectangle {
-                color: "#f5f5f5"
+            id: homeView
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 12
+            HomePage {
+                id: hom
 
-                    SearchBar {
-                        id: searchBar
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 48
-                    }
-
-                    ServicesList {
-                        id: servicesList
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        searchQuery: searchBar.searchText
-
-                        onServiceSelected: (service) => {
-                            window.selectedService = service;
-                            authDialog.hostIp = service.ip;
-                            authDialog.hostPort = service.port;
-                            authDialog.open();
-                        }
-                    }
+                onCertsViewNeeded: {
+                    stackView.push(certsView)
+                }
+                onKeysViewNeeded: {
+                    stackView.push(keysView)
+                }
+                onServicesViewNeeded: {
+                    stackView.push(servicesView)
                 }
             }
         }
 
         Component {
-            id: streamViewerComponent
+            id: certsView
+            CertificatesPages {
+                id: certificates
+            }
+        }
+
+        Component {
+            id: keysView
+            KeysPage {
+                id: keys
+            }
+        }
+
+        Component {
+            id: servicesView
+            ServicesPage {
+                id: services
+
+                onDisplayStream: {
+                    stackView.pop()
+                    stackView.push(streamView)
+                }
+            }
+        }
+
+        Component {
+            id: streamView
             VideoFrame {
-                id: streamViewer
+                id: stream
 
                 Connections {
                     target: networkLink
 
                     function onImageReady(image) {
-                        streamViewer.setImage(image);
+                        stream.setImage(image);
                     }
                 }
             }
-        }
-    }
-
-    LoginDialog {
-        id: authDialog
-        x: (window.width - width)/2
-        y: (window.height - height)/2
-
-        onSubmitted: function() {
-            networkLink.connect(authDialog.hostIp, authDialog.hostPort);
-            stackView.push(streamViewerComponent);
         }
     }
 
@@ -92,15 +94,11 @@ Window {
         title: qsTr("Connection error")
         modal: true
         standardButtons: Dialog.Ok
-        onAccepted: {
-            stackView.push(servicesView);
-        }
 
         Label {
             id: errorLabel
             text: ""
             wrapMode: Text.Wrap
-            width: parent.width - 32
             horizontalAlignment: Text.AlignHCenter
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.margins: 16
@@ -128,9 +126,5 @@ Window {
                 event.accepted = true;
             }
         }
-    }
-
-    Component.onCompleted: {
-        mdnsManager.startDiscovery();
     }
 }
