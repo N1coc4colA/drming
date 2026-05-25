@@ -4,7 +4,7 @@
 #include <QAbstractListModel>
 #include <QVariantMap>
 
-#include "mdnsmanager.h"
+#include "../mdns.h"
 
 class ServicesModel : public QAbstractListModel
 {

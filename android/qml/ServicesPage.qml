@@ -1,47 +1,42 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import VideoStream
 
-Item {
+StandardPage {
     id: root
 
     property var selectedService: null
+    property string searchText: ""
 
     signal displayStream
 
-    ColumnLayout {
+    content: ServicesList {
+        id: servicesList
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        searchQuery: root.searchText
+
+        onServiceSelected: (service) => {
+            root.selectedService = service;
+            authDialog.hostIp = service.ip;
+            authDialog.hostPort = service.port;
+            authDialog.open();
+        }
+    }
+
+    ShaderEffectSource {
+        id: shaderBlurSource
+        sourceItem: root
+        visible: false
         anchors.fill: parent
-        spacing: 0
-
-        SearchBar {
-            id: searchBar
-            Layout.fillWidth: true
-            Layout.preferredHeight: 36
-            Layout.leftMargin: 5
-            Layout.rightMargin: Layout.leftMargin
-            Layout.topMargin: Layout.leftMargin
-        }
-
-        ServicesList {
-            id: servicesList
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            searchQuery: searchBar.searchText
-
-            onServiceSelected: (service) => {
-                root.selectedService = service;
-                authDialog.hostIp = service.ip;
-                authDialog.hostPort = service.port;
-                authDialog.open();
-            }
-        }
+        hideSource: false
+        live: true
+        textureSize: Qt.size(width / 2, height / 2)
     }
 
     LoginDialog {
         id: authDialog
-        x: (window.width - width)/2
-        y: (window.height - height)/2
+        blurSource: shaderBlurSource
 
         onSubmitted: function() {
             networkLink.connect(authDialog.hostIp, authDialog.hostPort);

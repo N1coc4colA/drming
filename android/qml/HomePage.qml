@@ -55,13 +55,11 @@ Item {
                         Layout.fillHeight: false
                         Layout.fillWidth: true
                     }
-                    Button {
+                    EasyButton {
                         display: AbstractButton.TextUnderIcon
                         text: qsTr("Connect")
                         icon.source: "qrc:/assets/user-desktop.svg"
-                        icon.height: bounding
-                        icon.width: bounding
-                        icon.color: "transparent"
+                        bounding: root.bounding
                         Layout.preferredHeight: buttonsHeight
                         Layout.preferredWidth: buttonsWidth
                         Layout.maximumHeight: buttonsHeight
@@ -73,13 +71,11 @@ Item {
                         Layout.fillWidth: true
                         Layout.maximumWidth: 60
                     }
-                    Button {
+                    EasyButton {
                         display: AbstractButton.TextUnderIcon
                         text: qsTr("Certificates")
                         icon.source: "qrc:/assets/application-certificate.svg"
-                        icon.height: bounding
-                        icon.width: bounding
-                        icon.color: "transparent"
+                        bounding: root.bounding
                         Layout.preferredHeight: buttonsHeight
                         Layout.preferredWidth: buttonsWidth
                         Layout.maximumHeight: buttonsHeight
@@ -91,13 +87,12 @@ Item {
                         Layout.fillWidth: true
                         Layout.maximumWidth: 60
                     }
-                    Button {
+                    EasyButton {
+                        id: btn
                         display: AbstractButton.TextUnderIcon
                         text: qsTr("Keys")
                         icon.source: "qrc:/assets/application-x-pem-key.svg"
-                        icon.height: bounding
-                        icon.width: bounding
-                        icon.color: "transparent"
+                        bounding: root.bounding
                         Layout.preferredHeight: buttonsHeight
                         Layout.preferredWidth: buttonsWidth
                         Layout.maximumHeight: buttonsHeight

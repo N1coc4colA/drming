@@ -2,12 +2,11 @@
 
 #include <QDebug>
 
-#ifdef Q_OS_ANDROID
-
 #include <QJniEnvironment>
 #include <QJniObject>
 
-#include "mdnsmanager.h"
+#include "../../mdns.h"
+#include "../../networkstatus.h"
 
 void onServiceFound(JNIEnv *env, jclass clazz, jstring jname, jstring jtype)
 {
@@ -16,7 +15,7 @@ void onServiceFound(JNIEnv *env, jclass clazz, jstring jname, jstring jtype)
     const char *name = env->GetStringUTFChars(jname, nullptr);
     const char *type = env->GetStringUTFChars(jtype, nullptr);
 
-    MdnsManager::instance().onServiceFound(QString::fromUtf8(name), QString::fromUtf8(type));
+    Mdns::instance()->onServiceFound(QString::fromUtf8(name), QString::fromUtf8(type));
 
     env->ReleaseStringUTFChars(jname, name);
     env->ReleaseStringUTFChars(jtype, type);
@@ -29,7 +28,7 @@ void onServiceLost(JNIEnv *env, jclass clazz, jstring jname, jstring jip)
     const char *name = env->GetStringUTFChars(jname, nullptr);
     const char *ip = env->GetStringUTFChars(jip, nullptr);
 
-    MdnsManager::instance().onServiceLost(QString::fromUtf8(name), QString::fromUtf8(ip));
+    Mdns::instance()->onServiceLost(QString::fromUtf8(name), QString::fromUtf8(ip));
 
     env->ReleaseStringUTFChars(jname, name);
     env->ReleaseStringUTFChars(jip, ip);
@@ -43,7 +42,7 @@ void onServiceResolved(JNIEnv *env, jclass clazz, jstring jname, jstring jhost, 
     const char *ip = env->GetStringUTFChars(jip, nullptr);
     const char *host = env->GetStringUTFChars(jhost, nullptr);
 
-    MdnsManager::instance().onServiceResolved(QString::fromUtf8(name), QString::fromUtf8(host), QString::fromUtf8(ip), port);
+    Mdns::instance()->onServiceResolved(QString::fromUtf8(name), QString::fromUtf8(host), QString::fromUtf8(ip), port);
 
     env->ReleaseStringUTFChars(jname, name);
     env->ReleaseStringUTFChars(jhost, host);
@@ -54,7 +53,7 @@ void onConnectivityChanged(JNIEnv *env, jclass clazz, jboolean connected)
 {
     Q_UNUSED(clazz);
 
-    MdnsManager::instance().networkState().onConnectivityChanged(connected);
+    NetworkState::instance()->onConnectivityChanged(connected);
 }
 
 bool registerNativeMethods_MdnsHelper(QJniObject &m_javaHelper)
@@ -172,19 +171,3 @@ bool createNativeObject_NetworkHelper(QJniObject &m_javaHelper)
 
     return true;
 }
-
-#else
-
-bool createNativeObject_MdnsHelper(QJniObject &m_javaHelper)
-{
-    Q_UNUSED(m_javaHelper);
-    return false;
-}
-
-bool createNativeObject_NetworkHelper(QJniObject &m_javaHelper)
-{
-    Q_UNUSED(m_javaHelper);
-    return false;
-}
-
-#endif

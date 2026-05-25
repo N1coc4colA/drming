@@ -2,9 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-Dialog {
+EasyDialog {
     id: root
-
     title: qsTr("Login")
     modal: true
 
@@ -15,45 +14,55 @@ Dialog {
     signal submitted
     signal cancelled
 
-    GridLayout {
-        columns: 2
+    content: ColumnLayout {
+        spacing: 8
+        Layout.margins: 8
 
-        Label {
-            text: qsTr("Server IP:")
-        }
-        Label {
-            text: root.hostIp
-        }
+        GridLayout {
+            columns: 2
 
-        Label {
-            text: qsTr("Server port:")
-        }
-        Label {
-            text: root.hostPort
+            Label {
+                text: qsTr("Server IP:")
+            }
+            Label {
+                text: root.hostIp
+            }
+
+            Label {
+                text: qsTr("Server port:")
+            }
+            Label {
+                text: root.hostPort
+            }
         }
     }
 
-    footer: DialogButtonBox {
-        Button {
+    footer: RowLayout {
+        spacing: 10
+        Layout.margins: 8
+
+        EasyButton {
             text: qsTr("Cancel")
+            icon.source: "qrc:/assets/window-close.svg"
             DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
-            onClicked: root.reject()
+            onClicked: {
+                root.close()
+                root.cancelled()
+            }
         }
-        Button {
+        Item {
+            Layout.fillWidth: true
+        }
+
+        EasyButton {
             text: qsTr("Continue")
+            icon.source: "qrc:/assets/go-next.svg"
             enabled: root.isValid
             DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
-            onClicked: root.submitted()
+            onClicked: {
+                root.close()
+                root.submitted()
+            }
         }
-    }
-
-    onAccepted: function() {
-        root.close();
-        root.submitted();
-    }
-
-    onRejected: function() {
-        root.close();
-        root.cancelled();
     }
 }

@@ -13,20 +13,34 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -O0")
 set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -g -O0")
 
-
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network)
 
 
 set(PROJECT_SOURCES
     ../parser.h
     main.cpp
-    mdnsmanager.h mdnsmanager.cpp
-    native.h native.cpp
+    fileprovider.h fileprovider.cpp
+    mdns.h mdns.cpp
     networklink.h networklink.cpp
     networkstatus.h networkstatus.cpp
-    servicesmodel.h servicesmodel.cpp
-    videoframeitem.h videoframeitem.cpp
+    palette.h palette.cpp
+
+    declarative/videoframeitem.h
+    declarative/videoframeitem.cpp
+
+    models/filesmodel.h
+    models/filesmodel.cpp
+    models/servicesmodel.h
+    models/servicesmodel.cpp
 )
+
+if (ANDROID)
+    file(GLOB_RECURSE PROJECT_PLATFORM_SOURCES ${PROJECT_SOURCE_DIR}/platform/android/*.cpp)
+    file(GLOB_RECURSE PROJECT_PLATFORM_HEADERS ${PROJECT_SOURCE_DIR}/platform/android/*.h)
+else()
+    file(GLOB_RECURSE PROJECT_PLATFORM_SOURCES ${PROJECT_SOURCE_DIR}/platform/linux/*.cpp)
+    file(GLOB_RECURSE PROJECT_PLATFORM_HEADERS ${PROJECT_SOURCE_DIR}/platform/linux/*.h)
+endif()
 
 
 qt_standard_project_setup(REQUIRES 6.10)
@@ -34,6 +48,8 @@ qt_standard_project_setup(REQUIRES 6.10)
 qt_add_executable(
 drming_android
     ${PROJECT_SOURCES}
+    ${PROJECT_PLATFORM_HEADERS}
+    ${PROJECT_PLATFORM_SOURCES}
 )
 
 qt_add_qml_module(drming_android
@@ -45,11 +61,20 @@ qt_add_qml_module(drming_android
         qml/CertificatesPages.qml
         qml/KeysPage.qml
         qml/ServicesPage.qml
+        qml/StreamPage.qml
 
         qml/SearchBar.qml
         qml/ServicesList.qml
         qml/ServiceSelector.qml
         qml/LoginDialog.qml
+
+        qml/HeaderBar.qml
+        qml/EasyButton.qml
+        qml/EasyDialog.qml
+        qml/EasyPage.qml
+        qml/StandardPage.qml
+
+        qml/TapAnimation.qml
 
     RESOURCES
         assets.qrc
@@ -72,11 +97,11 @@ drming_android
         Qt6::Gui
         Qt6::Network
         Qt6::Quick
+        Qt6::QuickControls2
 )
 
 
-if(ANDROID)
-else()
+if (NOT ANDROID)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(AVAHI REQUIRED avahi-client)
 

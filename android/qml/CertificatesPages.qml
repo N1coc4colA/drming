@@ -1,5 +1,5 @@
 import QtQuick
 
-Rectangle {
+StandardPage {
     id: root
 }

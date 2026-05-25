@@ -1,13 +1,8 @@
-#include "mdnsmanager.h"
+#include "mdns.h"
 
 #include <QCoreApplication>
 #include <QDebug>
 
-#ifdef Q_OS_ANDROID
-#include <QJniObject>
-
-#include "native.h"
-#else
 #include <avahi-client/client.h>
 #include <avahi-client/lookup.h>
 #include <avahi-common/error.h>
@@ -15,18 +10,18 @@
 #include <avahi-common/simple-watch.h>
 #include <set>
 #include <thread>
-#endif
 
-#ifndef Q_OS_ANDROID
+namespace Platform {
+
 class AvahiDiscoverer
 {
 public:
-    explicit AvahiDiscoverer(MdnsManager &manager)
+    explicit AvahiDiscoverer(Mdns &manager)
         : m_manager(manager)
     {
-        QObject::connect(&m_manager, &MdnsManager::dispatchServiceFound, &m_manager, &MdnsManager::onServiceFound, Qt::QueuedConnection);
-        QObject::connect(&m_manager, &MdnsManager::dispatchServiceLost, &m_manager, &MdnsManager::onServiceLost, Qt::QueuedConnection);
-        QObject::connect(&m_manager, &MdnsManager::dispatchServiceResolved, &m_manager, &MdnsManager::onServiceResolved, Qt::QueuedConnection);
+        QObject::connect(&m_manager, &Mdns::dispatchServiceFound, &m_manager, &Mdns::onServiceFound, Qt::QueuedConnection);
+        QObject::connect(&m_manager, &Mdns::dispatchServiceLost, &m_manager, &Mdns::onServiceLost, Qt::QueuedConnection);
+        QObject::connect(&m_manager, &Mdns::dispatchServiceResolved, &m_manager, &Mdns::onServiceResolved, Qt::QueuedConnection);
     }
 
     void start()
@@ -106,7 +101,7 @@ public:
 private:
     std::set<AvahiServiceResolver *> m_pendingResolvers{};
     std::thread m_thread{};
-    MdnsManager &m_manager;
+    Mdns &m_manager;
     AvahiSimplePoll *m_poll = nullptr;
     AvahiClient *m_client = nullptr;
     AvahiServiceBrowser *m_sb = nullptr;
@@ -206,102 +201,25 @@ private:
         }
     }
 };
-#endif
 
-MdnsManager::MdnsManager(QObject *parent)
-    : QObject(parent)
-#ifndef Q_OS_ANDROID
+Mdns::Mdns(QObject *parent)
+    : ::Mdns(parent)
     , m_avahi(new AvahiDiscoverer(*this))
-#endif
-{
-    assert(!m_instance);
+{}
 
-    m_instance = this;
-}
-
-#ifndef Q_OS_ANDROID
-MdnsManager::~MdnsManager()
+Mdns::~Mdns()
 {
     delete m_avahi;
 }
-#endif
 
-MdnsManager *MdnsManager::m_instance = nullptr;
-
-MdnsManager &MdnsManager::instance()
+void Mdns::startDiscovery()
 {
-    return *m_instance;
-}
-
-void MdnsManager::startDiscovery()
-{
-#ifdef Q_OS_ANDROID
-    if (!createNativeObject_MdnsHelper(m_javaHelper)) {
-        return;
-    }
-
-    m_javaHelper.callMethod<void>("startDiscovery");
-#else
     m_avahi->start();
-#endif
 }
 
-void MdnsManager::stopDiscovery()
+void Mdns::stopDiscovery()
 {
-#ifdef Q_OS_ANDROID
-    if (m_javaHelper.isValid()) {
-        m_javaHelper.callMethod<void>("stopDiscovery");
-    }
-#else
     m_avahi->stop();
-#endif
 }
 
-void MdnsManager::onServiceFound(const QString &name, const QString &type)
-{
-    qDebug() << "Found:" << name << type;
-
-    const auto fullName = name + "*";
-    const ServiceInfo info{name, type, "", "", -1};
-    m_services[fullName] = info;
-
-    Q_EMIT serviceFound(fullName, info);
-    Q_EMIT countChanged(count());
-}
-
-void MdnsManager::onServiceLost(const QString &name, const QString &ip)
-{
-    qDebug() << "Lost:" << name;
-
-    const auto fullName = name + "*" + ip;
-    m_services.remove(fullName);
-    if (ip.isEmpty()) {
-        QStringList keys{};
-        for (const auto &key : m_services.keys()) {
-            if (key.startsWith(name)) {
-                keys.append(key);
-            }
-        }
-
-        for (const auto &key : keys) {
-            m_services.remove(key);
-            Q_EMIT serviceLost(key);
-        }
-    }
-
-    Q_EMIT serviceLost(fullName);
-    Q_EMIT countChanged(count());
-}
-
-void MdnsManager::onServiceResolved(const QString &name, const QString &host, const QString &ip, const int port)
-{
-    qDebug() << "Resolved:" << name << host << ip << port;
-
-    const auto fullName = name + "*" + ip;
-    m_services[fullName].name = name;
-    m_services[fullName].host = host;
-    m_services[fullName].ip = ip;
-    m_services[fullName].port = port;
-
-    Q_EMIT serviceResolved(fullName, m_services[fullName]);
-}
+} // namespace Platform

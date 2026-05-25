@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import VideoStream
 
 Window {
     id: window
@@ -49,6 +48,8 @@ Window {
             id: certsView
             CertificatesPages {
                 id: certificates
+
+                onBack: goBack()
             }
         }
 
@@ -56,6 +57,8 @@ Window {
             id: keysView
             KeysPage {
                 id: keys
+
+                onBack: goBack()
             }
         }
 
@@ -68,21 +71,17 @@ Window {
                     stackView.pop()
                     stackView.push(streamView)
                 }
+
+                onBack: goBack()
             }
         }
 
         Component {
             id: streamView
-            VideoFrame {
+            StreamPage {
                 id: stream
 
-                Connections {
-                    target: networkLink
-
-                    function onImageReady(image) {
-                        stream.setImage(image);
-                    }
-                }
+                onBack: goBack()
             }
         }
     }
@@ -117,14 +116,21 @@ Window {
         }
     }
 
-    Keys.onReleased: {
-        if (event.key === Qt.Key_Back) {
-            if (window.isStreaming && stackView.depth > 1) {
+    function goBack() {
+        if (stackView.depth > 1) {
+            if (window.isStreaming) {
                 networkLink.close();
                 window.isStreaming = false;
-                stackView.pop();
-                event.accepted = true;
             }
+
+            stackView.pop();
+        }
+    }
+
+    Keys.onReleased: {
+        if (event.key === Qt.Key_Back) {
+            goBack();
+            event.accepted = true;
         }
     }
 }

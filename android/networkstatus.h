@@ -3,10 +3,6 @@
 
 #include <QObject>
 
-#ifdef Q_OS_ANDROID
-#include <QJniObject>
-#endif
-
 class NetworkState : public QObject
 {
     Q_OBJECT
@@ -16,6 +12,8 @@ public:
     explicit NetworkState(QObject *parent = nullptr);
 
     inline bool getConnected() const { return m_connected; }
+
+    static NetworkState *instance();
 
 Q_SIGNALS:
     void connectivityChanged(bool connected);
@@ -27,12 +25,11 @@ public Q_SLOTS:
         Q_EMIT connectivityChanged(connected);
     }
 
-private:
-#ifdef Q_OS_ANDROID
-    QJniObject m_javaHelper{};
-#endif
-
+protected:
     bool m_connected = false;
+
+private:
+    static NetworkState *m_instance;
 };
 
 #endif // NETWORKSTATE_H

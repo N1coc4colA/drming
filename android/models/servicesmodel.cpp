@@ -3,11 +3,11 @@
 ServicesModel::ServicesModel(QObject *parent)
     : QAbstractListModel(parent)
 {
-    MdnsManager &manager = MdnsManager::instance();
+    auto mdnsInst = Mdns::instance();
 
-    connect(&manager, &MdnsManager::serviceFound, this, &ServicesModel::onServiceFound);
-    connect(&manager, &MdnsManager::serviceLost, this, &ServicesModel::onServiceLost);
-    connect(&manager, &MdnsManager::serviceResolved, this, &ServicesModel::onServiceResolved);
+    connect(mdnsInst, &Mdns::serviceFound, this, &ServicesModel::onServiceFound);
+    connect(mdnsInst, &Mdns::serviceLost, this, &ServicesModel::onServiceLost);
+    connect(mdnsInst, &Mdns::serviceResolved, this, &ServicesModel::onServiceResolved);
 }
 
 void ServicesModel::clear()

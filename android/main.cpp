@@ -1,25 +1,32 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickStyle>
 
-#include "mdnsmanager.h"
+#include "declarative/videoframeitem.h"
+#include "fileprovider.h"
+#include "mdns.h"
+#include "models/servicesmodel.h"
 #include "networklink.h"
-#include "servicesmodel.h"
-#include "videoframeitem.h"
+#include "networkstatus.h"
+#include "palette.h"
 
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
+    QQuickStyle::setFallbackStyle("Basic");
 
     // Create and expose the C++ components.
     qmlRegisterType<VideoFrameItem>("VideoStream", 1, 0, "VideoFrame");
-    auto mdnsInst = MdnsManager();
+
+    auto mndsInst = Mdns::instance();
+    auto netInst = NetworkState::instance();
     auto link = new NetworkLink(&app);
     auto *servicesModel = new ServicesModel(&app);
 
-    QObject::connect(qApp, &QGuiApplication::aboutToQuit, &mdnsInst, &MdnsManager::stopDiscovery);
+    QObject::connect(qApp, &QGuiApplication::aboutToQuit, mndsInst, &Mdns::stopDiscovery);
     QObject::connect(qApp, &QGuiApplication::aboutToQuit, link, &NetworkLink::close);
-    QObject::connect(&mdnsInst.networkState(), &NetworkState::connectivityChanged, [servicesModel](bool connected) {
+    QObject::connect(netInst, &NetworkState::connectivityChanged, [servicesModel](bool connected) {
         if (!connected) {
             servicesModel->clear();
         }
@@ -28,12 +35,14 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine{};
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, []() { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
 
-    engine.rootContext()->setContextProperty("mdnsManager", &mdnsInst);
-    engine.rootContext()->setContextProperty("networkState", &mdnsInst.networkState());
+    engine.rootContext()->setContextProperty("mdnsManager", mndsInst);
+    engine.rootContext()->setContextProperty("networkState", netInst);
     engine.rootContext()->setContextProperty("servicesModel", servicesModel);
     engine.rootContext()->setContextProperty("networkLink", link);
+    engine.rootContext()->setContextProperty("fileProvider", FileProvider::instance());
 
     engine.loadFromModule("drming", "Main");
+    app.setPalette(readPalette(":/assets/palette.data"));
 
     return app.exec();
 }

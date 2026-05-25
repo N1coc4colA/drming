@@ -10,14 +10,13 @@
 NetworkLink::NetworkLink(QObject *parent)
     : QObject{parent}
     , Packets::Parser<NetworkLink>(*this)
-    , m_trustedCerts(
-          QSslCertificate::fromPath("/home/nicolas/Documents/repos/github/drming/certs/valids/*", QSsl::Pem, QSslCertificate::PatternSyntax::Wildcard))
+    , m_trustedCerts(QSslCertificate::fromPath("./certs/valids/*", QSsl::Pem, QSslCertificate::PatternSyntax::Wildcard))
     , m_socket(new QSslSocket(this))
 {
     if (m_trustedCerts.isEmpty()) {
-        qWarning() << "No trusted certificates found in /home/nicolas/Documents/repos/github/drming/certs/valids/";
+        qWarning() << "No trusted certificates found in ./certs/valids/";
     } else {
-        qInfo() << "Loaded" << m_trustedCerts.size() << "trusted certificate(s) from /home/nicolas/Documents/repos/github/drming/certs/valids/";
+        qInfo() << "Loaded" << m_trustedCerts.size() << "trusted certificate(s) from ./certs/valids/";
     }
 
     // Disable all default CA verification — we do our own allowlist check

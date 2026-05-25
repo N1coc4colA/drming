@@ -1,17 +1,9 @@
-#ifndef MDNSMANAGER_H
-#define MDNSMANAGER_H
+#ifndef MDNS_H
+#define MDNS_H
 
 #include <QHash>
 #include <QObject>
 #include <QString>
-
-#ifdef Q_OS_ANDROID
-#include <QJniObject>
-#else
-class AvahiDiscoverer;
-#endif
-
-#include "networkstatus.h"
 
 struct ServiceInfo
 {
@@ -37,25 +29,21 @@ struct std::hash<ServiceInfo>
     std::size_t operator()(const ServiceInfo &s) const noexcept { return qHash(s.toHashable()); }
 };
 
-class MdnsManager : public QObject
+class Mdns : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
 
 public:
-    explicit MdnsManager(QObject *parent = nullptr);
-#ifndef Q_OS_ANDROID
-    ~MdnsManager();
-#endif
+    explicit Mdns(QObject *parent = nullptr);
+    virtual ~Mdns() = default;
 
-    static MdnsManager &instance();
+    static Mdns *instance();
 
-    Q_INVOKABLE void startDiscovery();
-    Q_INVOKABLE void stopDiscovery();
+    Q_INVOKABLE virtual void startDiscovery() = 0;
+    Q_INVOKABLE virtual void stopDiscovery() = 0;
 
     Q_INVOKABLE inline int count() const { return m_services.count(); }
-
-    inline NetworkState &networkState() { return m_netState; }
 
 public Q_SLOTS:
     void onServiceFound(const QString &name, const QString &type);
@@ -68,24 +56,11 @@ Q_SIGNALS:
     void serviceResolved(const QString &key, const ServiceInfo &info);
     void countChanged(int count);
 
-private:
-    NetworkState m_netState{};
+protected:
     QHash<QString, ServiceInfo> m_services{};
 
-    static MdnsManager *m_instance;
-
-#ifdef Q_OS_ANDROID
-    QJniObject m_javaHelper{};
-#else
-    AvahiDiscoverer *m_avahi = nullptr;
-
-Q_SIGNALS:
-    void dispatchServiceFound(const QString &name, const QString &type);
-    void dispatchServiceLost(const QString &name, const QString &ip);
-    void dispatchServiceResolved(const QString &name, const QString &host, const QString &ip, int port);
-
-    friend class AvahiDiscoverer;
-#endif
+private:
+    static Mdns *m_instance;
 };
 
-#endif // MDNSMANAGER_H
+#endif // MDNS_H
