@@ -7,17 +7,17 @@ FilesModel::FilesModel(QObject *parent)
 void FilesModel::setData(const QList<QPair<QDateTime, QString>> &newData)
 {
     const int c = count();
-    if (!c) {
-        return;
+    if (c > 0) {
+        beginRemoveRows({}, 0, c - 1);
+        m_files.clear();
+        endRemoveRows();
     }
 
-    beginRemoveRows({}, 0, c);
-    m_files.clear();
-    endRemoveRows();
-
-    beginInsertRows({}, 0, newData.length());
-    m_files = newData;
-    endInsertRows();
+    if (!newData.isEmpty()) {
+        beginInsertRows({}, 0, newData.length() - 1);
+        m_files = newData;
+        endInsertRows();
+    }
 
     Q_EMIT countChanged();
 }
@@ -40,9 +40,11 @@ QVariant FilesModel::data(const QModelIndex &index, int role) const
     const auto &v = m_files[index.row()];
 
     switch (role) {
+    case DateTimeRole: {
+        const QString localeDateFormat = QLocale::system().dateFormat(QLocale::ShortFormat);
+        return QLocale::system().toString(v.first, localeDateFormat + " HH:mm");
+    }
     case NameRole:
-        return v.first;
-    case DateTimeRole:
         return v.second;
     default:
         return {};
@@ -54,12 +56,15 @@ QHash<int, QByteArray> FilesModel::roleNames() const
     return {{NameRole, "name"}, {DateTimeRole, "datetime"}};
 }
 
-QVariantMap FilesModel::get(int index) const
+QVariantMap FilesModel::get(const int index) const
 {
     if (index < 0 || index >= m_files.count()) {
         return {};
     }
 
     const auto &v = m_files[index];
-    return {{"name", v.first}, {"datetime", v.second}};
+    const QString localeDateFormat = QLocale::system().dateFormat(QLocale::ShortFormat);
+    const auto dt = QLocale::system().toString(v.first, localeDateFormat + " HH:mm");
+
+    return {{"datetime", dt}, {"name", v.second}};
 }
