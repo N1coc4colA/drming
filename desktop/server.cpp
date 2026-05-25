@@ -29,8 +29,8 @@ Server::Server(QObject *parent)
 
 bool Server::loadServerSslConfig(QSslConfiguration &outConfig)
 {
-    const QString certPath = QStringLiteral("/home/nicolas/Documents/repos/github/drming/certs/server.crt");
-    const QString keyPath = QStringLiteral("/home/nicolas/Documents/repos/github/drming/certs/server.key");
+    const QString certPath = QStringLiteral("./certs/server.crt");
+    const QString keyPath = QStringLiteral("./certs/server.key");
 
     QFile certFile(certPath);
     if (!certFile.open(QIODevice::ReadOnly)) {
