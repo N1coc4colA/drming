@@ -7,18 +7,13 @@
 #include <QSslConfiguration>
 #include <QtEndian>
 
+#include "fileprovider.h"
+
 NetworkLink::NetworkLink(QObject *parent)
     : QObject{parent}
     , Packets::Parser<NetworkLink>(*this)
-    , m_trustedCerts(QSslCertificate::fromPath("./certs/valids/*", QSsl::Pem, QSslCertificate::PatternSyntax::Wildcard))
     , m_socket(new QSslSocket(this))
 {
-    if (m_trustedCerts.isEmpty()) {
-        qWarning() << "No trusted certificates found in ./certs/valids/";
-    } else {
-        qInfo() << "Loaded" << m_trustedCerts.size() << "trusted certificate(s) from ./certs/valids/";
-    }
-
     // Disable all default CA verification — we do our own allowlist check
     QSslConfiguration conf = QSslConfiguration::defaultConfiguration();
     conf.setCaCertificates({});
@@ -100,7 +95,16 @@ void NetworkLink::onSslErrors(const QList<QSslError> &errors)
         return;
     }
 
-    if (!m_trustedCerts.contains(serverCert)) {
+    QList<QSslCertificate> trustedCerts(
+        QSslCertificate::fromPath(FileProvider::instance()->serverCertsPath() + "*", QSsl::Pem, QSslCertificate::PatternSyntax::Wildcard));
+
+    if (trustedCerts.isEmpty()) {
+        qWarning() << "No trusted certificates found in ./certs/valids/";
+    } else {
+        qInfo() << "Loaded" << trustedCerts.size() << "trusted certificate(s) from ./certs/valids/";
+    }
+
+    if (!trustedCerts.contains(serverCert)) {
         qWarning() << "Server certificate is not in the trusted list, aborting.";
         m_socket->abort();
         return;

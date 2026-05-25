@@ -15,20 +15,16 @@ public:
     void loadServerCerts() override;
     void loadClientCerts() override;
 
-    void deleteServerCert(const QString &file) override;
-    void deleteClientCert(const QString &file) override;
+    void deleteServerCert(const QString &fileName) override;
+    void deleteClientCert(const QString &fileName) override;
 
     void addServerCert() override;
-    void addClientCerts() override;
+    void addClientCert() override;
 
-    inline bool hasError() const { return m_dirCreationError; }
-    inline QString errorMessage() const { return m_errorMessage; }
+    QString serverCertsPath() override;
+    QString clientCertsPath() override;
 
     static constexpr auto folderName = "drming";
-
-private:
-    bool m_dirCreationError = false;
-    QString m_errorMessage{};
 };
 
 } // namespace Platform

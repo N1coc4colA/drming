@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -O0")
 set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -g -O0")
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network Widgets)
 
 
 set(PROJECT_SOURCES
@@ -71,8 +71,10 @@ qt_add_qml_module(drming_android
         qml/HeaderBar.qml
         qml/EasyButton.qml
         qml/EasyDialog.qml
+        qml/EasyListView.qml
         qml/EasyPage.qml
         qml/StandardPage.qml
+        qml/NewButton.qml
 
         qml/TapAnimation.qml
 
@@ -98,6 +100,7 @@ drming_android
         Qt6::Network
         Qt6::Quick
         Qt6::QuickControls2
+        Qt6::Widgets
 )
 
 

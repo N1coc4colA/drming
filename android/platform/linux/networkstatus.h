@@ -11,9 +11,6 @@ class NetworkState : public ::NetworkState
 
 public:
     explicit NetworkState(QObject *parent = nullptr);
-
-private:
-    bool m_connected = false;
 };
 
 } // namespace Platform

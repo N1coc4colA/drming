@@ -38,7 +38,6 @@ private Q_SLOTS:
     void onDataAvailable();
 
 private:
-    const QList<QSslCertificate> m_trustedCerts;
     QByteArray m_buffer{};
     QSslSocket *m_socket = nullptr;
     quint16 m_format = 0;
