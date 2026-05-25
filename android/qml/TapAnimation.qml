@@ -7,6 +7,9 @@ ParallelAnimation {
     property Item container: null
     property int duration: 200
 
+    property color normalBackground: palette.mid
+    property color highlightBackground: palette.highlight
+
     SequentialAnimation {
         PropertyAnimation {
             target: root.container
@@ -28,7 +31,7 @@ ParallelAnimation {
         PropertyAnimation {
             target: root.background
             property: "color"
-            to: palette.highlight
+            to: highlightBackground
             duration: root.duration/2
             easing.type: Easing.InOutQuad
         }
@@ -36,7 +39,7 @@ ParallelAnimation {
         PropertyAnimation {
             target: root.background
             property: "color"
-            to: palette.mid
+            to: backgroundColor
             duration: root.duration/2
             easing.type: Easing.InOutQuad
         }

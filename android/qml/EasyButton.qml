@@ -6,6 +6,9 @@ Button {
 
     property real bounding: 20
     property int animationsDuration: 100
+    property color backgroundColor: palette.mid
+    property color borderColor: palette.dark
+    property color highlightColor: palette.highlight
 
     icon.height: bounding
     icon.width: bounding
@@ -13,9 +16,9 @@ Button {
 
     background: Rectangle {
         id: backgroundRectangle
-        color: palette.mid
+        color: backgroundColor
         radius: 8
-        border.color: palette.dark
+        border.color: borderColor
         border.width: 1
     }
 
@@ -26,5 +29,7 @@ Button {
         duration: animationsDuration
         container: root
         background: backgroundRectangle
+        normalBackground: backgroundColor
+        highlightBackground: highlightColor
     }
 }

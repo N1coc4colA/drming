@@ -48,6 +48,7 @@ Window {
             id: certsView
             CertificatesPages {
                 id: certificates
+                visible: false
 
                 onBack: goBack()
             }
@@ -57,6 +58,7 @@ Window {
             id: keysView
             KeysPage {
                 id: keys
+                visible: false
 
                 onBack: goBack()
             }
@@ -66,13 +68,13 @@ Window {
             id: servicesView
             ServicesPage {
                 id: services
+                visible: false
 
+                onBack: goBack()
                 onDisplayStream: {
                     stackView.pop()
                     stackView.push(streamView)
                 }
-
-                onBack: goBack()
             }
         }
 
@@ -80,6 +82,7 @@ Window {
             id: streamView
             StreamPage {
                 id: stream
+                visible: false
 
                 onBack: goBack()
             }

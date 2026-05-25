@@ -16,7 +16,7 @@ Item {
     readonly property real spacing: 8
     readonly property real margin: 8
 
-    readonly property real centerHeight: (centerContent && centerContent.item) ? centerContent.item.implicitHeight : 36
+    readonly property real centerHeight: (centerContent && centerContent.item) ? centerContent.item.implicitHeight : 34
 
     Loader {
         id: oneRowLoader
@@ -135,8 +135,8 @@ Item {
                 sourceComponent: root.centerContent
 
                 onItemChanged: if (item) {
-                    item.anchors.left = centerLoader2
-                    item.anchors.right = centerLoader2
+                    /*item.anchors.left = centerLoader2
+                    item.anchors.right = centerLoader2*/
                 }
             }
         }

@@ -33,6 +33,8 @@ Item {
                 text: qsTr("Welcome !")
                 horizontalAlignment: Text.AlignHCenter
                 Layout.fillWidth: true
+                font.pixelSize: 16
+                font.bold: true
             }
 
             // Responsive grid: 3 columns when wide, 1 column when narrow
