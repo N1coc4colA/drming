@@ -130,7 +130,7 @@ void NetworkLink::onSslErrors(const QList<QSslError> &errors)
 
 void NetworkLink::processPacket(const Packets::ServerImage &srvImg)
 {
-    const auto img = QImage::fromData(srvImg.data, "JPEG");
+    const auto img = QImage::fromData(srvImg.data, "WEBP");
 
     if (!img.isNull()) {
         [[likely]];

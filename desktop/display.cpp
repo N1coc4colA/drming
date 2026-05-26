@@ -50,7 +50,7 @@ void Display::forward()
     {
         QBuffer buf(&servImg.data);
         buf.open(QIODevice::WriteOnly);
-        result.save(&buf, "JPEG", Parameters::instance.jpegCompression);
+        result.save(&buf, "WEBP", Parameters::instance.jpegCompression);
         buf.close();
     }
 
