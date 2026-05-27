@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+
 Window {
     id: window
     width: 640
@@ -87,23 +88,65 @@ Window {
                 onBack: goBack()
             }
         }
+
+        Component {
+            id: shaderBlurEffectSource
+            ShaderEffectSource {
+                sourceItem: stackView
+                visible: false
+                anchors.fill: shaderBlurEffectSource.parent
+                hideSource: false
+                live: true
+                textureSize: Qt.size(width / 2, height / 2)
+            }
+        }
+
+        Loader {
+            id: blurLoader
+            anchors.fill: parent
+            sourceComponent: shaderBlurEffectSource
+        }
     }
 
-    Dialog {
+    // Keep the singleton's shaderBlurSource in sync with the Loader's instantiated item.
+    Binding {
+        target: GlobalVars
+        property: "shaderBlurSource"
+        value: blurLoader.item
+    }
+
+    EasyDialog {
         id: errorDialog
         x: (window.width - width)/2
         y: (window.height - height)/2
         title: qsTr("Connection error")
         modal: true
-        standardButtons: Dialog.Ok
+        property string errorText: ""
 
-        Label {
+        content: Label {
             id: errorLabel
-            text: ""
+            text: errorDialog.errorText
             wrapMode: Text.Wrap
             horizontalAlignment: Text.AlignHCenter
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.margins: 16
+        }
+
+        footer: RowLayout {
+            spacing: 10
+            Layout.margins: 8
+
+            Item {
+                Layout.fillWidth: true
+            }
+            EasyButton {
+                text: qsTr("Ok")
+                icon.source: "qrc:/assets/window-close.svg"
+                DialogButtonBox.buttonRole: DialogButtonBox.Ok
+                onClicked: {
+                    errorDialog.close()
+                }
+            }
         }
     }
 
@@ -112,7 +155,7 @@ Window {
 
         function onError(message) {
             // Show the message and return to the base services view
-            errorLabel.text = message || qsTr("Unknown connection error");
+            errorDialog.errorText = message || qsTr("Unknown connection error");
             networkLink.close();
             stackView.pop();
             errorDialog.open();

@@ -24,19 +24,8 @@ StandardPage {
         }
     }
 
-    ShaderEffectSource {
-        id: shaderBlurSource
-        sourceItem: root
-        visible: false
-        anchors.fill: parent
-        hideSource: false
-        live: true
-        textureSize: Qt.size(width / 2, height / 2)
-    }
-
     LoginDialog {
         id: authDialog
-        blurSource: shaderBlurSource
 
         onSubmitted: function() {
             networkLink.connect(authDialog.hostIp, authDialog.hostPort);

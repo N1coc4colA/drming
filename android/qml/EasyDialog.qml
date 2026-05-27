@@ -17,7 +17,7 @@ Popup {
     x: (window.width - width)/2
     y: (window.height - height)/2
 
-    property var blurSource: null
+    //property var blurSource: null
     property string title: ""
     property int animationsDuration: 200
 
@@ -64,8 +64,8 @@ Popup {
         }
         MultiEffect {
             anchors.fill: parent
-            source: root.blurSource
-            blurEnabled: root.blurSource !== null
+            source: GlobalVars.shaderBlurSource
+            blurEnabled: GlobalVars.shaderBlurSource !== null
             blur: 1.0
             blurMax: 64
             colorizationColor: palette.text

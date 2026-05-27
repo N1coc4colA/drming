@@ -52,10 +52,17 @@ drming_android
     ${PROJECT_PLATFORM_SOURCES}
 )
 
+set_source_files_properties(
+    qml/GlobalVars.qml
+
+    PROPERTIES QT_QML_SINGLETON_TYPE TRUE
+)
+
 qt_add_qml_module(drming_android
     URI drming
     QML_FILES
         qml/Main.qml
+        qml/GlobalVars.qml
 
         qml/HomePage.qml
         qml/CertificatesPages.qml
