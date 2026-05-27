@@ -5,7 +5,7 @@
 QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
 {
     if (itemSize.isEmpty() || imgSize.isEmpty()) {
-        return QRectF();
+        return {};
     }
 
     const qreal sx = itemSize.width() / imgSize.width();
@@ -18,13 +18,22 @@ QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
     const qreal x = (itemSize.width() - w) * 0.5;
     const qreal y = (itemSize.height() - h) * 0.5;
 
-    return QRectF(x, y, w, h);
+    return {x, y, w, h};
 }
 
 VideoFrameItem::VideoFrameItem(QQuickItem* parent)
     : QQuickItem(parent)
 {
     setFlag(ItemHasContents, true);
+}
+
+void VideoFrameItem::geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry)
+{
+    QQuickItem::geometryChange(newGeometry, oldGeometry);
+
+    if (newGeometry.size() != oldGeometry.size()) {
+        update();
+    }
 }
 
 inline void submit(QQuickWindow* window, const QRectF& dst, const QImage& localImage, QSGSimpleTextureNode*& node)
@@ -40,7 +49,7 @@ inline void submit(QQuickWindow* window, const QRectF& dst, const QImage& localI
     node->markDirty(QSGNode::DirtyMaterial | QSGNode::DirtyGeometry);
 }
 
-QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* data)
+QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, QQuickItem::UpdatePaintNodeData* data)
 {
     Q_UNUSED(data);
 
@@ -55,24 +64,30 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
         }
     }
 
-    if (localImage.isNull()) {
+    auto* node = dynamic_cast<QSGSimpleTextureNode*>(oldNode);
+    const QSizeF imgSize = QSizeF(m_imageSize);
+    const QRectF dst = fitKeepAspect(QSizeF(width(), height()), imgSize);
+
+    if (!node && !dirty) {
         return nullptr;
     }
 
-    auto* node = static_cast<QSGSimpleTextureNode*>(oldNode);
+    if (dirty && localImage.isNull()) {
+        return nullptr;
+    }
+
+    if (!node) {
+        node = new QSGSimpleTextureNode();
+        node->setFiltering(QSGTexture::Linear);
+    }
 
     if (dirty) {
-        const QRectF dst = fitKeepAspect(QSizeF(width(), height()), QSizeF(localImage.size()));
-        if (!node) {
-            node = new QSGSimpleTextureNode();
-            node->setFiltering(QSGTexture::Linear);
-        }
-
         node->setTexture(window()->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque));
         node->setOwnsTexture(true);
-        node->setRect(dst);
-        node->markDirty(QSGNode::DirtyMaterial | QSGNode::DirtyGeometry);
     }
+
+    node->setRect(dst);
+    node->markDirty(dirty ? (QSGNode::DirtyMaterial | QSGNode::DirtyGeometry) : QSGNode::DirtyGeometry);
 
     return node;
 }
