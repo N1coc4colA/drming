@@ -9,6 +9,7 @@ Button {
     property color backgroundColor: palette.mid
     property color borderColor: palette.dark
     property color highlightColor: palette.highlight
+    property color color: palette.buttonText
 
     icon.height: bounding
     icon.width: bounding
@@ -31,5 +32,13 @@ Button {
         background: backgroundRectangle
         normalBackground: backgroundColor
         highlightBackground: highlightColor
+    }
+
+    Component.onCompleted: {
+         root.contentItem.color = root.color;
+    }
+
+    onColorChanged: {
+        root.contentItem.color = root.color;
     }
 }
