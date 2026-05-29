@@ -3,7 +3,6 @@ import QtQuick.Controls
 EasyPage {
     id: root
 
-    property var selectedService: null
     property string searchText: ""
 
     signal back

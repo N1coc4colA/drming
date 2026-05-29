@@ -6,7 +6,6 @@ StandardPage {
     id: root
 
     property real topMargin: 10
-    property string searchQuery: ""
 
     headerBar.rightContent: NewButton {
         icon.source: "qrc:/assets/document-new.svg"
@@ -23,7 +22,7 @@ StandardPage {
         delegate: RowLayout {
             width: root.width
             height: visible ? 40 : 0
-            visible: model.name.toLowerCase().includes(searchQuery.toLowerCase())
+            visible: model.name.toLowerCase().includes(root.searchText.toLowerCase())
             property real breakPoint: width > 500
 
             Item {
