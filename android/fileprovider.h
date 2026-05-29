@@ -15,16 +15,21 @@ public:
     static FileProvider *instance();
 
     Q_INVOKABLE virtual void loadServerCerts() = 0;
-    Q_INVOKABLE virtual void loadClientCerts() = 0;
+    Q_INVOKABLE virtual void loadClients() = 0;
 
     Q_INVOKABLE virtual void deleteServerCert(const QString &fileName) = 0;
-    Q_INVOKABLE virtual void deleteClientCert(const QString &fileName) = 0;
+    Q_INVOKABLE virtual void deleteClient(const QString &name) = 0;
 
     Q_INVOKABLE virtual void addServerCert() = 0;
-    Q_INVOKABLE virtual void addClientCert() = 0;
+    Q_INVOKABLE virtual void addClientCert(const QString &name) = 0;
+    Q_INVOKABLE virtual void addClientKey(const QString &name) = 0;
 
-    QString virtual serverCertsPath() = 0;
-    QString virtual clientCertsPath() = 0;
+    virtual QString serverCertsPath() = 0;
+    virtual QString clientPath() = 0;
+    virtual QString clientCertName() = 0;
+    virtual QString clientKeyName() = 0;
+
+    Q_INVOKABLE virtual bool updateClientEntry(const QVariantMap &map) = 0;
 
     inline bool hasError() const { return m_dirCreationError; }
     inline QString errorMessage() const { return m_errorMessage; }

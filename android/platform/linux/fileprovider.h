@@ -13,16 +13,26 @@ public:
     explicit FileProvider(QObject *parent);
 
     void loadServerCerts() override;
-    void loadClientCerts() override;
+    void loadClients() override;
 
     void deleteServerCert(const QString &fileName) override;
-    void deleteClientCert(const QString &fileName) override;
+    void deleteClient(const QString &name) override;
 
     void addServerCert() override;
-    void addClientCert() override;
+    void addClientCert(const QString &name) override;
+    void addClientKey(const QString &name) override;
 
     QString serverCertsPath() override;
-    QString clientCertsPath() override;
+    QString clientPath() override;
+    QString clientCertName() override;
+    QString clientKeyName() override;
+
+    bool updateClientEntry(const QVariantMap &map) override;
+
+private:
+    bool createClientPathStorage(const QString &name);
+    bool copyFile(const QString &title, const QString &filter, const QString &dst);
+    bool isClientEntryValid(const QString &name);
 
     static constexpr auto folderName = "drming";
 };

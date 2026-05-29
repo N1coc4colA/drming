@@ -4,7 +4,7 @@ FilesModel::FilesModel(QObject *parent)
     : QAbstractListModel(parent)
 {}
 
-void FilesModel::setData(const QList<QPair<QDateTime, QString>> &newData)
+void FilesModel::setData(const QList<std::tuple<QDateTime, QString, QVariantMap>> &newData)
 {
     const int c = count();
     if (c > 0) {
@@ -42,10 +42,12 @@ QVariant FilesModel::data(const QModelIndex &index, int role) const
     switch (role) {
     case DateTimeRole: {
         const QString localeDateFormat = QLocale::system().dateFormat(QLocale::ShortFormat);
-        return QLocale::system().toString(v.first, localeDateFormat + " HH:mm");
+        return QLocale::system().toString(std::get<0>(v), localeDateFormat + " HH:mm");
     }
     case NameRole:
-        return v.second;
+        return std::get<1>(v);
+    case InfoRole:
+        return std::get<2>(v);
     default:
         return {};
     }
@@ -53,7 +55,7 @@ QVariant FilesModel::data(const QModelIndex &index, int role) const
 
 QHash<int, QByteArray> FilesModel::roleNames() const
 {
-    return {{NameRole, "name"}, {DateTimeRole, "datetime"}};
+    return {{NameRole, "name"}, {DateTimeRole, "datetime"}, {InfoRole, "info"}};
 }
 
 QVariantMap FilesModel::get(const int index) const
@@ -64,7 +66,7 @@ QVariantMap FilesModel::get(const int index) const
 
     const auto &v = m_files[index];
     const QString localeDateFormat = QLocale::system().dateFormat(QLocale::ShortFormat);
-    const auto dt = QLocale::system().toString(v.first, localeDateFormat + " HH:mm");
+    const auto dt = QLocale::system().toString(std::get<0>(v), localeDateFormat + " HH:mm");
 
-    return {{"datetime", dt}, {"name", v.second}};
+    return {{"datetime", dt}, {"name", std::get<1>(v)}, {"info", std::get<2>(v)}};
 }
