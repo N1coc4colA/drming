@@ -27,6 +27,7 @@ public Q_SLOTS:
 
 private Q_SLOTS:
     void onNewConnection(QSslSocket *socket);
+    void onSslErrors(QSslSocket *socket, const QList<QSslError> &errors);
     void onClientDisconnected();
 
 private:

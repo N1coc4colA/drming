@@ -14,12 +14,6 @@ NetworkLink::NetworkLink(QObject *parent)
     , Packets::Parser<NetworkLink>(*this)
     , m_socket(new QSslSocket(this))
 {
-    // Disable all default CA verification — we do our own allowlist check
-    QSslConfiguration conf = QSslConfiguration::defaultConfiguration();
-    conf.setCaCertificates({});
-    conf.setPeerVerifyMode(QSslSocket::VerifyNone); // Avoid chain validation
-    m_socket->setSslConfiguration(conf);
-
     QAbstractSocket::connect(m_socket, &QSslSocket::connected, this, &NetworkLink::onConnected);
     QAbstractSocket::connect(m_socket, &QSslSocket::disconnected, this, &NetworkLink::onDisconnected);
     QAbstractSocket::connect(m_socket, &QSslSocket::readyRead, this, &NetworkLink::onDataAvailable);
@@ -56,8 +50,14 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
     // Use encrypted connection
     const auto clientData = FileProvider::instance()->clientData(clientName);
 
-    m_socket->setLocalCertificate(clientData.first);
-    m_socket->setPrivateKey(clientData.second);
+    // Disable all default CA verification — we do our own allowlist check
+    auto sslConf = QSslConfiguration::defaultConfiguration();
+    sslConf.setCaCertificates({});
+    sslConf.setPeerVerifyMode(QSslSocket::VerifyNone); // Avoid chain validation
+    sslConf.setLocalCertificate(clientData.first);
+    sslConf.setPrivateKey(clientData.second);
+
+    m_socket->setSslConfiguration(sslConf);
     m_socket->connectToHostEncrypted(address, port);
 }
 
@@ -92,21 +92,18 @@ void NetworkLink::onDataAvailable()
 
 void NetworkLink::onSslErrors(const QList<QSslError> &errors)
 {
-    const QSslCertificate serverCert = m_socket->peerCertificate();
-
+    const auto serverCert = m_socket->peerCertificate();
     if (serverCert.isNull()) {
         qWarning() << "Server provided no certificate, aborting.";
         m_socket->abort();
         return;
     }
 
-    QList<QSslCertificate> trustedCerts(
-        QSslCertificate::fromPath(FileProvider::instance()->serverCertsPath() + "*", QSsl::Pem, QSslCertificate::PatternSyntax::Wildcard));
-
+    const auto trustedCerts = FileProvider::instance()->trustedCerts();
     if (trustedCerts.isEmpty()) {
-        qWarning() << "No trusted certificates found in ./certs/valids/";
+        qWarning() << "No trusted certificates found.";
     } else {
-        qInfo() << "Loaded" << trustedCerts.size() << "trusted certificate(s) from ./certs/valids/";
+        qInfo() << "Loaded" << trustedCerts.size() << "trusted certificate(s).";
     }
 
     if (!trustedCerts.contains(serverCert)) {
@@ -117,7 +114,7 @@ void NetworkLink::onSslErrors(const QList<QSslError> &errors)
 
     // Cert is in our allowlist — we only tolerate hostname mismatch errors.
     // Chain/expiry/revocation errors are still fatal.
-    QList<QSslError> ignorable;
+    QList<QSslError> ignorable{};
     for (const QSslError &e : errors) {
         if (e.error() == QSslError::HostNameMismatch) {
             ignorable.append(e);

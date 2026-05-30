@@ -18,7 +18,10 @@ CommandParser::CommandParser()
          {{"s", "service"}, QObject::tr("Sets the sevices' name when advertising through mDNS."), QObject::tr("service-name"), "DRMing"},
          {{"a", "no-advertise"}, QObject::tr("Sets whether or not to disable advertising on the network using mDNS. An non-null value evaluates to true.")},
          {{"i", "ip"}, QObject::tr("IP address on which to expose the service."), QObject::tr("ip-address"), ""},
-         {{"c", "compression"}, QObject::tr("Sets the JPEG compression level. 0 to 100, 100 meaning best quality. You can use -1 to let Qt use its default quality level."), QObject::tr("compression"), "70"},
+         {{"q", "quality"}, QObject::tr("Sets the WEBP quality level. 0 to 100, 100 meaning best quality. You can set to -1 to use default quality level."), QObject::tr("quality"), "70"},
+         {{"k", "key"}, QObject::tr("Key to use for server encryption"), QObject::tr("key", "Key to use for server encryption"), "./certs/server.key"},
+         {{"c", "cert"}, QObject::tr("Certificate for server encryption"), QObject::tr("cert", "Certificate for server encryption"), "./certs/server.crt"},
+         {{"t", "trusted"}, QObject::tr("Trusted clients' certificates"), QObject::tr("trusted", "Trusted clients' certificates"), "./certs/valids/*"},
     });
 }
 
@@ -42,7 +45,7 @@ CommandParser::Exit CommandParser::parse()
     const QString serviceName = m_parser.value("service");
     const QString portName = m_parser.value("port");
     const QString serviceIp = m_parser.value("ip");
-    const QString compressionLevel = m_parser.value("compression");
+    const QString compressionLevel = m_parser.value("quality");
     const auto serviceHostIp = serviceIp.isEmpty() ? QHostAddress::Any : QHostAddress(serviceIp);
     bool valid = false;
 
@@ -79,6 +82,9 @@ CommandParser::Exit CommandParser::parse()
         .jpegCompression = jpegCompression,
         .port = port,
         .advertise = m_parser.isSet("no-advertise"),
+        .trustedCertsPath = m_parser.value("trusted"),
+        .serverCertPath = m_parser.value("cert"),
+        .serverKeyPath = m_parser.value("key"),
     };
 
     return Continue;

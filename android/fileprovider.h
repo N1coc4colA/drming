@@ -29,6 +29,7 @@ public:
     Q_INVOKABLE virtual QStringList validClientEntries() = 0;
 
     virtual QPair<QSslCertificate, QSslKey> clientData(const QString &name) = 0;
+    virtual QList<QSslCertificate> trustedCerts() = 0;
 
     virtual QString serverCertsPath() = 0;
     virtual QString clientPath() = 0;

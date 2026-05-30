@@ -6,6 +6,9 @@
 #include <QSslError>
 #include <QSslKey>
 
+#include "../certificatesupport.h"
+#include "parameters.h"
+
 Server::Server(QObject *parent)
     : QObject(parent)
 {
@@ -29,45 +32,17 @@ Server::Server(QObject *parent)
 
 bool Server::loadServerSslConfig(QSslConfiguration &outConfig)
 {
-    const QString certPath = QStringLiteral("./certs/server.crt");
-    const QString keyPath = QStringLiteral("./certs/server.key");
-
-    QFile certFile(certPath);
-    if (!certFile.open(QIODevice::ReadOnly)) {
-        qCritical() << "Failed to open server certificate:" << certPath;
-        return false;
-    }
-    const QByteArray certData = certFile.readAll();
-
-    QFile keyFile(keyPath);
-    if (!keyFile.open(QIODevice::ReadOnly)) {
-        qCritical() << "Failed to open server private key:" << keyPath;
-        return false;
-    }
-    const QByteArray keyData = keyFile.readAll();
-
-    const QSslCertificate serverCert(certData);
-    if (serverCert.isNull()) {
-        qCritical() << "Invalid certificate:" << certPath;
-        return false;
-    }
-    if (serverCert.isBlacklisted()) {
-        qCritical() << "Blacklisted certificate:" << certPath;
+    const auto serverCert = openCertificate(Parameters::instance.serverCertPath);
+    const auto serverKey = openKey(Parameters::instance.serverKeyPath);
+    if (serverKey.isNull() || serverCert.isNull()) {
         return false;
     }
 
-    QSslKey serverKey(keyData, QSsl::Rsa, QSsl::Pem, QSsl::PrivateKey);
-    if (serverKey.isNull())
-        serverKey = QSslKey(keyData, QSsl::Ec, QSsl::Pem, QSsl::PrivateKey);
-    if (serverKey.isNull()) {
-        qCritical() << "Failed to parse server private key:" << keyPath;
-        return false;
-    }
-
-    QSslConfiguration conf = QSslConfiguration::defaultConfiguration();
+    auto conf = QSslConfiguration::defaultConfiguration();
     conf.setLocalCertificate(serverCert);
     conf.setPrivateKey(serverKey);
     outConfig = conf;
+
     return true;
 }
 
@@ -97,6 +72,7 @@ void Server::close()
             client->deleteLater();
         }
     }
+
     m_clients.clear();
     m_server.close();
 }
@@ -114,12 +90,55 @@ void Server::onNewConnection(QSslSocket *socket)
     socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
     socket->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
 
-    connect(socket, &QSslSocket::encrypted, [socket]() { qInfo() << "SSL encrypted with" << socket->peerAddress().toString() << socket->peerPort(); });
     connect(socket, &QSslSocket::disconnected, this, &Server::onClientDisconnected);
     connect(socket, &QSslSocket::disconnected, socket, &QObject::deleteLater);
+    connect(socket, &QSslSocket::sslErrors, [socket, this](const QList<QSslError> &errors) { onSslErrors(socket, errors); });
+    connect(socket, &QSslSocket::encrypted, [socket, this]() {
+        qInfo() << "SSL encrypted with" << socket->peerAddress().toString() << socket->peerPort();
+    });
 
     m_clients.append(socket);
     Q_EMIT clientConnected(socket);
+}
+
+void Server::onSslErrors(QSslSocket *socket, const QList<QSslError> &errors)
+{
+    const auto serverCert = socket->peerCertificate();
+    if (serverCert.isNull()) {
+        qWarning() << "Server provided no certificate, aborting.";
+        socket->abort();
+        return;
+    }
+
+    const auto trustedCerts = QSslCertificate::fromPath(Parameters::instance.trustedCertsPath, QSsl::Pem, QSslCertificate::PatternSyntax::Wildcard);
+    if (trustedCerts.isEmpty()) {
+        qWarning() << "No trusted certificates found.";
+    } else {
+        qInfo() << "Loaded" << trustedCerts.size() << "trusted certificate(s).";
+    }
+
+    if (!trustedCerts.contains(serverCert)) {
+        qWarning() << "Server certificate is not in the trusted list, aborting.";
+        socket->abort();
+        return;
+    }
+
+    // Cert is in our allowlist — we only tolerate hostname mismatch errors.
+    // Chain/expiry/revocation errors are still fatal.
+    QList<QSslError> ignorable{};
+    for (const QSslError &e : errors) {
+        if (e.error() == QSslError::HostNameMismatch) {
+            ignorable.append(e);
+        } else {
+            qWarning() << "Unacceptable SSL error:" << e.errorString();
+        }
+    }
+
+    if (ignorable.size() == errors.size()) {
+        socket->ignoreSslErrors(ignorable);
+    } else {
+        socket->abort();
+    }
 }
 
 void Server::onClientDisconnected()

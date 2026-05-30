@@ -32,6 +32,7 @@ public:
     bool updateClientEntry(const QVariantMap &map) override;
 
     QPair<QSslCertificate, QSslKey> clientData(const QString &name) override;
+    QList<QSslCertificate> trustedCerts() override;
 
 private:
     bool createClientPathStorage(const QString &name);

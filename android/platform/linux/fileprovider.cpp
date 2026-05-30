@@ -55,6 +55,11 @@ QPair<QSslCertificate, QSslKey> FileProvider::clientData(const QString &name)
     return {openCertificate(basePath + clientCertName()), openKey(basePath + clientKeyName())};
 }
 
+QList<QSslCertificate> FileProvider::trustedCerts()
+{
+    return QSslCertificate::fromPath(FileProvider::instance()->serverCertsPath() + "*", QSsl::Pem, QSslCertificate::PatternSyntax::Wildcard);
+}
+
 void FileProvider::loadServerCerts()
 {
     const auto availables = QDir(serverCertsPath()).entryInfoList(QDir::Files | QDir::Readable | QDir::Hidden, QDir::LocaleAware);

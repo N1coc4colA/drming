@@ -18,8 +18,11 @@ pkg_check_modules(AVAHI REQUIRED avahi-client)
 
 
 set(PROJECT_SOURCES
+    ../certificatesupport.h
     ../parser.h
+
     main.cpp
+
     avahi_publisher.h avahi_publisher.cpp
     commandparser.h commandparser.cpp
     display.h display.cpp

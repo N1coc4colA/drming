@@ -1,39 +1,42 @@
 #ifndef CERTIFICATE_SUPPORT_H
 #define CERTIFICATE_SUPPORT_H
 
+#include <QFile>
 #include <QSslCertificate>
 #include <QSslKey>
 
-bool canOpenCert(const QString &path)
+inline QSslCertificate openCertificate(const QString &path)
 {
-    const auto cert = QSslCertificate::fromFile(path);
-    if (!std::all_of(cert.cbegin(), cert.cend(), [](const auto &cert) { return !cert.isNull(); })) {
-        return false;
+    const auto certs = QSslCertificate::fromFile(path);
+    if (certs.isEmpty()) {
+        qCritical() << "Failed to open certificate:" << path;
+        return QSslCertificate("");
     }
 
-    return true;
+    return certs.first();
 }
 
-bool canOpenKey(const QString &path)
+inline QSslKey openKey(const QString &path)
 {
     QFile keyFile(path);
     if (!keyFile.open(QIODevice::ReadOnly)) {
-        qCritical() << "Failed to open server private key:" << path;
-        return false;
+        qCritical() << "Failed to open private key:" << path;
+        return {};
     }
     const QByteArray keyData = keyFile.readAll();
+    const QSslKey serverKey(keyData, QSsl::Rsa, QSsl::Pem, QSsl::PrivateKey);
 
-    QSslKey serverKey(keyData, QSsl::Rsa, QSsl::Pem, QSsl::PrivateKey);
-    if (serverKey.isNull()) {
-        serverKey = QSslKey(keyData, QSsl::Ec, QSsl::Pem, QSsl::PrivateKey);
-    }
+    return !serverKey.isNull() ? serverKey : QSslKey(keyData, QSsl::Ec, QSsl::Pem, QSsl::PrivateKey);
+}
 
-    if (serverKey.isNull()) {
-        qCritical() << "Failed to parse server private key:" << path;
-        return false;
-    }
+inline bool canOpenCert(const QString &path)
+{
+    return !openCertificate(path).isNull();
+}
 
-    return true;
+inline bool canOpenKey(const QString &path)
+{
+    return !openKey(path).isNull();
 }
 
 #endif // CERTIFICATE_SUPPORT_H

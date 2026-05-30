@@ -15,6 +15,10 @@ struct Parameters
     int port;
     bool advertise;
 
+    QString trustedCertsPath;
+    QString serverCertPath;
+    QString serverKeyPath;
+
     static Parameters instance;
 };
 
