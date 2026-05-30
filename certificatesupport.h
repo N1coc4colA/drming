@@ -23,7 +23,7 @@ inline QSslKey openKey(const QString &path)
         qCritical() << "Failed to open private key:" << path;
         return {};
     }
-    const QByteArray keyData = keyFile.readAll();
+    const auto keyData = keyFile.readAll();
     const QSslKey serverKey(keyData, QSsl::Rsa, QSsl::Pem, QSsl::PrivateKey);
 
     return !serverKey.isNull() ? serverKey : QSslKey(keyData, QSsl::Ec, QSsl::Pem, QSsl::PrivateKey);
