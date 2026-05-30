@@ -33,7 +33,12 @@ StandardPage {
         }
     }
 
-    Component.onCompleted: {
-        mdnsManager.startDiscovery();
+    onVisibleChanged: {
+        if (root.visible) {
+            mdnsManager.startDiscovery();
+            fileProvider.loadClients();
+        } else {
+            mdnsManager.stopDiscovery();
+        }
     }
 }
