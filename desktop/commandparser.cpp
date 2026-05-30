@@ -47,9 +47,9 @@ CommandParser::Exit CommandParser::parse()
     const auto serviceIp = m_parser.value("ip");
     const auto compressionLevel = m_parser.value("quality");
     const auto serviceHostIp = serviceIp.isEmpty() ? QHostAddress::Any : QHostAddress(serviceIp);
-    bool valid = false;
+    auto valid = false;
 
-    const int port = portName.toInt(&valid);
+    const auto port = portName.toInt(&valid);
     if (!valid) {
         qCritical() << "It seems the port is not base 10, and could not be parsed.";
         return Failure;
@@ -64,12 +64,12 @@ CommandParser::Exit CommandParser::parse()
         return Failure;
     }
 
-    const auto jpegCompression = compressionLevel.toInt(&valid);
+    const auto quality = compressionLevel.toInt(&valid);
     if (!valid) {
         qCritical() << QObject::tr("The supplied compression level is not base 10, and could not be parsed.");
         return Failure;
     }
-    if (jpegCompression < -1 || jpegCompression > 100) {
+    if (quality < -1 || quality > 100) {
         qCritical() << QObject::tr("The compression level is not within the right range.");
         return Failure;
     }
@@ -79,7 +79,7 @@ CommandParser::Exit CommandParser::parse()
         .serviceName = serviceName,
         .serviceIp = serviceIp,
         .serviceHostIp = serviceHostIp,
-        .jpegCompression = jpegCompression,
+        .qualityLevel = quality,
         .port = port,
         .advertise = m_parser.isSet("no-advertise"),
         .trustedCertsPath = m_parser.value("trusted"),
