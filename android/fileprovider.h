@@ -20,9 +20,11 @@ public:
     Q_INVOKABLE virtual void deleteServerCert(const QString &fileName) = 0;
     Q_INVOKABLE virtual void deleteClient(const QString &name) = 0;
 
-    Q_INVOKABLE virtual void addServerCert() = 0;
-    Q_INVOKABLE virtual void addClientCert(const QString &name) = 0;
-    Q_INVOKABLE virtual void addClientKey(const QString &name) = 0;
+    Q_INVOKABLE virtual int addServerCert() = 0;
+    Q_INVOKABLE virtual int addClientCert(const QString &name) = 0;
+    Q_INVOKABLE virtual int addClientKey(const QString &name) = 0;
+
+    Q_INVOKABLE virtual QStringList validClientEntries() = 0;
 
     virtual QString serverCertsPath() = 0;
     virtual QString clientPath() = 0;

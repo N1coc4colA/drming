@@ -11,6 +11,8 @@ class FilesModel : public QAbstractListModel
     Q_PROPERTY(int count READ count NOTIFY countChanged)
 
 public:
+    using MapType = QList<std::tuple<QDateTime, QString, QVariantMap>>;
+
     enum FileRoles { NameRole = Qt::UserRole + 1, DateTimeRole, InfoRole };
 
     explicit FilesModel(QObject *parent = nullptr);
@@ -22,13 +24,15 @@ public:
     Q_INVOKABLE int count() const { return m_files.count(); }
     Q_INVOKABLE QVariantMap get(int index) const;
 
-    void setData(const QList<std::tuple<QDateTime, QString, QVariantMap>> &newData);
+    void setData(const MapType &newData);
+
+    inline const MapType &internalData() const { return m_files; }
 
 Q_SIGNALS:
     void countChanged();
 
 private:
-    QList<std::tuple<QDateTime, QString, QVariantMap>> m_files{};
+    MapType m_files{};
 };
 
 #endif // FILESMODEL_H

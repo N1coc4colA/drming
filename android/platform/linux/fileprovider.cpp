@@ -5,6 +5,8 @@
 #include <QFileDialog>
 #include <QStandardPaths>
 
+#include "../../../certificatesupport.h"
+
 namespace Platform {
 
 FileProvider::FileProvider(QObject *parent)
@@ -70,11 +72,13 @@ void FileProvider::loadClients()
 
     const auto basePath = clientPath();
     const auto certName = "/" + clientCertName();
-    const auto keyName = "/" + clientCertName();
+    const auto keyName = "/" + clientKeyName();
     for (const auto &info : availables) {
         const auto name = info.fileName();
-        const auto certExists = QFile(basePath + name + certName).exists();
-        const auto keyExists = QFile(basePath + name + keyName).exists();
+        const auto certPath = basePath + name + certName;
+        const auto keyPath = basePath + name + keyName;
+        const auto certExists = QFile(certPath).exists() && canOpenCert(certPath);
+        const auto keyExists = QFile(keyPath).exists() && canOpenKey(keyPath);
 
         data.append({info.fileTime(QFileDevice::FileModificationTime), name, {{"cert", certExists}, {"key", keyExists}}});
     }
@@ -108,11 +112,11 @@ void FileProvider::deleteClient(const QString &name)
     loadClients();
 }
 
-void FileProvider::addServerCert()
+int FileProvider::addServerCert()
 {
     const auto sourceLocation = QFileDialog::getOpenFileName(nullptr, tr("Import certificate"), {}, "Certificate (*.crt)");
     if (sourceLocation.isEmpty()) {
-        return;
+        return 0;
     }
 
     const QFileInfo source(sourceLocation);
@@ -121,10 +125,16 @@ void FileProvider::addServerCert()
     if (!QFile::copy(sourceLocation, targetLocation)) {
         qDebug() << "Failed to copy from " << sourceLocation << "to" << targetLocation;
         // [TODO] Generate error message
-        return;
+        return 0;
+    }
+
+    if (!canOpenCert(targetLocation)) {
+        return 1;
     }
 
     loadServerCerts();
+
+    return 2;
 }
 
 bool FileProvider::createClientPathStorage(const QString &name)
@@ -158,35 +168,62 @@ bool FileProvider::copyFile(const QString &title, const QString &filter, const Q
     return true;
 }
 
-void FileProvider::addClientCert(const QString &name)
+int FileProvider::addClientCert(const QString &name)
 {
     if (!createClientPathStorage(name)) {
-        return;
+        return 0;
     }
 
-    if (!copyFile(tr("Import certificate"), tr("Certificate (*.crt)"), clientPath() + name + "/" + clientCertName())) {
-        return;
+    const auto path = clientPath() + name + "/" + clientCertName();
+    if (!copyFile(tr("Import certificate"), tr("Certificate (*.crt)"), path)) {
+        return 0;
+    }
+
+    if (!canOpenCert(path)) {
+        return 1;
     }
 
     loadClients();
+
+    return 2;
 }
 
-void FileProvider::addClientKey(const QString &name)
+int FileProvider::addClientKey(const QString &name)
 {
     if (!createClientPathStorage(name)) {
-        return;
+        return 0;
     }
 
-    if (!copyFile(tr("Import key"), tr("Key (*.key)"), clientPath() + name + "/" + clientKeyName())) {
-        return;
+    const auto path = clientPath() + name + "/" + clientKeyName();
+    if (!copyFile(tr("Import key"), tr("Key (*.key)"), path)) {
+        return 0;
+    }
+
+    if (!canOpenKey(path)) {
+        return 1;
     }
 
     loadClients();
+
+    return 2;
+}
+
+QStringList FileProvider::validClientEntries()
+{
+    QStringList out{};
+    for (const auto &entry : m_clientFiles->internalData()) {
+        const auto &map = std::get<2>(entry);
+        if (map["cert"].toBool() && map["key"].toBool()) {
+            out.append(std::get<1>(entry));
+        }
+    }
+
+    return out;
 }
 
 bool FileProvider::updateClientEntry(const QVariantMap &map)
 {
-    if (!map.contains("previousName") || map.contains("updatedName")) {
+    if (!map.contains("previousName") || !map.contains("updatedName")) {
         return false;
     }
 
@@ -206,6 +243,8 @@ bool FileProvider::updateClientEntry(const QVariantMap &map)
         // [TODO] Generate error
         return false;
     }
+
+    loadClients();
 
     return true;
 }

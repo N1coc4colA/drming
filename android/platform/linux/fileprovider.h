@@ -18,9 +18,11 @@ public:
     void deleteServerCert(const QString &fileName) override;
     void deleteClient(const QString &name) override;
 
-    void addServerCert() override;
-    void addClientCert(const QString &name) override;
-    void addClientKey(const QString &name) override;
+    int addServerCert() override;
+    int addClientCert(const QString &name) override;
+    int addClientKey(const QString &name) override;
+
+    QStringList validClientEntries() override;
 
     QString serverCertsPath() override;
     QString clientPath() override;

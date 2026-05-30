@@ -4,7 +4,7 @@ FilesModel::FilesModel(QObject *parent)
     : QAbstractListModel(parent)
 {}
 
-void FilesModel::setData(const QList<std::tuple<QDateTime, QString, QVariantMap>> &newData)
+void FilesModel::setData(const MapType &newData)
 {
     const int c = count();
     if (c > 0) {

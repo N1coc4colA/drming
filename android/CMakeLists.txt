@@ -17,8 +17,11 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network Widge
 
 
 set(PROJECT_SOURCES
+    ../certificatesupport.h
     ../parser.h
+
     main.cpp
+
     fileprovider.h fileprovider.cpp
     mdns.h mdns.cpp
     networklink.h networklink.cpp
