@@ -40,10 +40,14 @@ EasyDialog {
                 text: qsTr("Key to use:")
             }
             EasyComboBox {
-                model: fileProvider.validClientEntries()
+                id: clientEntry
                 onCurrentIndexChanged: {
                     root.isValid = currentIndex >= 0
                     root.clientName = currentText
+                }
+
+                onVisibleChanged: {
+                    clientEntry.model = fileProvider.validClientEntries()
                 }
             }
         }
