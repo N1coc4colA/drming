@@ -79,12 +79,4 @@ EasyListView {
             }
         }
     }
-
-    onVisibleChanged: {
-        if (root.visible) {
-            mdnsManager.startDiscovery();
-        } else {
-            mdnsManager.stopDiscovery();
-        }
-    }
 }
