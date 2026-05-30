@@ -80,6 +80,7 @@ qt_add_qml_module(drming_android
 
         qml/HeaderBar.qml
         qml/EasyButton.qml
+        qml/EasyComboBox.qml
         qml/EasyDialog.qml
         qml/EasyListView.qml
         qml/EasyPage.qml
