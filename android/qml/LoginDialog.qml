@@ -34,6 +34,16 @@ EasyDialog {
             Label {
                 text: root.hostPort
             }
+
+            Label {
+                text: qsTr("Key to use:")
+            }
+            ComboBox {
+                model: fileProvider.validClientEntries()
+                onCurrentIndexChanged: {
+                    root.isValid = currentIndex >= 0
+                }
+            }
         }
     }
 
