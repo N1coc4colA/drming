@@ -43,7 +43,7 @@ StandardPage {
             columns: root.width > 260 ? 2 : 1
 
             Label {
-                text: qsTr("Name:")
+                text: qsTr("Name")
             }
             Rectangle {
                 radius: 5
@@ -55,6 +55,8 @@ StandardPage {
                     id: nameInput
                     anchors.fill: parent
                     anchors.margins: 3
+                    anchors.leftMargin: 8
+                    anchors.rightMargin: 8
                     text: infoDialog.model.entryName
                     color: palette.text
                     verticalAlignment: TextInput.AlignVCenter
@@ -79,24 +81,61 @@ StandardPage {
                 text: qsTr("Change")
                 visible: nameInput.length !== 0
                 onClicked: {
-                    fileProvider.addClientKey(infoDialog.model.entryName)
+                    const output = fileProvider.addClientKey(infoDialog.model.entryName)
+                    switch (output) {
+                    case 0: {
+                        errorLabel.text = qsTr("Failed to open key file.")
+                        break;
+                    }
+                    case 1: {
+                        errorLabel.text = qsTr("Invalid key file.")
+                        break;
+                    }
+                    case 2: {
+                        infoDialog.model.info.key = true
+                    }
+                    }
                 }
-                color: infoDialog.model.info.key ? "green" : "red"
-                //text: infoDialog.model.info.key ? qsTr("Set up") : qsTr("Missing")
+                icon.source: infoDialog.model.info.key ? "qrc:/assets/check.svg" : "qrc:/assets/warning-red.svg"
+                color: infoDialog.model.info.key ? "#17c245" : "#ff3045"
             }
 
             Label {
                 text: qsTr("Certificate")
                 visible: nameInput.length !== 0
             }
+
             EasyButton {
                 text: qsTr("Change")
                 visible: nameInput.length !== 0
                 onClicked: {
-                    fileProvider.addClientCert(infoDialog.model.entryName)
+                    const output = fileProvider.addClientCert(infoDialog.model.entryName)
+                    switch (output) {
+                    case 0: {
+                        errorLabel.text = qsTr("Failed to open certificate file.")
+                        break;
+                    }
+                    case 1: {
+                        errorLabel.text = qsTr("Invalid certificate file.")
+                        infoDialog.model.info.cert = false
+                        break;
+                    }
+                    case 2: {
+                        infoDialog.model.info.cert = true
+                    }
+                    }
                 }
-                color: infoDialog.model.info.cert ? "green" : "red"
-                //text: infoDialog.model.info.cert ? qsTr("Set up") : qsTr("Missing")
+                icon.source: infoDialog.model.info.cert ? "qrc:/assets/check.svg" : "qrc:/assets/warning-red.svg"
+                color: infoDialog.model.info.cert ? "#17c245" : "#ff3045"
+            }
+
+            Label {
+                id: errorLabel
+                visible: errorLabel.text.length !== 0
+                color: "#ff3045"
+                Layout.fillWidth: true
+                Layout.columnSpan: parent.columns
+                horizontalAlignment: Text.AlignHCenter
             }
         }
 
@@ -104,17 +143,6 @@ StandardPage {
             spacing: 10
             Layout.margins: 8
 
-            EasyButton {
-                visible: infoDialog.model.entryName.length !== 0
-                text: qsTr("Apply")
-                icon.source: "qrc:/assets/window-close.svg"
-                DialogButtonBox.buttonRole: DialogButtonBox.Ok
-                onClicked: {
-                    infoDialog.updateClientData()
-                    infoDialog.close()
-                }
-
-            }
             Item {
                 Layout.fillWidth: true
             }
@@ -184,6 +212,15 @@ StandardPage {
                     anchors.leftMargin: 16
                     anchors.rightMargin: 4
                     spacing: 8
+
+                    Image {
+                        width: label.height
+                        height: label.height
+                        fillMode: Image.PreserveAspectFit
+                        sourceSize.width: label.height
+                        sourceSize.height: label.height
+                        source: (model.info["cert"] && model.info["key"]) ? "qrc:/assets/check.svg" : "qrc:/assets/warning.svg"
+                    }
 
                     Label {
                         text: model.datetime
