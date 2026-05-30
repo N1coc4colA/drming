@@ -17,10 +17,10 @@ ComboBox {
         required property int index
 
         contentItem: Text {
-            text: delegate.model[control.textRole]
             color: palette.text
-            font: control.font
             elide: Text.ElideRight
+            font: control.font
+            text: delegate.model[control.textRole]
             verticalAlignment: Text.AlignVCenter
 
             anchors.fill: delegate.background
@@ -28,11 +28,11 @@ ComboBox {
         }
 
         background: Rectangle {
-            visible: control.down || control.highlighted || control.visualFocus
             color: control.visualFocus
                 ? (control.pressed ? palette.highlight : palette.dark)
                 : (control.down ? palette.highlight : "transparent")
             radius: 5
+            visible: control.down || control.highlighted || control.visualFocus
 
             anchors.fill: delegate
         }
@@ -53,17 +53,17 @@ ComboBox {
     contentItem: Text {
         rightPadding: control.indicator.width + control.spacing*2
         leftPadding: control.spacing
-        text: control.displayText
         color: control.pressed ? palette.highlightedText : palette.text
-        verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
+        text: control.displayText
+        verticalAlignment: Text.AlignVCenter
     }
 
     background: Rectangle {
+        color: control.pressed ? palette.highlight : palette.mid
         implicitWidth: 100
         implicitHeight: 32
         radius: 8
-        color: control.pressed ? palette.highlight : palette.mid
 
         border.color: control.pressed ? palette.highlight : palette.dark
         border.width: control.visualFocus ? 2 : 1
@@ -78,15 +78,15 @@ ComboBox {
         contentItem: ListView {
             clip: true
             implicitHeight: contentHeight
-            model: control.popup.visible ? control.delegateModel : null
             currentIndex: control.highlightedIndex
+            model: control.popup.visible ? control.delegateModel : null
 
             ScrollIndicator.vertical: ScrollIndicator { }
         }
 
         background: Rectangle {
-            radius: 8
             color: palette.mid
+            radius: 8
 
             border.color: palette.dark
             border.width: 1

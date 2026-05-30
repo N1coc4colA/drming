@@ -8,13 +8,12 @@ EasyPage {
     signal back
 
     headerBar.leftContent: EasyButton {
-        icon.source: "qrc:/assets/go-previous.svg"
         display: AbstractButton.IconOnly
-
-        onClicked: root.back()
-
+        icon.source: "qrc:/assets/go-previous.svg"
         height: headerBar.centerHeight
         width: headerBar.centerHeight
+
+        onClicked: root.back()
     }
 
     content: VideoFrame {

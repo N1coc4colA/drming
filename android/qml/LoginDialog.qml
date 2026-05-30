@@ -4,8 +4,8 @@ import QtQuick.Layouts
 
 EasyDialog {
     id: root
-    title: qsTr("Login")
     modal: true
+    title: qsTr("Login")
 
     property string hostIp: "";
     property string hostPort: "";
@@ -41,26 +41,27 @@ EasyDialog {
             }
             EasyComboBox {
                 id: clientEntry
+
                 onCurrentIndexChanged: {
                     root.isValid = currentIndex >= 0
                     root.clientName = currentText
                 }
-
-                onVisibleChanged: {
-                    clientEntry.model = fileProvider.validClientEntries()
-                }
+                onVisibleChanged: clientEntry.model = fileProvider.validClientEntries()
             }
         }
     }
 
     footer: RowLayout {
         spacing: 10
+
         Layout.margins: 8
 
         EasyButton {
             text: qsTr("Cancel")
             icon.source: "qrc:/assets/window-close.svg"
+
             DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+
             onClicked: {
                 root.close()
                 root.cancelled()
@@ -72,9 +73,11 @@ EasyDialog {
 
         EasyButton {
             text: qsTr("Continue")
-            icon.source: "qrc:/assets/go-next.svg"
             enabled: root.isValid
+            icon.source: "qrc:/assets/go-next.svg"
+
             DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+
             onClicked: {
                 root.close()
                 root.submitted()

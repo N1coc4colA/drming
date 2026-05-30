@@ -14,34 +14,34 @@ ParallelAnimation {
         PropertyAnimation {
             target: root.container
             property: "scale"
-            to: 1.1
             duration: root.duration/2
             easing.type: Easing.InOutQuad
+            to: 1.1
         }
 
         PropertyAnimation {
             target: root.container
             property: "scale"
-            to: 1.0
             duration: root.duration/2
             easing.type: Easing.InOutQuad
+            to: 1.0
         }
     }
     SequentialAnimation {
         PropertyAnimation {
             target: root.background
             property: "color"
-            to: highlightBackground
             duration: root.duration/2
             easing.type: Easing.InOutQuad
+            to: highlightBackground
         }
 
         PropertyAnimation {
             target: root.background
             property: "color"
-            to: backgroundColor
             duration: root.duration/2
             easing.type: Easing.InOutQuad
+            to: backgroundColor
         }
     }
 }

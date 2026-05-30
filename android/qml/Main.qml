@@ -5,11 +5,11 @@ import QtQuick.Layouts
 
 Window {
     id: window
+    color: palette.window
     width: 640
     height: 480
-    visible: true
     title: qsTr("Device Remote Manager")
-    color: palette.window
+    visible: true
 
     enum ViewState {
         HomePage,
@@ -21,11 +21,22 @@ Window {
 
     property int viewState: Main.ViewState.HomePage
 
+    function goBack() {
+        if (stackView.depth > 1) {
+            if (window.isStreaming) {
+                networkLink.close()
+                window.isStreaming = false
+            }
+
+            stackView.pop()
+        }
+    }
+
     StackView {
         id: stackView
-        anchors.fill: parent
-
         initialItem: homeView
+
+        anchors.fill: parent
 
         Component {
             id: homeView
@@ -33,20 +44,15 @@ Window {
             HomePage {
                 id: hom
 
-                onCertsViewNeeded: {
-                    stackView.push(certsView)
-                }
-                onKeysViewNeeded: {
-                    stackView.push(keysView)
-                }
-                onServicesViewNeeded: {
-                    stackView.push(servicesView)
-                }
+                onCertsViewNeeded: stackView.push(certsView)
+                onKeysViewNeeded: stackView.push(keysView)
+                onServicesViewNeeded: stackView.push(servicesView)
             }
         }
 
         Component {
             id: certsView
+
             CertificatesPages {
                 id: certificates
                 visible: false
@@ -57,6 +63,7 @@ Window {
 
         Component {
             id: keysView
+
             KeysPage {
                 id: keys
                 visible: false
@@ -67,6 +74,7 @@ Window {
 
         Component {
             id: servicesView
+
             ServicesPage {
                 id: services
                 visible: false
@@ -81,6 +89,7 @@ Window {
 
         Component {
             id: streamView
+
             StreamPage {
                 id: stream
                 visible: false
@@ -92,19 +101,21 @@ Window {
         Component {
             id: shaderBlurEffectSource
             ShaderEffectSource {
-                sourceItem: stackView
-                visible: false
-                anchors.fill: shaderBlurEffectSource.parent
                 hideSource: false
                 live: true
                 textureSize: Qt.size(width / 2, height / 2)
+                sourceItem: stackView
+                visible: false
+
+                anchors.fill: shaderBlurEffectSource.parent
             }
         }
 
         Loader {
             id: blurLoader
-            anchors.fill: parent
             sourceComponent: shaderBlurEffectSource
+
+            anchors.fill: parent
         }
     }
 
@@ -117,23 +128,26 @@ Window {
 
     EasyDialog {
         id: errorDialog
-        x: (window.width - width)/2
-        y: (window.height - height)/2
         title: qsTr("Connection error")
         modal: true
+        x: (window.width - width)/2
+        y: (window.height - height)/2
+
         property string errorText: ""
 
         content: Label {
             id: errorLabel
+            horizontalAlignment: Text.AlignHCenter
             text: errorDialog.errorText
             wrapMode: Text.Wrap
-            horizontalAlignment: Text.AlignHCenter
+
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.margins: 16
         }
 
         footer: RowLayout {
             spacing: 10
+
             Layout.margins: 8
 
             Item {
@@ -142,10 +156,10 @@ Window {
             EasyButton {
                 text: qsTr("Ok")
                 icon.source: "qrc:/assets/window-close.svg"
+
                 DialogButtonBox.buttonRole: DialogButtonBox.Ok
-                onClicked: {
-                    errorDialog.close()
-                }
+
+                onClicked: errorDialog.close()
             }
         }
     }
@@ -155,28 +169,17 @@ Window {
 
         function onError(message) {
             // Show the message and return to the base services view
-            errorDialog.errorText = message || qsTr("Unknown connection error");
-            networkLink.close();
-            stackView.pop();
-            errorDialog.open();
-        }
-    }
-
-    function goBack() {
-        if (stackView.depth > 1) {
-            if (window.isStreaming) {
-                networkLink.close();
-                window.isStreaming = false;
-            }
-
-            stackView.pop();
+            errorDialog.errorText = message || qsTr("Unknown connection error")
+            networkLink.close()
+            stackView.pop()
+            errorDialog.open()
         }
     }
 
     Keys.onReleased: {
         if (event.key === Qt.Key_Back) {
-            goBack();
-            event.accepted = true;
+            goBack()
+            event.accepted = true
         }
     }
 }

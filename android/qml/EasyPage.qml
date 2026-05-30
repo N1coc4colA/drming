@@ -5,16 +5,19 @@ Item {
     id: root
 
     ColumnLayout {
-        anchors.fill: parent
         spacing: 0
+
+        anchors.fill: parent
 
         HeaderBar {
             id: headerBarComponent
+
             Layout.fillWidth: true
         }
 
         Loader {
             id: contentLoader
+
             Layout.fillWidth: true
             Layout.fillHeight: true
         }

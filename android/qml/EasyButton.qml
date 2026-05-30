@@ -15,16 +15,6 @@ Button {
     icon.width: bounding
     icon.color: "transparent"
 
-    background: Rectangle {
-        id: backgroundRectangle
-        color: backgroundColor
-        radius: 8
-        border.color: borderColor
-        border.width: 1
-    }
-
-    onPressed: anim.start()
-
     TapAnimation {
         id: anim
         duration: animationsDuration
@@ -34,11 +24,20 @@ Button {
         highlightBackground: highlightColor
     }
 
-    Component.onCompleted: {
-         root.contentItem.color = root.color;
+    background: Rectangle {
+        id: backgroundRectangle
+        color: backgroundColor
+        radius: 8
+        border.color: borderColor
+        border.width: 1
     }
 
+    onPressed: anim.start()
     onColorChanged: {
-        root.contentItem.color = root.color;
+        root.contentItem.color = root.color
     }
+    Component.onCompleted: {
+         root.contentItem.color = root.color
+    }
+
 }

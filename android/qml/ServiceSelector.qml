@@ -4,12 +4,15 @@ import QtQuick.Layouts
 
 Dialog {
     id: popup
-    anchors.centerIn: parent
+    focus: true
+    modal: true
+    title: qsTr("Connect to Service?")
     width: Math.min(parent.width - 40, 400)
     height: contentHeight + 40
-    modal: true
-    focus: true
-    title: qsTr("Connect to Service?")
+
+    anchors.centerIn: parent
+
+    property var serviceInfo: null
 
     signal accepted
     signal rejected
@@ -19,21 +22,22 @@ Dialog {
         popup.open()
     }
 
-    property var serviceInfo: null
-
     ColumnLayout {
-        width: parent.width - 40
-        anchors.centerIn: parent
         spacing: 16
+        width: parent.width - 40
+
+        anchors.centerIn: parent
 
         Rectangle {
-            Layout.fillWidth: true
             height: 1
+
+            Layout.fillWidth: true
         }
 
         ColumnLayout {
-            Layout.fillWidth: true
             spacing: 8
+
+            Layout.fillWidth: true
 
             Text {
                 text: qsTr("Service: %1").arg(popup.serviceInfo ? name : "")

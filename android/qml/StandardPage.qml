@@ -14,12 +14,12 @@ EasyPage {
     }
 
     headerBar.leftContent: EasyButton {
-        icon.source: "qrc:/assets/go-previous.svg"
         display: AbstractButton.IconOnly
+        width: headerBar.centerHeight
+        height: headerBar.centerHeight
+
+        icon.source: "qrc:/assets/go-previous.svg"
 
         onClicked: root.back()
-
-        height: headerBar.centerHeight
-        width: headerBar.centerHeight
     }
 }

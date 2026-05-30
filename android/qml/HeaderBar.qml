@@ -4,6 +4,14 @@ import QtQuick.Layouts
 Item {
     id: root
 
+    implicitHeight: (root.twoRows
+                     ? (twoRowLoader.item ? twoRowLoader.item.implicitHeight + 2*margin : 0)
+                     : (oneRowLoader.item ? oneRowLoader.item.implicitHeight + 2*margin : 0))
+
+    implicitWidth:  (root.twoRows
+                     ? (twoRowLoader.item ? twoRowLoader.item.implicitWidth  : 0)
+                     : (oneRowLoader.item ? oneRowLoader.item.implicitWidth  : 0))
+
     property Component leftContent
     property Component centerContent
     property Component rightContent
@@ -21,30 +29,24 @@ Item {
     Loader {
         id: oneRowLoader
         active: !root.twoRows
-        sourceComponent: oneRowView
         width: parent.width
+        sourceComponent: oneRowView
         // height is implicit from the loaded item
     }
 
     Loader {
         id: twoRowLoader
         active: root.twoRows
-        sourceComponent: twoRowView
         width: parent.width
+        sourceComponent: twoRowView
     }
-
-    implicitHeight: (root.twoRows
-                     ? (twoRowLoader.item ? twoRowLoader.item.implicitHeight + 2*margin : 0)
-                     : (oneRowLoader.item ? oneRowLoader.item.implicitHeight + 2*margin : 0))
-
-    implicitWidth:  (root.twoRows
-                     ? (twoRowLoader.item ? twoRowLoader.item.implicitWidth  : 0)
-                     : (oneRowLoader.item ? oneRowLoader.item.implicitWidth  : 0))
 
     Component {
         id: oneRowView
+
         RowLayout {
             spacing: root.spacing
+
             anchors.margins: root.margin
             // Stretch horizontally inside the Loader, but keep vertical implicit
             anchors.top: parent.top
@@ -54,48 +56,48 @@ Item {
             // Left item
             Loader {
                 id: leftLoader
-                visible: root.hasLeft
                 active: visible
-                Layout.fillWidth: false
                 sourceComponent: root.leftContent
+                visible: root.hasLeft
+
+                Layout.fillWidth: false
             }
 
             // Center item (or fallback spacer for left+right only)
             Loader {
                 id: centerLoader
-                visible: root.hasCenter
                 active: visible
-                Layout.fillWidth: true
                 sourceComponent: root.centerContent
+                visible: root.hasCenter
 
-                onItemChanged: if (item) {
-                    // Stretch horizontally only
-                    /*item.anchors.left = centerLoader
-                    item.anchors.right = centerLoader*/
-                }
+                Layout.fillWidth: true
             }
 
             Item {
                 id: middleSpacer
                 visible: root.hasLeft && root.hasRight && !root.hasCenter
+
                 Layout.fillWidth: true
             }
 
             // Right item
             Loader {
                 id: rightLoader
-                visible: root.hasRight
                 active: visible
-                Layout.fillWidth: false
                 sourceComponent: root.rightContent
+                visible: root.hasRight
+
+                Layout.fillWidth: false
             }
         }
     }
 
     Component {
         id: twoRowView
+
         ColumnLayout {
             spacing: root.spacing
+
             anchors.margins: root.margin
             // Stretch horizontally inside the Loader, but keep vertical implicit
             anchors.top: parent.top
@@ -103,15 +105,17 @@ Item {
             anchors.right: parent.right
 
             RowLayout {
-                Layout.fillWidth: true
                 spacing: root.spacing
+
+                Layout.fillWidth: true
 
                 Loader {
                     id: leftLoader2
-                    visible: root.hasLeft
                     active: visible
-                    Layout.fillWidth: false
                     sourceComponent: root.leftContent
+                    visible: root.hasLeft
+
+                    Layout.fillWidth: false
                 }
 
                 Item {
@@ -120,24 +124,21 @@ Item {
 
                 Loader {
                     id: rightLoader2
-                    visible: root.hasRight
                     active: visible
-                    Layout.fillWidth: false
                     sourceComponent: root.rightContent
+                    visible: root.hasRight
+
+                    Layout.fillWidth: false
                 }
             }
 
             Loader {
                 id: centerLoader2
-                visible: root.hasCenter
                 active: visible
-                Layout.fillWidth: true
                 sourceComponent: root.centerContent
+                visible: root.hasCenter
 
-                onItemChanged: if (item) {
-                    /*item.anchors.left = centerLoader2
-                    item.anchors.right = centerLoader2*/
-                }
+                Layout.fillWidth: true
             }
         }
     }

@@ -12,15 +12,16 @@ StandardPage {
 
     content: ServicesList {
         id: servicesList
-        Layout.fillWidth: true
-        Layout.fillHeight: true
         searchQuery: root.searchText
 
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+
         onServiceSelected: (service) => {
-            root.selectedService = service;
-            authDialog.hostIp = service.ip;
-            authDialog.hostPort = service.port;
-            authDialog.open();
+            root.selectedService = service
+            authDialog.hostIp = service.ip
+            authDialog.hostPort = service.port
+            authDialog.open()
         }
     }
 
@@ -28,17 +29,17 @@ StandardPage {
         id: authDialog
 
         onSubmitted: function() {
-            networkLink.connect(authDialog.hostIp, authDialog.hostPort, authDialog.clientName);
-            root.displayStream();
+            networkLink.connect(authDialog.hostIp, authDialog.hostPort, authDialog.clientName)
+            root.displayStream()
         }
     }
 
     onVisibleChanged: {
         if (root.visible) {
-            mdnsManager.startDiscovery();
-            fileProvider.loadClients();
+            mdnsManager.startDiscovery()
+            fileProvider.loadClients()
         } else {
-            mdnsManager.stopDiscovery();
+            mdnsManager.stopDiscovery()
         }
     }
 }

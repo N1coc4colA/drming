@@ -6,51 +6,51 @@ import QtQuick.Layouts
 
 Popup {
     id: root
+    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
     dim: true
     modal: true
     focus: true
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-    implicitWidth: contentLayout.implicitWidth + leftPadding + rightPadding
-    implicitHeight: contentLayout.implicitHeight + topPadding + bottomPadding
     padding: 16
 
     x: (window.width - width)/2
     y: (window.height - height)/2
+    implicitWidth: contentLayout.implicitWidth + leftPadding + rightPadding
+    implicitHeight: contentLayout.implicitHeight + topPadding + bottomPadding
 
-    //property var blurSource: null
     property string title: ""
     property int animationsDuration: 200
 
     enter: Transition {
         ParallelAnimation {
             NumberAnimation {
+                duration: animationsDuration
                 property: "opacity"
                 from: 0.0
                 to: 1.0
-                duration: animationsDuration
             }
             NumberAnimation {
+                duration: animationsDuration
                 property: "scale"
                 from: 0.4
                 to: 1.0
+
                 easing.type: Easing.OutBack
-                duration: animationsDuration
             }
         }
     }
     exit: Transition {
         ParallelAnimation {
             NumberAnimation {
+                duration: animationsDuration
                 property: "opacity"
                 from: 1.0
                 to: 0.0
-                duration: animationsDuration
             }
             NumberAnimation {
+                duration: animationsDuration
                 property: "scale"
                 from: 1.0
                 to: 0.8
-                duration: animationsDuration
             }
         }
     }
@@ -59,29 +59,32 @@ Popup {
         anchors.fill: parent
 
         Rectangle {
-            anchors.fill: parent
             color: "black"
+
+            anchors.fill: parent
         }
         MultiEffect {
-            anchors.fill: parent
-            source: GlobalVars.shaderBlurSource
-            blurEnabled: GlobalVars.shaderBlurSource !== null
-            blur: 1.0
-            blurMax: 64
-            colorizationColor: palette.text
-            colorization: 0.2
             autoPaddingEnabled: false
+            blur: 1.0
+            blurEnabled: GlobalVars.shaderBlurSource !== null
+            blurMax: 64
+            colorization: 0.2
+            colorizationColor: palette.text
+            source: GlobalVars.shaderBlurSource
+
+            anchors.fill: parent
         }
     }
 
     background: Rectangle {
-        radius: 8
-        color: palette.window
-        border.width: 1
-        border.color: palette.mid
         clip: true
+        color: palette.window
         width: root.width
         height: root.height
+        radius: 8
+
+        border.width: 1
+        border.color: palette.mid
     }
 
     contentItem: ColumnLayout {
@@ -90,15 +93,17 @@ Popup {
 
         Label {
             id: titleLabel
+            horizontalAlignment: Qt.AlignHCenter
             text: root.title
             visible: root.title !== ""
-            Layout.fillWidth: true
-            horizontalAlignment: Qt.AlignHCenter
+
             font.bold: true
+            Layout.fillWidth: true
         }
 
         Loader {
             id: contentLoader
+
             Layout.fillWidth: true
             Layout.preferredHeight: item ? item.implicitHeight : 0
             Layout.preferredWidth:  item ? item.implicitWidth  : 0
@@ -106,6 +111,7 @@ Popup {
 
         Loader {
             id: footerLoader
+
             Layout.fillWidth: true
             Layout.preferredHeight: item ? item.implicitHeight : 0
             Layout.preferredWidth:  item ? item.implicitWidth  : 0

@@ -5,6 +5,8 @@ import QtQuick.Shapes
 
 EasyListView {
     id: root
+    emptyText: networkState.connected ?  qsTr("No services found") : qsTr("No internet connection")
+    model: servicesModel
 
     property string searchQuery: ""
     property var selectedService: ({
@@ -17,9 +19,6 @@ EasyListView {
 
     signal serviceSelected(var service)
 
-    emptyText: networkState.connected ?  qsTr("No services found") : qsTr("No internet connection")
-    model: servicesModel
-
     delegate: Item {
         width: root.width
         height: visible ? 140 : 0
@@ -28,29 +27,23 @@ EasyListView {
         Rectangle {
             radius: 8
             color: palette.mid
+
             border.color: palette.dark
             border.width: 1
+
             anchors.fill: parent
             anchors.leftMargin: 5
             anchors.rightMargin: anchors.leftMargin
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: function() {
-                    selectedService.name = model.name;
-                    selectedService.host = model.host;
-                    selectedService.ip = model.ip;
-                    selectedService.port = model.port;
-                    selectedService.type = model.type;
-
-                    root.serviceSelected(selectedService);
-                }
 
                 ColumnLayout {
                     id: cl
+                    spacing: 4
+
                     anchors.fill: parent
                     anchors.margins: 16
-                    spacing: 4
 
                     Label {
                         text: model.name
@@ -61,20 +54,33 @@ EasyListView {
                     Label {
                         text: qsTr("Host: %1").arg(model.host)
                         font.pixelSize: 14
+
                         Layout.maximumWidth: 100;
                     }
 
                     Label {
                         text: qsTr("IP: %1").arg(model.ip)
                         font.pixelSize: 14
+
                         Layout.maximumWidth: 100;
                     }
 
                     Label {
                         text: qsTr("Port: %1").arg(model.port)
                         font.pixelSize: 14
+
                         Layout.maximumWidth: 100;
                     }
+                }
+
+                onClicked: function() {
+                    selectedService.name = model.name
+                    selectedService.host = model.host
+                    selectedService.ip = model.ip
+                    selectedService.port = model.port
+                    selectedService.type = model.type
+
+                    root.serviceSelected(selectedService)
                 }
             }
         }

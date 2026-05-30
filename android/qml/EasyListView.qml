@@ -6,15 +6,13 @@ Item {
     id: root
 
     property real topMargin: 5
-    property alias emptyText: emptyLabel.text
-    property alias model: listView.model
-    property alias delegate: listView.delegate
 
     ListView {
         id: listView
-        anchors.fill: parent
         spacing: 8
         clip: true
+
+        anchors.fill: parent
 
         ScrollBar.vertical: ScrollBar {
             id: scrollBar
@@ -38,11 +36,12 @@ Item {
     }
 
     Rectangle {
+        height: topMargin + listView.spacing
+
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
 
-        height: topMargin + listView.spacing
         gradient: Gradient {
             GradientStop { position: 0.0; color: palette.window }
             GradientStop { position: 0.5; color: palette.window }
@@ -52,8 +51,13 @@ Item {
 
     Label {
         id: emptyLabel
+        visible: model.count === 0
+
         anchors.centerIn: parent
         font.pixelSize: 16
-        visible: model.count === 0
     }
+
+    property alias emptyText: emptyLabel.text
+    property alias model: listView.model
+    property alias delegate: listView.delegate
 }
