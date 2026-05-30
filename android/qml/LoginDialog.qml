@@ -9,6 +9,7 @@ EasyDialog {
 
     property string hostIp: "";
     property string hostPort: "";
+    property string clientName: "";
     property bool isValid: true
 
     signal submitted
@@ -38,10 +39,11 @@ EasyDialog {
             Label {
                 text: qsTr("Key to use:")
             }
-            ComboBox {
+            EasyComboBox {
                 model: fileProvider.validClientEntries()
                 onCurrentIndexChanged: {
                     root.isValid = currentIndex >= 0
+                    root.clientName = currentText
                 }
             }
         }

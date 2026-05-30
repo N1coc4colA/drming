@@ -31,6 +31,8 @@ public:
 
     bool updateClientEntry(const QVariantMap &map) override;
 
+    QPair<QSslCertificate, QSslKey> clientData(const QString &name) override;
+
 private:
     bool createClientPathStorage(const QString &name);
     bool copyFile(const QString &title, const QString &filter, const QString &dst);

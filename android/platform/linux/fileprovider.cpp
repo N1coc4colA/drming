@@ -49,6 +49,12 @@ QString FileProvider::clientKeyName()
     return "key.key";
 }
 
+QPair<QSslCertificate, QSslKey> FileProvider::clientData(const QString &name)
+{
+    const QString basePath = clientPath() + name + "/";
+    return {openCertificate(basePath + clientCertName()), openKey(basePath + clientKeyName())};
+}
+
 void FileProvider::loadServerCerts()
 {
     const auto availables = QDir(serverCertsPath()).entryInfoList(QDir::Files | QDir::Readable | QDir::Hidden, QDir::LocaleAware);

@@ -45,14 +45,19 @@ void NetworkLink::close()
     m_socket->close();
 }
 
-void NetworkLink::connect(const QString &address, const int port)
+void NetworkLink::connect(const QString &address, const int port, const QString &clientName)
 {
     if (m_socket->state() != QAbstractSocket::UnconnectedState) {
         return;
     }
 
     qInfo() << "Connecting to:" << address << port;
+
     // Use encrypted connection
+    const auto clientData = FileProvider::instance()->clientData(clientName);
+
+    m_socket->setLocalCertificate(clientData.first);
+    m_socket->setPrivateKey(clientData.second);
     m_socket->connectToHostEncrypted(address, port);
 }
 

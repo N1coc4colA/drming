@@ -28,7 +28,7 @@ Q_SIGNALS:
 
 public Q_SLOTS:
     void close();
-    void connect(const QString &address, int port);
+    void connect(const QString &address, int port, const QString &clientName);
 
 private Q_SLOTS:
     void onConnected();

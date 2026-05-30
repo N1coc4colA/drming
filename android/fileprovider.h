@@ -2,6 +2,8 @@
 #define FILEPROVIDER_H
 
 #include <QObject>
+#include <QSslCertificate>
+#include <QSslKey>
 
 #include "models/filesmodel.h"
 
@@ -25,6 +27,8 @@ public:
     Q_INVOKABLE virtual int addClientKey(const QString &name) = 0;
 
     Q_INVOKABLE virtual QStringList validClientEntries() = 0;
+
+    virtual QPair<QSslCertificate, QSslKey> clientData(const QString &name) = 0;
 
     virtual QString serverCertsPath() = 0;
     virtual QString clientPath() = 0;

@@ -28,7 +28,7 @@ StandardPage {
         id: authDialog
 
         onSubmitted: function() {
-            networkLink.connect(authDialog.hostIp, authDialog.hostPort);
+            networkLink.connect(authDialog.hostIp, authDialog.hostPort, authDialog.clientName);
             root.displayStream();
         }
     }
