@@ -15,11 +15,11 @@ class Display : public QObject
 public:
     explicit Display(const QString &connectorName, QObject *parent = nullptr);
 
-public Q_SLOTS:
-    void setClient(QTcpSocket *client);
-
 Q_SIGNALS:
     void nowFree(Display *);
+
+public Q_SLOTS:
+    void setClient(QTcpSocket *client);
 
 private:
     DisplayReader m_reader;

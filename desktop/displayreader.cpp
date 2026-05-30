@@ -272,10 +272,10 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
         return false;
     }
 
-    DrmConnectorPtr connector;
-    DrmEncoderPtr encoder;
-    DrmCrtcPtr crtc;
-    DrmFB2Ptr mfb;
+    DrmConnectorPtr connector{};
+    DrmEncoderPtr encoder{};
+    DrmCrtcPtr crtc{};
+    DrmFB2Ptr mfb{};
 
     DrmResourcesPtr resources(drmModeGetResources(fb.fd));
     if (!resources) {
@@ -499,7 +499,8 @@ QImage DisplayReader::compositeWithCursor(const QImage &primary, const CursorFra
     return result;
 }
 
-QImage DisplayReader::imageFromFrameBuffer(const uint8_t *data, uint32_t width, uint32_t height, uint32_t stride, uint32_t format)
+QImage DisplayReader::imageFromFrameBuffer(
+    const uint8_t *data, const uint32_t width, const uint32_t height, const uint32_t stride, const uint32_t format)
 {
     if (!data || !width || !height || !stride) {
         return {};
@@ -517,7 +518,8 @@ QImage DisplayReader::imageFromFrameBuffer(const uint8_t *data, uint32_t width, 
     return QImage(reinterpret_cast<const uchar *>(data), static_cast<int>(width), static_cast<int>(height), static_cast<int>(stride), fmt);
 }
 
-QPixmap DisplayReader::pixmapFromFrameBuffer(const uint8_t *data, uint32_t width, uint32_t height, uint32_t stride, uint32_t format)
+QPixmap DisplayReader::pixmapFromFrameBuffer(
+    const uint8_t *data, const uint32_t width, const uint32_t height, const uint32_t stride, const uint32_t format)
 {
     return QPixmap::fromImage(imageFromFrameBuffer(data, width, height, stride, format));
 }

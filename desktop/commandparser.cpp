@@ -41,11 +41,11 @@ CommandParser::Exit CommandParser::parse()
         return Stop;
     }
 
-    const QString targetScreen = m_parser.value("display");
-    const QString serviceName = m_parser.value("service");
-    const QString portName = m_parser.value("port");
-    const QString serviceIp = m_parser.value("ip");
-    const QString compressionLevel = m_parser.value("quality");
+    const auto targetScreen = m_parser.value("display");
+    const auto serviceName = m_parser.value("service");
+    const auto portName = m_parser.value("port");
+    const auto serviceIp = m_parser.value("ip");
+    const auto compressionLevel = m_parser.value("quality");
     const auto serviceHostIp = serviceIp.isEmpty() ? QHostAddress::Any : QHostAddress(serviceIp);
     bool valid = false;
 
@@ -64,7 +64,7 @@ CommandParser::Exit CommandParser::parse()
         return Failure;
     }
 
-    const int jpegCompression = compressionLevel.toInt(&valid);
+    const auto jpegCompression = compressionLevel.toInt(&valid);
     if (!valid) {
         qCritical() << QObject::tr("The supplied compression level is not base 10, and could not be parsed.");
         return Failure;

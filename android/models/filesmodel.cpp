@@ -15,14 +15,10 @@ void FilesModel::setData(const MapType &newData)
 
 int FilesModel::rowCount(const QModelIndex &parent) const
 {
-    if (parent.isValid()) {
-        return 0;
-    }
-
-    return m_files.count();
+    return parent.isValid() ? 0 : m_files.count();
 }
 
-QVariant FilesModel::data(const QModelIndex &index, int role) const
+QVariant FilesModel::data(const QModelIndex &index, const int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_files.count()) {
         return {};
@@ -56,7 +52,7 @@ QVariantMap FilesModel::get(const int index) const
     }
 
     const auto &v = m_files[index];
-    const QString localeDateFormat = QLocale::system().dateFormat(QLocale::ShortFormat);
+    const auto localeDateFormat = QLocale::system().dateFormat(QLocale::ShortFormat);
     const auto dt = QLocale::system().toString(std::get<0>(v), localeDateFormat + " HH:mm");
 
     return {{"datetime", dt}, {"name", std::get<1>(v)}, {"info", std::get<2>(v)}};

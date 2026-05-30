@@ -43,7 +43,7 @@ public:
             int error = 0;
             m_client = avahi_client_new(avahi_simple_poll_get(m_poll),
                                         static_cast<AvahiClientFlags>(0),
-                                        (AvahiClientCallback) client_callback,
+                                        reinterpret_cast<AvahiClientCallback>(&AvahiDiscoverer::client_callback),
                                         this,
                                         &error);
             if (!m_client) {
@@ -60,7 +60,7 @@ public:
                                              "_drming._tcp",
                                              nullptr,
                                              static_cast<AvahiLookupFlags>(0),
-                                             (AvahiServiceBrowserCallback) browse_callback,
+                                             reinterpret_cast<AvahiServiceBrowserCallback>(&AvahiDiscoverer::browse_callback),
                                              this); // pass 'this', not m_client
             if (!m_sb) {
                 qCritical() << "Failed to create service browser: " << avahi_strerror(avahi_client_errno(m_client));
@@ -69,6 +69,7 @@ public:
                 avahi_simple_poll_free(m_poll);
                 m_poll = nullptr;
                 m_running = false;
+
                 return;
             }
 
@@ -170,7 +171,7 @@ private:
                                                        domain,
                                                        AVAHI_PROTO_UNSPEC,
                                                        static_cast<AvahiLookupFlags>(0),
-                                                       (AvahiServiceResolverCallback) resolve_callback,
+                                                       reinterpret_cast<AvahiServiceResolverCallback>(&AvahiDiscoverer::resolve_callback),
                                                        c);
 
             /* Resolve the newly discovered service */
@@ -197,6 +198,7 @@ private:
     {
         if (state == AVAHI_CLIENT_FAILURE) {
             qCritical() << "Server connection failure: " << avahi_strerror(avahi_client_errno(client));
+            // [TODO] Maybe use stopDiscovery on owner with thread dispatch
             //avahi_simple_poll_quit(c->m_poll);
         }
     }

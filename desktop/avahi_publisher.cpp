@@ -9,6 +9,8 @@
 
 void AvahiPublisher::group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state, AvahiPublisher *c)
 {
+    Q_UNUSED(g);
+
     switch (state) {
     case AVAHI_ENTRY_GROUP_ESTABLISHED: {
         qCritical() << "Service established";
@@ -32,16 +34,16 @@ void AvahiPublisher::client_callback(AvahiClient *client, AvahiClientState state
     }
 
     c->m_group = avahi_entry_group_new(client, (AvahiEntryGroupCallback) &group_callback, c);
-    const int ret = avahi_entry_group_add_service(c->m_group,
-                                                  AVAHI_IF_UNSPEC,
-                                                  AVAHI_PROTO_UNSPEC,
-                                                  (AvahiPublishFlags) 0,
-                                                  c->m_serviceName.toLocal8Bit(),
-                                                  c->m_protocol.toLocal8Bit(),
-                                                  nullptr,
-                                                  nullptr,
-                                                  c->m_port,
-                                                  nullptr);
+    const auto ret = avahi_entry_group_add_service(c->m_group,
+                                                   AVAHI_IF_UNSPEC,
+                                                   AVAHI_PROTO_UNSPEC,
+                                                   (AvahiPublishFlags) 0,
+                                                   c->m_serviceName.toLocal8Bit(),
+                                                   c->m_protocol.toLocal8Bit(),
+                                                   nullptr,
+                                                   nullptr,
+                                                   c->m_port,
+                                                   nullptr);
 
     if (ret < 0) {
         qCritical() << "Avahi Group creation error: " << avahi_strerror(ret);
@@ -85,7 +87,11 @@ void AvahiPublisher::start()
         }
 
         int error = 0;
-        m_client = avahi_client_new(avahi_simple_poll_get(m_poll), (AvahiClientFlags) 0, (AvahiClientCallback) &client_callback, this, &error);
+        m_client = avahi_client_new(avahi_simple_poll_get(m_poll),
+                                    (AvahiClientFlags) 0,
+                                    reinterpret_cast<AvahiClientCallback>(&AvahiPublisher::client_callback),
+                                    this,
+                                    &error);
         if (!m_client) {
             qCritical() << "Avahi Client creation error: " << avahi_strerror(error);
             avahi_simple_poll_free(m_poll);

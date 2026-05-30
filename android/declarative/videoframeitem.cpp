@@ -8,15 +8,15 @@ QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
         return {};
     }
 
-    const qreal sx = itemSize.width() / imgSize.width();
-    const qreal sy = itemSize.height() / imgSize.height();
-    const qreal s = qMin(sx, sy);
+    const auto sx = itemSize.width() / imgSize.width();
+    const auto sy = itemSize.height() / imgSize.height();
+    const auto s = qMin(sx, sy);
 
-    const qreal w = imgSize.width() * s;
-    const qreal h = imgSize.height() * s;
+    const auto w = imgSize.width() * s;
+    const auto h = imgSize.height() * s;
 
-    const qreal x = (itemSize.width() - w) * 0.5;
-    const qreal y = (itemSize.height() - h) * 0.5;
+    const auto x = (itemSize.width() - w) * 0.5;
+    const auto y = (itemSize.height() - h) * 0.5;
 
     return {x, y, w, h};
 }
@@ -64,9 +64,9 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, QQuickItem::UpdatePai
         }
     }
 
-    auto* node = dynamic_cast<QSGSimpleTextureNode*>(oldNode);
-    const QSizeF imgSize = QSizeF(m_imageSize);
-    const QRectF dst = fitKeepAspect(QSizeF(width(), height()), imgSize);
+    auto node = dynamic_cast<QSGSimpleTextureNode*>(oldNode);
+    const QSizeF imgSize(m_imageSize);
+    const auto dst = fitKeepAspect(QSizeF(width(), height()), imgSize);
 
     if (!node && !dirty) {
         return nullptr;

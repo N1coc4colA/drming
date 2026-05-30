@@ -27,8 +27,8 @@ Q_SIGNALS:
     void started();
 
 private:
-    QString m_serviceName;
-    QString m_protocol;
+    QString m_serviceName{};
+    QString m_protocol{};
     std::thread m_thread{};
     AvahiEntryGroup *m_group = nullptr;
     AvahiSimplePoll *m_poll = nullptr;
@@ -36,7 +36,7 @@ private:
     std::atomic<bool> m_running = false;
     std::atomic<bool> m_ready = false;
 
-    const uint16_t m_port;
+    const uint16_t m_port = -1;
 
     static void group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state, AvahiPublisher *c);
     static void client_callback(AvahiClient *client, AvahiClientState state, AvahiPublisher *c);

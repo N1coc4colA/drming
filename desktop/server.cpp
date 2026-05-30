@@ -48,7 +48,7 @@ bool Server::loadServerSslConfig(QSslConfiguration &outConfig)
 
 bool Server::listen(const QHostAddress &address, const quint16 port)
 {
-    QSslConfiguration sslConfig;
+    QSslConfiguration sslConfig{};
     if (loadServerSslConfig(sslConfig)) {
         m_server.setSslConfiguration(sslConfig);
     } else {
@@ -56,17 +56,18 @@ bool Server::listen(const QHostAddress &address, const quint16 port)
     }
 
     const bool success = m_server.listen(address, port);
-    if (!success)
+    if (!success) {
         qCritical() << "Failed to listen:" << m_server.errorString();
-    else
+    } else {
         qInfo() << "Exposing service on:" << address.toString() << ':' << port;
+    }
 
     return success;
 }
 
 void Server::close()
 {
-    for (QSslSocket *client : m_clients) {
+    for (auto client : m_clients) {
         if (client) {
             client->disconnectFromHost();
             client->deleteLater();
@@ -79,9 +80,10 @@ void Server::close()
 
 void Server::broadcast(const QByteArray &data)
 {
-    for (QSslSocket *client : m_clients) {
-        if (client && client->state() == QAbstractSocket::ConnectedState)
+    for (auto client : m_clients) {
+        if (client && client->state() == QAbstractSocket::ConnectedState) {
             client->write(data);
+        }
     }
 }
 
@@ -126,7 +128,7 @@ void Server::onSslErrors(QSslSocket *socket, const QList<QSslError> &errors)
     // Cert is in our allowlist — we only tolerate hostname mismatch errors.
     // Chain/expiry/revocation errors are still fatal.
     QList<QSslError> ignorable{};
-    for (const QSslError &e : errors) {
+    for (const auto &e : errors) {
         if (e.error() == QSslError::HostNameMismatch) {
             ignorable.append(e);
         } else {
@@ -143,11 +145,13 @@ void Server::onSslErrors(QSslSocket *socket, const QList<QSslError> &errors)
 
 void Server::onClientDisconnected()
 {
-    auto *client = qobject_cast<QSslSocket *>(sender());
-    if (!client)
+    auto client = qobject_cast<QSslSocket *>(sender());
+    if (!client) {
         return;
+    }
 
     m_clients.removeAll(client);
-    if (m_clients.isEmpty())
+    if (m_clients.isEmpty()) {
         Q_EMIT noClient();
+    }
 }

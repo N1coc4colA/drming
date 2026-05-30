@@ -12,12 +12,12 @@ ServicesModel::ServicesModel(QObject *parent)
 
 void ServicesModel::clear()
 {
-    const int c = count();
+    const auto c = count();
     if (!c) {
         return;
     }
 
-    beginRemoveRows(QModelIndex(), 0, c);
+    beginRemoveRows(QModelIndex(), 0, c - 1);
     m_services.clear();
     endRemoveRows();
 
@@ -26,14 +26,10 @@ void ServicesModel::clear()
 
 int ServicesModel::rowCount(const QModelIndex &parent) const
 {
-    if (parent.isValid()) {
-        return 0;
-    }
-
-    return m_services.count();
+    return parent.isValid() ? 0 : m_services.count();
 }
 
-QVariant ServicesModel::data(const QModelIndex &index, int role) const
+QVariant ServicesModel::data(const QModelIndex &index, const int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_services.count()) {
         return {};
@@ -58,7 +54,7 @@ QHash<int, QByteArray> ServicesModel::roleNames() const
     return {{NameRole, "name"}, {HostRole, "host"}, {IpRole, "ip"}, {PortRole, "port"}, {TypeRole, "type"}};
 }
 
-QVariantMap ServicesModel::get(int index) const
+QVariantMap ServicesModel::get(const int index) const
 {
     if (index < 0 || index >= m_services.count()) {
         return {};
@@ -82,7 +78,7 @@ int ServicesModel::findServiceIndex(const QString &key) const
 void ServicesModel::onServiceFound(const QString &key, const ServiceInfo &info)
 {
     // If already known, update existing entry (avoid duplicates)
-    const int idx = findServiceIndex(info.name);
+    const auto idx = findServiceIndex(info.name);
     if (idx != -1) {
         m_services[idx].second.type = info.type;
 
@@ -99,7 +95,7 @@ void ServicesModel::onServiceFound(const QString &key, const ServiceInfo &info)
 
 void ServicesModel::onServiceLost(const QString &key)
 {
-    const int idx = findServiceIndex(key);
+    const auto idx = findServiceIndex(key);
     if (idx == -1) {
         return;
     }
@@ -113,7 +109,7 @@ void ServicesModel::onServiceLost(const QString &key)
 
 void ServicesModel::onServiceResolved(const QString &key, const ServiceInfo &info)
 {
-    const int idx = findServiceIndex(info.name);
+    const auto idx = findServiceIndex(info.name);
     if (idx == -1) {
         // If we didn't have the service yet, insert it
         beginInsertRows(QModelIndex(), m_services.count(), m_services.count());

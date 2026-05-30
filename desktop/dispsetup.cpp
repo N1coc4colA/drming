@@ -46,8 +46,8 @@ bool makeSymlink(const QString &linkPath, const QString &target)
         return true;
     }
 
-    const QByteArray link = linkPath.toLocal8Bit();
-    const QByteArray tgt = target.toLocal8Bit();
+    const auto link = linkPath.toLocal8Bit();
+    const auto tgt = target.toLocal8Bit();
     if (::symlink(tgt.constData(), link.constData()) != 0) {
         qCritical() << ">> symlink(" << tgt.constData() << ", " << link.constData() << ") failed: " << ::strerror(errno);
         return false;
@@ -170,7 +170,7 @@ bool isConfigfsMounted()
         return false;
     }
 
-    const QByteArray m = f.readAll();
+    const auto m = f.readAll();
     return m.contains("configfs") && (m.contains("/sys/kernel/config ") || m.contains("/config "));
 }
 
@@ -186,13 +186,13 @@ bool isVkmsModuleLoaded()
 
 bool isVkmsConfigEnabled()
 {
-    for (const QString &name : {QString("/proc/config.gz"), QString("/boot/config-") + QSysInfo::kernelVersion()}) {
+    for (const auto &name : {QString("/proc/config.gz"), QString("/boot/config-") + QSysInfo::kernelVersion()}) {
         QFile f(name);
         if (!f.open(QIODevice::ReadOnly)) {
             continue;
         }
 
-        QByteArray data = f.readAll();
+        auto data = f.readAll();
         if (data.startsWith("\x1f\x8b")) {
             data = qUncompress(data);
         }
@@ -367,13 +367,16 @@ bool DispSetup::setCursorPlaneType()
 
 bool DispSetup::linkPrimaryPlaneToCrtc()
 {
-    const QString linkPath = m_primaryPlanePath + "/possible_crtcs/crtc0";
+    // Wait for ConfigFS to show up.
+    sleep(1);
+
+    const auto linkPath = m_primaryPlanePath + "/possible_crtcs/crtc0";
     if (QFileInfo::exists(linkPath)) {
         return true;
     }
 
-    const QByteArray link = linkPath.toLocal8Bit();
-    const QByteArray tgt = m_crtcPath.toLocal8Bit();
+    const auto link = linkPath.toLocal8Bit();
+    const auto tgt = m_crtcPath.toLocal8Bit();
     if (::symlink(tgt.constData(), link.constData()) != 0) {
         qCritical() << "Failed to symlink primary plane → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
         return false;
@@ -384,13 +387,13 @@ bool DispSetup::linkPrimaryPlaneToCrtc()
 
 bool DispSetup::linkCursorPlaneToCrtc()
 {
-    const QString linkPath = m_cursorPlanePath + "/possible_crtcs/crtc0";
+    const auto linkPath = m_cursorPlanePath + "/possible_crtcs/crtc0";
     if (QFileInfo::exists(linkPath)) {
         return true;
     }
 
-    const QByteArray link = linkPath.toLocal8Bit();
-    const QByteArray tgt = m_crtcPath.toLocal8Bit();
+    const auto link = linkPath.toLocal8Bit();
+    const auto tgt = m_crtcPath.toLocal8Bit();
     if (::symlink(tgt.constData(), link.constData()) != 0) {
         qCritical() << "Failed to symlink cursor plane → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
         return false;
@@ -401,13 +404,13 @@ bool DispSetup::linkCursorPlaneToCrtc()
 
 bool DispSetup::linkEncoderToCrtc()
 {
-    const QString linkPath = m_encoderPath + "/possible_crtcs/crtc0";
+    const auto linkPath = m_encoderPath + "/possible_crtcs/crtc0";
     if (QFileInfo::exists(linkPath)) {
         return true;
     }
 
-    const QByteArray link = linkPath.toLocal8Bit();
-    const QByteArray tgt = m_crtcPath.toLocal8Bit();
+    const auto link = linkPath.toLocal8Bit();
+    const auto tgt = m_crtcPath.toLocal8Bit();
     if (::symlink(tgt.constData(), link.constData()) != 0) {
         qCritical() << "Failed to symlink encoder → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
         return false;
@@ -418,13 +421,13 @@ bool DispSetup::linkEncoderToCrtc()
 
 bool DispSetup::linkConnectorToEncoder()
 {
-    const QString linkPath = m_connectorPath + "/possible_encoders/encoder0";
+    const auto linkPath = m_connectorPath + "/possible_encoders/encoder0";
     if (QFileInfo::exists(linkPath)) {
         return true;
     }
 
-    const QByteArray link = linkPath.toLocal8Bit();
-    const QByteArray tgt = m_encoderPath.toLocal8Bit();
+    const auto link = linkPath.toLocal8Bit();
+    const auto tgt = m_encoderPath.toLocal8Bit();
     if (::symlink(tgt.constData(), link.constData()) != 0) {
         qCritical() << "Failed to symlink connector → encoder: " << linkPath << " (" << ::strerror(errno) << ")";
         return false;
@@ -445,11 +448,11 @@ bool DispSetup::makeConnector()
 
 bool DispSetup::writeEdidAndEnable()
 {
-    const QString statusPath = m_connectorPath + "/status";
+    const auto statusPath = m_connectorPath + "/status";
 
 #ifdef EDID_READY
-    const QString edidPath = m_connectorPath + "/edid";
-    const QString edidEnablePath = m_connectorPath + "/edid_enabled";
+    const auto edidPath = m_connectorPath + "/edid";
+    const auto edidEnablePath = m_connectorPath + "/edid_enabled";
 
     // Disconnect first so the connector state/EDID is updated cleanly.
     if (!writeFile(statusPath, "0")) {
@@ -508,7 +511,7 @@ QString DispSetup::findVirtualConnectorName() const
         }
 
         // Read the symlink target to get the device name
-        const QString target = deviceInfo.symLinkTarget();
+        const auto target = deviceInfo.symLinkTarget();
 
         // The symlink target should contain our instance name
         // e.g., "../../../drming_0" or "/sys/devices/faux/drming_0"

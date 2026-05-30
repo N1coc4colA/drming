@@ -39,10 +39,10 @@ void Display::forward()
     primaryFailureNotice = false;
 
     CursorFrameBuffer cursorFb{};
-    const bool hasCursor = m_reader.getCursorFrameBuffer(cursorFb, fb);
+    const auto hasCursor = m_reader.getCursorFrameBuffer(cursorFb, fb);
 
     Packets::ServerImage servImg{};
-    QImage result = m_reader.imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, fb.format);
+    auto result = m_reader.imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, fb.format);
     if (hasCursor) {
         result = m_reader.compositeWithCursor(result, cursorFb);
     }
@@ -54,7 +54,7 @@ void Display::forward()
         buf.close();
     }
 
-    QByteArray output = Packets::Writer::generate(servImg);
+    auto output = Packets::Writer::generate(servImg);
     m_reader.releaseVkmsFrameBuffer(fb);
 
     if (m_client && m_client->state() == QAbstractSocket::ConnectedState) {

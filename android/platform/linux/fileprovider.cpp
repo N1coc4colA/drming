@@ -12,7 +12,7 @@ namespace Platform {
 FileProvider::FileProvider(QObject *parent)
     : ::FileProvider(parent)
 {
-    QDir dir{};
+    const QDir dir{};
     if (!dir.mkpath(FileProvider::serverCertsPath())) {
         m_dirCreationError = true;
         m_errorMessage = tr("Failed to create servers certificates storage.");
@@ -51,7 +51,7 @@ QString FileProvider::clientKeyName()
 
 QPair<QSslCertificate, QSslKey> FileProvider::clientData(const QString &name)
 {
-    const QString basePath = clientPath() + name + "/";
+    const auto basePath = clientPath() + name + "/";
     return {openCertificate(basePath + clientCertName()), openKey(basePath + clientKeyName())};
 }
 
@@ -150,7 +150,7 @@ int FileProvider::addServerCert()
 
 bool FileProvider::createClientPathStorage(const QString &name)
 {
-    const QString dirPath = clientPath() + name + "/";
+    const auto dirPath = clientPath() + name + "/";
     const QDir dir(dirPath);
     if (!dir.exists() && !dir.mkpath(dirPath)) {
         qDebug() << "Failed to create directory for client key & cert!";
@@ -168,7 +168,7 @@ bool FileProvider::copyFile(const QString &title, const QString &filter, const Q
     }
 
     const QFileInfo source(sourceLocation);
-    const QString src = source.filePath();
+    const auto src = source.filePath();
 
     if (!QFile::copy(src, dst)) {
         qDebug() << "Failed to copy from " << src << "to" << dst;
