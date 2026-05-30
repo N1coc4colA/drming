@@ -6,18 +6,9 @@ FilesModel::FilesModel(QObject *parent)
 
 void FilesModel::setData(const MapType &newData)
 {
-    const int c = count();
-    if (c > 0) {
-        beginRemoveRows({}, 0, c - 1);
-        m_files.clear();
-        endRemoveRows();
-    }
-
-    if (!newData.isEmpty()) {
-        beginInsertRows({}, 0, newData.length() - 1);
-        m_files = newData;
-        endInsertRows();
-    }
+    beginResetModel();
+    m_files = newData;
+    endResetModel();
 
     Q_EMIT countChanged();
 }
