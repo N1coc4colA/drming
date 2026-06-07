@@ -344,17 +344,23 @@ public class FileHelper {
     // ------------------------------------------------------------------------
     // Client entry rename
     // ------------------------------------------------------------------------
-    public boolean updateClientEntry(String previousName, String updatedName) {
-        if (previousName == null || updatedName == null || updatedName.isEmpty()) return false;
-        File srcDir = new File(clientsDir, previousName);
-        File dstDir = new File(clientsDir, updatedName);
-        if (srcDir.exists()) {
-            if (dstDir.exists()) return false;
-            return srcDir.renameTo(dstDir);
-        } else {
-            // No source -> just create the new directory
-            return createClientPathStorage(updatedName);
+    public boolean updateClientEntry(String src, String dst) {
+        if (src == null || dst == null || dst.isEmpty()) {
+            return false;
         }
+
+        File srcDir = new File(clientsDir, src);
+        File dstDir = new File(clientsDir, dst);
+
+        if (src.isEmpty()) {
+            if (!createClientPathStorage(dst)) {
+                return false;
+            }
+        } else if (!srcDir.renameTo(dstDir)) {
+            return false;
+        }
+
+        return true;
     }
 
     // ------------------------------------------------------------------------

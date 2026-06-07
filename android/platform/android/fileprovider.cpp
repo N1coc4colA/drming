@@ -149,8 +149,8 @@ bool FileProvider::updateClientEntry(const QVariantMap &map)
         return false;
     }
 
-    const auto src = clientPath() + map["previousName"].toString();
-    const auto dst = clientPath() + map["updatedName"].toString();
+    const auto src = map["previousName"].toString();
+    const auto dst = map["updatedName"].toString();
 
     if (dst.isEmpty() || !jUpdateClientEntry(src, dst)) {
         return false;

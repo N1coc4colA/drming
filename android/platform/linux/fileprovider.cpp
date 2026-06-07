@@ -238,18 +238,21 @@ bool FileProvider::updateClientEntry(const QVariantMap &map)
         return false;
     }
 
-    const auto src = clientPath() + map["previousName"].toString();
-    const auto dst = clientPath() + map["updatedName"].toString();
+    const auto src = map["previousName"].toString();
+    const auto dst = map["updatedName"].toString();
+
+    const auto srcPath = clientPath() + src;
+    const auto dstPath = clientPath() + dst;
 
     if (dst.isEmpty()) {
         return false;
     }
 
     if (src.isEmpty()) {
-        if (!createClientPathStorage(map["updatedName"].toString())) {
+        if (!createClientPathStorage(dst)) {
             return false;
         }
-    } else if (!QDir().rename(src, dst)) {
+    } else if (!QDir().rename(srcPath, dstPath)) {
         qDebug() << "Failed to move dir from" << src << "to" << dst;
         // [TODO] Generate error
         return false;
