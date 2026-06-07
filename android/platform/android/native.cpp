@@ -156,11 +156,11 @@ public:
 
         m_instance.jClientCertData = [&instance](QString a) -> QByteArray {
             auto ja = QJniObject::fromString(a);
-            return QJniArray<jbyte>(instance.callObjectMethod<jbyte[]>("addClientKey", ja.object<jstring>())).toContainer();
+            return QJniArray<jbyte>(instance.callObjectMethod<jbyte[]>("getClientCertData", ja.object<jstring>())).toContainer();
         };
         m_instance.jClientKeyData = [&instance](QString a) -> QByteArray {
             auto ja = QJniObject::fromString(a);
-            return QJniArray<jbyte>(instance.callObjectMethod<jbyte[]>("addClientKey", ja.object<jstring>())).toContainer();
+            return QJniArray<jbyte>(instance.callObjectMethod<jbyte[]>("getClientKeyData", ja.object<jstring>())).toContainer();
         };
 
         m_instance.jTrustedCertsData = [&instance]() -> QList<QByteArray> {
@@ -179,7 +179,7 @@ public:
 
         m_instance.jUpdateClientEntry = [&instance](QString a, QString b) -> bool {
             auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
-            return instance.callMethod<jboolean, jstring, jstring>("addClientKey", ja.object<jstring>(), jb.object<jstring>());
+            return instance.callMethod<jboolean, jstring, jstring>("updateClientEntry", ja.object<jstring>(), jb.object<jstring>());
         };
         m_instance.jValidClientEntries = [&instance]() -> QList<QString> {
             return QJniArray<jstring>(instance.callObjectMethod<jstring[]>("getValidClientEntries")).toContainer();
