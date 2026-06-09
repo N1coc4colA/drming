@@ -4,54 +4,48 @@ import QtQuick.Layouts
 Item {
     id: root
 
-    implicitHeight: (root.twoRows
-                     ? (twoRowLoader.item ? twoRowLoader.item.implicitHeight + 2*margin : 0)
-                     : (oneRowLoader.item ? oneRowLoader.item.implicitHeight + 2*margin : 0))
-
-    implicitWidth:  (root.twoRows
-                     ? (twoRowLoader.item ? twoRowLoader.item.implicitWidth  : 0)
-                     : (oneRowLoader.item ? oneRowLoader.item.implicitWidth  : 0))
+    implicitHeight: loadedItem ? loadedItem.implicitHeight + 2*GlobalVars.standardSpacing : 0
+    implicitWidth:  loadedItem ? loadedItem.implicitWidth  : 0
 
     property Component leftContent
     property Component centerContent
     property Component rightContent
 
+    readonly property var loadedItem: root.twoRows ? twoRowLoader.item : oneRowLoader.item
     readonly property bool hasLeft: !!leftContent
     readonly property bool hasCenter: !!centerContent
     readonly property bool hasRight: !!rightContent
     readonly property bool twoRows: hasLeft && hasCenter && hasRight && width < 300
 
-    readonly property real spacing: 8
-    readonly property real margin: 8
-
-    readonly property real centerHeight: (centerContent && centerContent.item) ? centerContent.item.implicitHeight : 34
+    readonly property real centerHeight: (root.hasCenter && loadedItem && loadedItem.centerItem) ? loadedItem.centerItem.height : Math.max(34, 34 * GlobalVars.scaling)
 
     Loader {
         id: oneRowLoader
         active: !root.twoRows
-        width: parent.width
         sourceComponent: oneRowView
+
         // height is implicit from the loaded item
+        width: parent.width
     }
 
     Loader {
         id: twoRowLoader
         active: root.twoRows
-        width: parent.width
         sourceComponent: twoRowView
+
+        width: parent.width
     }
 
     Component {
         id: oneRowView
 
         RowLayout {
-            spacing: root.spacing
-
-            anchors.margins: root.margin
             // Stretch horizontally inside the Loader, but keep vertical implicit
-            anchors.top: parent.top
+            anchors.margins: GlobalVars.standardSpacing
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.top: parent.top
+            spacing: GlobalVars.standardSpacing
 
             // Left item
             Loader {
@@ -60,6 +54,8 @@ Item {
                 sourceComponent: root.leftContent
                 visible: root.hasLeft
 
+                Layout.alignment: Qt.AlignVCenter
+                Layout.fillHeight: false
                 Layout.fillWidth: false
             }
 
@@ -87,8 +83,12 @@ Item {
                 sourceComponent: root.rightContent
                 visible: root.hasRight
 
+                Layout.alignment: Qt.AlignVCenter
+                Layout.fillHeight: false
                 Layout.fillWidth: false
             }
+
+            readonly property alias centerItem: centerLoader.item
         }
     }
 
@@ -96,25 +96,25 @@ Item {
         id: twoRowView
 
         ColumnLayout {
-            spacing: root.spacing
-
-            anchors.margins: root.margin
             // Stretch horizontally inside the Loader, but keep vertical implicit
-            anchors.top: parent.top
+            anchors.margins: GlobalVars.standardSpacing
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.top: parent.top
+            spacing: GlobalVars.standardSpacing
 
             RowLayout {
-                spacing: root.spacing
-
                 Layout.fillWidth: true
+                spacing: GlobalVars.standardSpacing
 
                 Loader {
-                    id: leftLoader2
+                    id: leftLoader
                     active: visible
                     sourceComponent: root.leftContent
                     visible: root.hasLeft
 
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.fillHeight: false
                     Layout.fillWidth: false
                 }
 
@@ -123,23 +123,27 @@ Item {
                 }
 
                 Loader {
-                    id: rightLoader2
+                    id: rightLoader
                     active: visible
                     sourceComponent: root.rightContent
                     visible: root.hasRight
 
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.fillHeight: false
                     Layout.fillWidth: false
                 }
             }
 
             Loader {
-                id: centerLoader2
+                id: centerLoader
                 active: visible
                 sourceComponent: root.centerContent
                 visible: root.hasCenter
 
                 Layout.fillWidth: true
             }
+
+            readonly property alias centerItem: centerLoader.item
         }
     }
 }

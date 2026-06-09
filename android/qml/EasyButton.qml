@@ -4,7 +4,7 @@ import QtQuick
 Button {
     id: root
 
-    property real bounding: 20
+    property real bounding: 20 * GlobalVars.scaling
     property int animationsDuration: 100
     property color backgroundColor: palette.mid
     property color borderColor: palette.dark
@@ -19,17 +19,21 @@ Button {
         id: anim
         duration: animationsDuration
         container: root
+
         background: backgroundRectangle
-        normalBackground: backgroundColor
         highlightBackground: highlightColor
+        normalBackground: backgroundColor
     }
 
     background: Rectangle {
         id: backgroundRectangle
         color: backgroundColor
-        radius: 8
+
         border.color: borderColor
         border.width: 1
+        radius: GlobalVars.standardRounding
+        height: root.height
+        width: root.width
     }
 
     onPressed: anim.start()
@@ -39,5 +43,4 @@ Button {
     Component.onCompleted: {
          root.contentItem.color = root.color
     }
-
 }

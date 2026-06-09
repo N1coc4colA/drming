@@ -5,13 +5,14 @@ import QtQuick.Controls.Basic
 
 ComboBox {
     id: control
-    spacing: 5
+    spacing: GlobalVars.innerSpacing
 
     delegate: ItemDelegate {
         id: delegate
+        highlighted: control.highlightedIndex === index
+
         height: 28
         width: control.popup.width - control.popup.padding*2
-        highlighted: control.highlightedIndex === index
 
         required property var model
         required property int index
@@ -31,7 +32,7 @@ ComboBox {
             color: control.visualFocus
                 ? (control.pressed ? palette.highlight : palette.dark)
                 : (control.down ? palette.highlight : "transparent")
-            radius: 5
+            radius: GlobalVars.innerRounding
             visible: control.down || control.highlighted || control.visualFocus
 
             anchors.fill: delegate
@@ -40,44 +41,47 @@ ComboBox {
 
     indicator: Image {
         id: canvas
-        x: control.width - width - control.rightPadding/2
-        y: control.topPadding + (control.availableHeight - height) / 2
-        width: 16
-        height: 16
         source: "qrc:/assets/go-down.svg"
 
-        sourceSize.width: 18
+        x: control.width - width - control.rightPadding/2
+        y: control.topPadding + (control.availableHeight - height) / 2
+        height: 16
+        width: 16
+
         sourceSize.height: 16
+        sourceSize.width: 18
     }
 
     contentItem: Text {
-        rightPadding: control.indicator.width + control.spacing*2
-        leftPadding: control.spacing
         color: control.pressed ? palette.highlightedText : palette.text
         elide: Text.ElideRight
         text: control.displayText
         verticalAlignment: Text.AlignVCenter
+
+        leftPadding: control.spacing
+        rightPadding: control.indicator.width + control.spacing*2
     }
 
     background: Rectangle {
         color: control.pressed ? palette.highlight : palette.mid
-        implicitWidth: 100
-        implicitHeight: 32
-        radius: 8
 
         border.color: control.pressed ? palette.highlight : palette.dark
         border.width: control.visualFocus ? 2 : 1
+        implicitHeight: 32
+        implicitWidth: 100
+        radius: GlobalVars.standardRounding
     }
 
     popup: Popup {
         y: control.height + 2
+        height: Math.min(contentItem.implicitHeight, control.Window.height - topMargin - bottomMargin) + GlobalVars.innerSpacing*2
         width: control.width + padding*2
-        height: Math.min(contentItem.implicitHeight, control.Window.height - topMargin - bottomMargin) + padding*2
-        padding: 5
+        padding: GlobalVars.innerSpacing
 
         contentItem: ListView {
             clip: true
             implicitHeight: contentHeight
+
             currentIndex: control.highlightedIndex
             model: control.popup.visible ? control.delegateModel : null
 
@@ -86,10 +90,10 @@ ComboBox {
 
         background: Rectangle {
             color: palette.mid
-            radius: 8
 
             border.color: palette.dark
             border.width: 1
+            radius: GlobalVars.standardRounding
         }
     }
 }

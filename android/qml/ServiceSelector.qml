@@ -7,10 +7,10 @@ Dialog {
     focus: true
     modal: true
     title: qsTr("Connect to Service?")
-    width: Math.min(parent.width - 40, 400)
-    height: contentHeight + 40
 
     anchors.centerIn: parent
+    height: contentHeight + 40
+    width: Math.min(parent.width - 40, 400)
 
     property var serviceInfo: null
 
@@ -23,35 +23,32 @@ Dialog {
     }
 
     ColumnLayout {
+        anchors.centerIn: parent
         spacing: 16
         width: parent.width - 40
 
-        anchors.centerIn: parent
-
         Rectangle {
             height: 1
-
             Layout.fillWidth: true
         }
 
         ColumnLayout {
-            spacing: 8
-
             Layout.fillWidth: true
+            spacing: GlobalVars.standardSpacing
 
             Text {
+                font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
                 text: qsTr("Service: %1").arg(popup.serviceInfo ? name : "")
-                font.pixelSize: 14
             }
 
             Text {
+                font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
                 text: qsTr("Host: %1").arg(popup.serviceInfo ? host : "")
-                font.pixelSize: 14
             }
 
             Text {
+                font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
                 text: qsTr("Port: %1").arg(popup.serviceInfo ? port : "")
-                font.pixelSize: 14
             }
         }
     }

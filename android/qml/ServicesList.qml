@@ -20,19 +20,19 @@ EasyListView {
     signal serviceSelected(var service)
 
     delegate: Item {
-        width: root.width
-        height: visible ? 140 : 0
         visible: model.name.toLowerCase().includes(searchQuery.toLowerCase())
 
+        height: visible ? 140 : 0
+        width: root.width
+
         Rectangle {
-            radius: 8
             color: palette.mid
 
             border.color: palette.dark
             border.width: 1
-
+            radius: GlobalVars.standardRounding
             anchors.fill: parent
-            anchors.leftMargin: 5
+            anchors.leftMargin: GlobalVars.innerSpacing
             anchors.rightMargin: anchors.leftMargin
 
             MouseArea {
@@ -40,34 +40,34 @@ EasyListView {
 
                 ColumnLayout {
                     id: cl
-                    spacing: 4
 
                     anchors.fill: parent
-                    anchors.margins: 16
+                    anchors.margins: GlobalVars.standardSpacing*2
+                    spacing: GlobalVars.standardSpacing/2
 
                     Label {
-                        text: model.name
-                        font.pixelSize: 18
+                        font.pixelSize: Math.max(18, 18 * GlobalVars.scaling)
                         font.bold: true
+                        text: model.name
                     }
 
                     Label {
+                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
                         text: qsTr("Host: %1").arg(model.host)
-                        font.pixelSize: 14
 
                         Layout.maximumWidth: 100;
                     }
 
                     Label {
+                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
                         text: qsTr("IP: %1").arg(model.ip)
-                        font.pixelSize: 14
 
                         Layout.maximumWidth: 100;
                     }
 
                     Label {
+                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
                         text: qsTr("Port: %1").arg(model.port)
-                        font.pixelSize: 14
 
                         Layout.maximumWidth: 100;
                     }

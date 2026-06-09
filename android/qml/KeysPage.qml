@@ -5,16 +5,14 @@ import QtQuick.Layouts
 StandardPage {
     id: root
 
-    property real topMargin: 10
-
     EasyDialog {
         id: infoDialog
+        modal: true
+        title: qsTr("Client data")
+
         x: (parent.width - width)/2
         y: (parent.height - height)/2
-        title: qsTr("Client data")
-        modal: true
-
-        width: root.width > 260 ? 250 : root.width - 10
+        width: root.width > Math.max(260, 260 * GlobalVars.scaling) ? Math.max(250, 250 * GlobalVars.scaling) : root.width - Math.max(10, 10 * GlobalVars.scaling)
 
         property string errorText: ""
         property var model: QtObject {
@@ -40,26 +38,32 @@ StandardPage {
         }
 
         content: GridLayout {
-            columns: root.width > 260 ? 2 : 1
+            columns: root.width > Math.max(260, 260 * GlobalVars.scaling) ? 2 : 1
+            columnSpacing: Math.max(5, 5 * GlobalVars.scaling)
+            rowSpacing: Math.max(5, 5 * GlobalVars.scaling)
 
             Label {
+                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
                 text: qsTr("Name")
             }
             Rectangle {
-                radius: 5
                 color: palette.mid
+
+                height: nameInput.implicitHeight + GlobalVars.outterSpacing
                 Layout.fillWidth: true
-                height: nameInput.implicitHeight + 10
+                radius: GlobalVars.innerRounding
 
                 TextInput {
                     id: nameInput
-                    anchors.fill: parent
-                    anchors.margins: 3
-                    anchors.leftMargin: 8
-                    anchors.rightMargin: 8
-                    text: infoDialog.model.entryName
                     color: palette.text
+                    font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                    text: infoDialog.model.entryName
                     verticalAlignment: TextInput.AlignVCenter
+
+                    anchors.fill: parent
+                    anchors.margins: Math.max(3, 3 * GlobalVars.scaling)
+                    anchors.leftMargin: GlobalVars.standardSpacing
+                    anchors.rightMargin: GlobalVars.standardSpacing
 
                     onTextEdited: {
                         infoDialog.model.entryName = nameInput.text
@@ -74,13 +78,21 @@ StandardPage {
             }
 
             Label {
+                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
                 text: qsTr("Key")
+
                 visible: nameInput.length !== 0
             }
             EasyButton {
+                color: infoDialog.model.info.key ? "#17c245" : "#ff3045"
+                icon.source: infoDialog.model.info.key ? "qrc:/assets/check.svg" : "qrc:/assets/warning-red.svg"
+                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
                 text: qsTr("Change")
+
                 visible: nameInput.length !== 0
+
                 onClicked: {
+                    errorLabel.text = ""
                     const output = fileProvider.addClientKey(infoDialog.model.entryName)
                     switch (output) {
                     case 0: {
@@ -96,19 +108,25 @@ StandardPage {
                     }
                     }
                 }
-                icon.source: infoDialog.model.info.key ? "qrc:/assets/check.svg" : "qrc:/assets/warning-red.svg"
-                color: infoDialog.model.info.key ? "#17c245" : "#ff3045"
             }
 
             Label {
+                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
                 text: qsTr("Certificate")
+
                 visible: nameInput.length !== 0
             }
 
             EasyButton {
+                color: infoDialog.model.info.cert ? "#17c245" : "#ff3045"
+                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
+                icon.source: infoDialog.model.info.cert ? "qrc:/assets/check.svg" : "qrc:/assets/warning-red.svg"
                 text: qsTr("Change")
+
                 visible: nameInput.length !== 0
+
                 onClicked: {
+                    errorLabel.text = ""
                     const output = fileProvider.addClientCert(infoDialog.model.entryName)
                     switch (output) {
                     case 0: {
@@ -125,31 +143,35 @@ StandardPage {
                     }
                     }
                 }
-                icon.source: infoDialog.model.info.cert ? "qrc:/assets/check.svg" : "qrc:/assets/warning-red.svg"
-                color: infoDialog.model.info.cert ? "#17c245" : "#ff3045"
             }
 
             Label {
                 id: errorLabel
-                visible: errorLabel.text.length !== 0
                 color: "#ff3045"
+                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
+                horizontalAlignment: Text.AlignHCenter
+
+                visible: errorLabel.text.length !== 0
+
                 Layout.fillWidth: true
                 Layout.columnSpan: parent.columns
-                horizontalAlignment: Text.AlignHCenter
             }
         }
 
         footer: RowLayout {
-            spacing: 10
-            Layout.margins: 8
+            spacing: GlobalVars.outterSpacing
+            Layout.margins: GlobalVars.outterSpacing
 
             Item {
                 Layout.fillWidth: true
             }
             EasyButton {
-                text: qsTr("Close")
+                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
                 icon.source: "qrc:/assets/window-close.svg"
+                text: qsTr("Close")
+
                 DialogButtonBox.buttonRole: DialogButtonBox.Ok
+
                 onClicked: {
                     infoDialog.close()
                 }
@@ -159,8 +181,9 @@ StandardPage {
 
     headerBar.rightContent: NewButton {
         icon.source: "qrc:/assets/document-new.svg"
-        height: headerBar.centerHeight
-        width: headerBar.centerHeight
+
+        implicitHeight: headerBar.centerHeight
+        implicitWidth: headerBar.centerHeight
 
         onClicked: {
             infoDialog.model.entryName = ""
@@ -176,28 +199,31 @@ StandardPage {
         model: fileProvider.clientCertsModel()
 
         delegate: RowLayout {
+            height: visible ? Math.max(40, 40 * GlobalVars.scaling) : 0
             width: root.width
-            height: visible ? 40 : 0
+
             visible: model.name.toLowerCase().includes(root.searchText.toLowerCase())
-            property real breakPoint: width > 500
+
+            property real breakPoint: width > Math.max(500, 500 * GlobalVars.scaling)
 
             Item {
                 Layout.fillWidth: breakPoint
             }
 
             Rectangle {
-                radius: 8
                 color: palette.mid
+
+                anchors.leftMargin: breakPoint ? GlobalVars.standardSpacing : 0
                 border.color: palette.dark
                 border.width: 1
-                anchors.leftMargin: breakPoint ? 8 : 0
-
+                radius: GlobalVars.standardRounding
+                Layout.maximumWidth: Math.max(500, 500 * GlobalVars.scaling)
                 Layout.preferredHeight: parent.height
-                Layout.preferredWidth: parent.width - 16
-                Layout.maximumWidth: 500
+                Layout.preferredWidth: parent.width - GlobalVars.standardSpacing * 2
 
                 MouseArea {
                     anchors.fill: parent
+
                     onClicked: {
                         infoDialog.model.entryName = model.name
                         infoDialog.model.previousName = model.name
@@ -209,39 +235,43 @@ StandardPage {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 4
-                    spacing: 8
+                    anchors.leftMargin: GlobalVars.standardSpacing * 2
+                    anchors.rightMargin: GlobalVars.standardSpacing / 2
+                    spacing: GlobalVars.standardSpacing
 
                     Image {
-                        width: label.height
-                        height: label.height
                         fillMode: Image.PreserveAspectFit
+                        height: label.height
+                        width: label.height
+
+                        source: (model.info["cert"] && model.info["key"]) ? "qrc:/assets/check.svg" : "qrc:/assets/warning.svg"
                         sourceSize.width: label.height
                         sourceSize.height: label.height
-                        source: (model.info["cert"] && model.info["key"]) ? "qrc:/assets/check.svg" : "qrc:/assets/warning.svg"
                     }
 
                     Label {
-                        text: model.datetime
-                        font.pixelSize: 14
                         color: "#fcd757"
                         elide: Text.ElideRight
+                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                        text: model.datetime
                     }
                     Label {
                         id: label
-                        text: model.name
-                        font.pixelSize: 14
-                        Layout.fillWidth: true
                         elide: Text.ElideRight
+                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                        text: model.name
+
+                        Layout.fillWidth: true
                     }
                     EasyButton {
-                        icon.source: "qrc:/assets/edit-delete.svg"
                         display: AbstractButton.IconOnly
+                        icon.source: "qrc:/assets/edit-delete.svg"
+
                         height: label.implicitHeight
                         width: label.implicitHeight
-                        borderColor: "transparent"
+
                         backgroundColor: "transparent"
+                        borderColor: "transparent"
                         highlightColor: "#e33636"
 
                         onClicked: fileProvider.deleteClient(model.name)

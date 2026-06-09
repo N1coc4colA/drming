@@ -6,10 +6,11 @@ import QtQuick.Layouts
 Window {
     id: window
     color: palette.window
-    width: 640
-    height: 480
     title: qsTr("Device Remote Manager")
     visible: true
+
+    width: 640
+    height: 480
 
     enum ViewState {
         HomePage,
@@ -30,6 +31,12 @@ Window {
 
             stackView.pop()
         }
+    }
+
+    Binding {
+        target: GlobalVars
+        property: "screen"
+        value: window.screen
     }
 
     StackView {
@@ -100,6 +107,7 @@ Window {
 
         Component {
             id: shaderBlurEffectSource
+
             ShaderEffectSource {
                 hideSource: false
                 live: true
@@ -128,8 +136,9 @@ Window {
 
     EasyDialog {
         id: errorDialog
-        title: qsTr("Connection error")
         modal: true
+        title: qsTr("Connection error")
+
         x: (window.width - width)/2
         y: (window.height - height)/2
 
@@ -146,9 +155,8 @@ Window {
         }
 
         footer: RowLayout {
-            spacing: 10
-
-            Layout.margins: 8
+            Layout.margins: GlobalVars.outterSpacing
+            spacing: GlobalVars.outterSpacing
 
             Item {
                 Layout.fillWidth: true
@@ -176,6 +184,7 @@ Window {
         }
     }
 
+    // [TODO] Could not attach Keys property to:  Main_QMLTYPE_0(0x1cf65ba0)  is not an Item
     Keys.onReleased: {
         if (event.key === Qt.Key_Back) {
             goBack()

@@ -16,24 +16,22 @@ Item {
 
     Item {
         id: container
-        height: gridLayout.height + label.height + 10 + 20
-
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
+        height: gridLayout.height + label.height + 10 + 20
 
         ColumnLayout {
-            spacing: 10
-
             anchors.fill: parent
-            anchors.margins: 10
+            anchors.margins: GlobalVars.outterSpacing
+            spacing: GlobalVars.outterSpacing
 
             Label {
                 id: label
+                font.bold: true
+                font.pixelSize: Math.max(16, 16 * GlobalVars.scaling)
                 horizontalAlignment: Text.AlignHCenter
                 text: qsTr("Welcome !")
-                font.pixelSize: 16
-                font.bold: true
 
                 Layout.fillWidth: true
             }
@@ -51,8 +49,8 @@ Item {
                 }
                 GridLayout {
                     columns: largeEnough ? 7 : 1
-                    rowSpacing: 10
-                    columnSpacing: 10
+                    columnSpacing: GlobalVars.outterSpacing
+                    rowSpacing: GlobalVars.outterSpacing
 
                     Layout.fillWidth: largeEnough
 
@@ -63,13 +61,13 @@ Item {
                     EasyButton {
                         bounding: root.bounding
                         display: AbstractButton.TextUnderIcon
-                        text: qsTr("Connect")
                         icon.source: "qrc:/assets/user-desktop.svg"
+                        text: qsTr("Connect")
 
                         Layout.fillHeight: false
+                        Layout.maximumHeight: buttonsHeight
                         Layout.preferredHeight: buttonsHeight
                         Layout.preferredWidth: buttonsWidth
-                        Layout.maximumHeight: buttonsHeight
 
                         onClicked: root.servicesViewNeeded()
                     }
@@ -81,32 +79,32 @@ Item {
                     EasyButton {
                         bounding: root.bounding
                         display: AbstractButton.TextUnderIcon
-                        text: qsTr("Certificates")
                         icon.source: "qrc:/assets/application-certificate.svg"
+                        text: qsTr("Certificates")
 
                         Layout.fillHeight: false
+                        Layout.maximumHeight: buttonsHeight
                         Layout.preferredHeight: buttonsHeight
                         Layout.preferredWidth: buttonsWidth
-                        Layout.maximumHeight: buttonsHeight
 
                         onClicked: root.certsViewNeeded()
                     }
                     Item {
+                        Layout.maximumWidth: 60
                         Layout.fillHeight: false
                         Layout.fillWidth: true
-                        Layout.maximumWidth: 60
                     }
                     EasyButton {
                         id: btn
                         bounding: root.bounding
                         display: AbstractButton.TextUnderIcon
-                        text: qsTr("Keys")
                         icon.source: "qrc:/assets/application-x-pem-key.svg"
+                        text: qsTr("Keys")
 
                         Layout.fillHeight: false
+                        Layout.maximumHeight: buttonsHeight
                         Layout.preferredHeight: buttonsHeight
                         Layout.preferredWidth: buttonsWidth
-                        Layout.maximumHeight: buttonsHeight
 
                         onClicked: root.keysViewNeeded()
                     }

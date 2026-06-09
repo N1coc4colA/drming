@@ -12,12 +12,12 @@ EasyDialog {
     property string clientName: "";
     property bool isValid: true
 
-    signal submitted
     signal cancelled
+    signal submitted
 
     content: ColumnLayout {
-        spacing: 8
-        Layout.margins: 8
+        Layout.margins: GlobalVars.outterSpacing
+        spacing: GlobalVars.standardSpacing
 
         GridLayout {
             columns: 2
@@ -52,13 +52,12 @@ EasyDialog {
     }
 
     footer: RowLayout {
-        spacing: 10
-
-        Layout.margins: 8
+        Layout.margins: GlobalVars.outterSpacing
+        spacing: GlobalVars.outterSpacing
 
         EasyButton {
-            text: qsTr("Cancel")
             icon.source: "qrc:/assets/window-close.svg"
+            text: qsTr("Cancel")
 
             DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
 
@@ -72,9 +71,9 @@ EasyDialog {
         }
 
         EasyButton {
-            text: qsTr("Continue")
             enabled: root.isValid
             icon.source: "qrc:/assets/go-next.svg"
+            text: qsTr("Continue")
 
             DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
 

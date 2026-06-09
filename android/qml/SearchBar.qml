@@ -5,21 +5,20 @@ import QtQuick.Layouts
 Rectangle {
     id: searchBar
     color: palette.mid
-    radius: 8
-    implicitHeight: contentRow.implicitHeight
-    implicitWidth: contentRow.implicitWidth
 
     border.color: textInput.focus ? palette.highlight : palette.dark
     border.width: 1
-
+    radius: GlobalVars.standardRounding
+    height: contentRow.height
+    implicitHeight: contentRow.implicitHeight
+    implicitWidth: contentRow.implicitWidth
 
     RowLayout {
         id: contentRow
-        spacing: 5
-
         anchors.fill: parent
-        anchors.leftMargin: 8
-        anchors.rightMargin: 8
+        anchors.leftMargin: GlobalVars.standardSpacing
+        anchors.rightMargin: GlobalVars.standardSpacing
+        spacing: GlobalVars.innerSpacing
 
         Image {
             fillMode: Image.PreserveAspectFit
@@ -28,8 +27,8 @@ Rectangle {
 
         TextField {
             id: textInput
-            placeholderText: qsTr("Search services...")
-            font.pixelSize: 16
+            font.pixelSize: Math.max(16, 16 * GlobalVars.scaling)
+            placeholderText: qsTr("Search...")
 
             background: Item {}
 
@@ -38,8 +37,8 @@ Rectangle {
         }
 
         Button {
-            visible: textInput.text.length > 0
             icon.source: "qrc:/assets/edit-clear.svg"
+            visible: textInput.text.length > 0
 
             background: Item {}
 

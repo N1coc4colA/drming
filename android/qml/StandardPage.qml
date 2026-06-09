@@ -15,10 +15,10 @@ EasyPage {
 
     headerBar.leftContent: EasyButton {
         display: AbstractButton.IconOnly
-        width: headerBar.centerHeight
-        height: headerBar.centerHeight
-
         icon.source: "qrc:/assets/go-previous.svg"
+
+        implicitWidth: headerBar.centerHeight
+        implicitHeight: headerBar.centerHeight
 
         onClicked: root.back()
     }

@@ -10,12 +10,12 @@ Popup {
     dim: true
     modal: true
     focus: true
-    padding: 16
 
     x: (window.width - width)/2
     y: (window.height - height)/2
-    implicitWidth: contentLayout.implicitWidth + leftPadding + rightPadding
     implicitHeight: contentLayout.implicitHeight + topPadding + bottomPadding
+    implicitWidth: contentLayout.implicitWidth + leftPadding + rightPadding
+    padding: Math.max(16, 16 * GlobalVars.scaling)
 
     property string title: ""
     property int animationsDuration: 200
@@ -65,39 +65,43 @@ Popup {
         }
         MultiEffect {
             autoPaddingEnabled: false
+            anchors.fill: parent
+
             blur: 1.0
             blurEnabled: GlobalVars.shaderBlurSource !== null
             blurMax: 64
+
             colorization: 0.2
             colorizationColor: palette.text
-            source: GlobalVars.shaderBlurSource
 
-            anchors.fill: parent
+            source: GlobalVars.shaderBlurSource
         }
     }
 
     background: Rectangle {
         clip: true
         color: palette.window
-        width: root.width
-        height: root.height
-        radius: 8
 
         border.width: 1
         border.color: palette.mid
+        radius: GlobalVars.standardRounding
+        height: root.height
+        width: root.width
     }
 
     contentItem: ColumnLayout {
         id: contentLayout
-        spacing: 8
+        spacing: GlobalVars.outterSpacing
 
         Label {
             id: titleLabel
-            horizontalAlignment: Qt.AlignHCenter
-            text: root.title
             visible: root.title !== ""
 
             font.bold: true
+            font.pixelSize: Math.max(13, 13 * GlobalVars.scaling)
+            horizontalAlignment: Qt.AlignHCenter
+            text: root.title
+
             Layout.fillWidth: true
         }
 

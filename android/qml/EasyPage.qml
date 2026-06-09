@@ -5,9 +5,8 @@ Item {
     id: root
 
     ColumnLayout {
-        spacing: 0
-
         anchors.fill: parent
+        spacing: 0
 
         HeaderBar {
             id: headerBarComponent
@@ -18,8 +17,8 @@ Item {
         Loader {
             id: contentLoader
 
-            Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.fillWidth: true
         }
     }
 
