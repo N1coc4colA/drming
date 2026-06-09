@@ -13,6 +13,14 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -O0")
 set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -g -O0")
 
+option(ANDROID_MULTI_MODE "Build for all supported Android architectures." OFF)
+if (ANDROID_MULTI_MODE)
+    set(QT_ANDROID_BUILD_ALL_ABIS "TRUE")
+endif()
+
+set(QT_ANDROID_MIN_SDK_VERSION 34)
+set(QT_ANDROID_TARGET_SDK_VERSION 36)
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network Widgets)
 
 
