@@ -12,16 +12,6 @@ Window {
     width: 640
     height: 480
 
-    enum ViewState {
-        HomePage,
-        CertificatesPages,
-        KeysPage,
-        ServicesPage,
-        Streaming
-    }
-
-    property int viewState: Main.ViewState.HomePage
-
     function goBack() {
         if (stackView.depth > 1) {
             if (window.isStreaming) {
