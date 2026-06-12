@@ -7,15 +7,16 @@ EasyDialog {
     modal: true
     title: qsTr("Login")
 
-    property string hostIp: "";
-    property string hostPort: "";
-    property string clientName: "";
-    property bool isValid: true
+    property string hostIp: ""
+    property string hostPort: ""
+    property string clientName: ""
+    property bool isValid: false
 
     signal cancelled
     signal submitted
 
     content: ColumnLayout {
+        id: contentItem
         Layout.margins: GlobalVars.outterSpacing
         spacing: GlobalVars.standardSpacing
 
@@ -42,10 +43,8 @@ EasyDialog {
             EasyComboBox {
                 id: clientEntry
 
-                onCurrentIndexChanged: {
-                    root.isValid = currentIndex >= 0
-                    root.clientName = currentText
-                }
+                onCurrentIndexChanged: root.isValid = clientEntry.currentIndex > -1
+                onCurrentTextChanged: root.clientName = currentText
                 onVisibleChanged: clientEntry.model = fileProvider.validClientEntries()
             }
         }
