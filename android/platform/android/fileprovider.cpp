@@ -58,7 +58,7 @@ int FileProvider::addServerCert()
 
 int FileProvider::addClientCert(const QString &name)
 {
-    const auto sourceLocation = QFileDialog::getOpenFileName(nullptr, tr("Import certificate"), {}, tr("application/x-x509-ca-cert"));
+    const auto sourceLocation = QFileDialog::getOpenFileName(nullptr, tr("Import certificate"), {}, "application/x-x509-ca-cert");
     if (sourceLocation.isEmpty()) {
         return false;
     }
@@ -103,10 +103,7 @@ QStringList FileProvider::validClientEntries()
 
 QPair<QSslCertificate, QSslKey> FileProvider::clientData(const QString &name)
 {
-    const auto certData = jClientCertData(name);
-    const auto keyData = jClientKeyData(name);
-
-    return {QSslCertificate::fromData(certData, QSsl::Pem).first(), keyFromData(keyData)};
+    return {openCertificateFromData(jClientCertData(name)), keyFromData(jClientKeyData(name))};
 }
 
 QList<QSslCertificate> FileProvider::trustedCerts()
