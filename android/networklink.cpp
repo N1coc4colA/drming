@@ -45,10 +45,18 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
         return;
     }
 
-    qInfo() << "Connecting to:" << address << port;
+    qInfo() << "Connecting to:" << address << port << "using client" << clientName;
 
     // Use encrypted connection
     const auto clientData = FileProvider::instance()->clientData(clientName);
+    if (clientData.first.isNull()) {
+        Q_EMIT NetworkLink::error(tr("The certificate of '%1' that was about to be used is invalid.").arg(clientName));
+        return;
+    }
+    if (clientData.second.isNull()) {
+        Q_EMIT NetworkLink::error(tr("The key of '%1' that was about to be used is invalid.").arg(clientName));
+        return;
+    }
 
     // Disable all default CA verification — we do our own allowlist check
     auto sslConf = QSslConfiguration::defaultConfiguration();
