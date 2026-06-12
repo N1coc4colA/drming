@@ -115,13 +115,13 @@ public:
             return out;
         };
         m_instance.jClients = [&instance]() -> FilesModel::MapType {
-            FilesModel::MapType out{};
-            auto list = instance.callObjectMethod("getClients", "()Ljava/util/List;");
+            const auto list = instance.callObjectMethod("getClients", "()Ljava/util/List;");
             const jint size = list.callMethod<jint>("size");
+            FilesModel::MapType out{};
             out.reserve(size);
 
             for (jint i = 0; i < size; ++i) {
-                auto obj = list.callObjectMethod<jobject, jint>("get", jint(i));
+                const auto obj = list.callObjectMethod<jobject, jint>("get", jint(i));
                 const long lastModified = obj.getField<jlong>("lastModified");
                 const auto name = obj.getObjectField<jstring>("name").toString();
                 const auto hasCert = obj.getField<jboolean>("hasCert");
@@ -134,51 +134,50 @@ public:
         };
 
         m_instance.jDeleteServerCert = [&instance](QString a) -> bool {
-            auto ja = QJniObject::fromString(a);
+            const auto ja = QJniObject::fromString(a);
             return instance.callMethod<jboolean, jstring>("deleteServerCert", ja.object<jstring>());
         };
         m_instance.jDeleteClient = [&instance](QString a) -> bool {
-            auto ja = QJniObject::fromString(a);
+            const auto ja = QJniObject::fromString(a);
             return instance.callMethod<jboolean, jstring>("deleteClient", ja.object<jstring>());
         };
         m_instance.jAddServerCert = [&instance](QString a) -> int {
-            auto ja = QJniObject::fromString(a);
+            const auto ja = QJniObject::fromString(a);
             return instance.callMethod<jint, jstring>("addServerCert", ja.object<jstring>());
         };
         m_instance.jAddClientCert = [&instance](QString a, QString b) -> int {
-            auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
+            const auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
             return instance.callMethod<jint, jstring, jstring>("addClientCert", ja.object<jstring>(), jb.object<jstring>());
         };
         m_instance.jAddClientKey = [&instance](QString a, QString b) -> int {
-            auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
+            const auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
             return instance.callMethod<jint, jstring, jstring>("addClientKey", ja.object<jstring>(), jb.object<jstring>());
         };
 
         m_instance.jClientCertData = [&instance](QString a) -> QByteArray {
-            auto ja = QJniObject::fromString(a);
+            const auto ja = QJniObject::fromString(a);
             return QJniArray<jbyte>(instance.callObjectMethod<jbyte[]>("getClientCertData", ja.object<jstring>())).toContainer();
         };
         m_instance.jClientKeyData = [&instance](QString a) -> QByteArray {
-            auto ja = QJniObject::fromString(a);
+            const auto ja = QJniObject::fromString(a);
             return QJniArray<jbyte>(instance.callObjectMethod<jbyte[]>("getClientKeyData", ja.object<jstring>())).toContainer();
         };
 
         m_instance.jTrustedCertsData = [&instance]() -> QList<QByteArray> {
-            QList<QByteArray> out{};
-
-            auto list = QJniObject(instance.callObjectMethod<jobject>("getTrustedCertsData"));
+            const auto list = QJniObject(instance.callObjectMethod("getTrustedCertsData", "()Ljava/util/ArrayList;"));
             const jint size = list.callMethod<jint>("size");
+            QList<QByteArray> out{};
             out.reserve(size);
 
-            for (jint i = 0; i < size; ++i) {
-                out.append(QJniArray<jbyte>(list.callObjectMethod<jbyte[], jint>("get", jint(i))).toContainer());
+            for (jint i = 0; i < size; i++) {
+                out.append(QJniArray<jbyte>(list.callObjectMethod("get", "(I)Ljava/lang/Object;", i)).toContainer());
             }
 
             return out;
         };
 
         m_instance.jUpdateClientEntry = [&instance](QString a, QString b) -> bool {
-            auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
+            const auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
             return instance.callMethod<jboolean, jstring, jstring>("updateClientEntry", ja.object<jstring>(), jb.object<jstring>());
         };
         m_instance.jValidClientEntries = [&instance]() -> QList<QString> {

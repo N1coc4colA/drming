@@ -18,8 +18,9 @@ if (ANDROID_MULTI_MODE)
     set(QT_ANDROID_BUILD_ALL_ABIS "TRUE")
 endif()
 
-set(QT_ANDROID_MIN_SDK_VERSION 34)
-set(QT_ANDROID_TARGET_SDK_VERSION 36)
+if (NOT ANDROID_OPENSSL_DIR)
+    set(ANDROID_OPENSSL_DIR "$ENV{HOME}/Android/Sdk/android_openssl/ssl_3/")
+endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network Widgets)
 
@@ -108,7 +109,7 @@ drming_android
         QT_ANDROID_VERSION_CODE 1
         QT_ANDROID_VERSION_NAME "1.0"
         QT_ANDROID_MIN_SDK_VERSION 28
-        QT_ANDROID_TARGET_SDK_VERSION 34
+        QT_ANDROID_TARGET_SDK_VERSION 36
 )
 
 target_link_libraries(
@@ -121,6 +122,14 @@ drming_android
         Qt6::QuickControls2
         Qt6::Widgets
 )
+
+if(ANDROID)
+    set_target_properties(
+    drming_android
+    PROPERTIES
+        QT_ANDROID_EXTRA_LIBS "${ANDROID_OPENSSL_DIR}/${CMAKE_ANDROID_ARCH_ABI}/libcrypto_3.so;${ANDROID_OPENSSL_DIR}/${CMAKE_ANDROID_ARCH_ABI}/libssl_3.so"
+    )
+endif()
 
 
 if (NOT ANDROID)

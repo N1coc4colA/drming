@@ -3,7 +3,9 @@ package eu.n1coc4cola.drming;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.net.Uri;
+import android.provider.OpenableColumns;
 import android.util.Log;
 
 import java.io.File;
@@ -51,6 +53,70 @@ public class FileHelper {
 
     private ContentResolver getContextContentResolver() {
         return mContext.getContentResolver();
+    }
+
+    private String getNameFromUri(String uriString) {
+        Uri uri = Uri.parse(uriString);
+
+        if (ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
+            // Try to get display name via ContentResolver first
+            try (Cursor cursor = getContextContentResolver().query(
+                    uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    String fileName = cursor.getString(0);
+                    if (fileName != null && !fileName.isEmpty()) {
+                        return fileName;
+                    }
+                }
+            } catch (Exception e) {
+                // Log if needed
+            }
+
+            // Fallback for document URIs (e.g., from ExternalStorageProvider)
+            String fileName = getFileNameFromDocumentUri(uri);
+            if (fileName != null) {
+                return fileName;
+            }
+        }
+
+        // For file:// or other schemes, use the path
+        String path = uri.getPath();
+        if (path != null) {
+            return new File(path).getName();
+        }
+
+        return null;
+    }
+
+    private String getFileNameFromDocumentUri(Uri uri) {
+        if (!ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
+            return null;
+        }
+
+        // Get the last path segment (the document ID)
+        List<String> pathSegments = uri.getPathSegments();
+        if (pathSegments == null || pathSegments.isEmpty()) {
+            return null;
+        }
+        String documentId = pathSegments.get(pathSegments.size() - 1);
+        if (documentId == null) {
+            return null;
+        }
+
+        // URL-decode the document ID
+        String decodedId = Uri.decode(documentId);
+
+        // Document IDs often have format "primary:path/to/file" or "primary:file.txt"
+        // Extract the part after the first colon if present
+        int colonIndex = decodedId.indexOf(':');
+        String pathAfterVolume = (colonIndex != -1) ? decodedId.substring(colonIndex + 1) : decodedId;
+
+        // Now get the filename from that path (last segment after '/')
+        int lastSlash = pathAfterVolume.lastIndexOf('/');
+        String fileName = (lastSlash != -1) ? pathAfterVolume.substring(lastSlash + 1) : pathAfterVolume;
+
+        // Ensure we don't return an empty string
+        return (fileName != null && !fileName.isEmpty()) ? fileName : null;
     }
 
     // ------------------------------------------------------------------------
@@ -158,12 +224,8 @@ public class FileHelper {
     // Add operations (return codes: 0 = failure, 1 = invalid file, 2 = success)
     // ------------------------------------------------------------------------
     public int addServerCert(String sourceFilePath) {
-        File source = new File(sourceFilePath);
-        if (!source.exists() || !source.canRead()) {
-            Log.e(TAG, "Source file not readable: " + sourceFilePath);
-            return 0;
-        }
-        File dest = new File(serversDir, source.getName());
+        String source = getNameFromUri(sourceFilePath);
+        File dest = new File(serversDir, source);
         if (!copyFromPathString(sourceFilePath, dest)) {
             return 0;
         }
@@ -315,8 +377,8 @@ public class FileHelper {
         return readFileBytes(keyFile);
     }
 
-    public List<byte[]> getTrustedCertsData() {
-        List<byte[]> result = new ArrayList<>();
+    public ArrayList<byte[]> getTrustedCertsData() {
+        ArrayList<byte[]> result = new ArrayList<>();
         File[] files = serversDir.listFiles();
         if (files != null) {
             for (File f : files) {
@@ -366,13 +428,14 @@ public class FileHelper {
     // ------------------------------------------------------------------------
     // Utility: get list of client names that have both cert and key valid
     // ------------------------------------------------------------------------
-    public List<String> getValidClientEntries() {
+    public String[] getValidClientEntries() {
         List<String> valid = new ArrayList<>();
         for (ClientInfo info : getClients()) {
             if (info.hasCert && info.hasKey) {
                 valid.add(info.name);
             }
         }
-        return valid;
+
+        return valid.toArray(String[]::new);
     }
 }
