@@ -31,6 +31,7 @@ set(PROJECT_SOURCES
     dispsetup.h dispsetup.cpp
     parameters.h parameters.cpp
     server.h server.cpp
+    networkclient.h
     settings.h
     vkmsfb.h
 )

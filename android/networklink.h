@@ -3,7 +3,9 @@
 
 #include <QImage>
 #include <QObject>
-#include <QSslSocket>
+#include <QTimer>
+#include <QUdpSocket>
+#include <QDtls>
 #include <QSslError>
 
 #include "../parser.h"
@@ -34,12 +36,14 @@ private Q_SLOTS:
     void onConnected();
     void onDisconnected();
     void onError(QAbstractSocket::SocketError err);
-    void onSslErrors(const QList<QSslError> &errors);
     void onDataAvailable();
+    void onConnectionTimeout();
 
 private:
     QByteArray m_buffer{};
-    QSslSocket *m_socket = nullptr;
+    QUdpSocket *m_udpSocket = nullptr;
+    QDtls *m_dtls = nullptr;
+    QTimer m_inactivityTimer{};
     quint16 m_format = 0;
     quint32 m_width = 0;
     quint32 m_height = 0;

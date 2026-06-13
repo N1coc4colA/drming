@@ -57,7 +57,7 @@ public:
             m_sb = avahi_service_browser_new(m_client,
                                              AVAHI_IF_UNSPEC,
                                              AVAHI_PROTO_UNSPEC,
-                                             "_drming._tcp",
+                                             "_drming._udp",
                                              nullptr,
                                              static_cast<AvahiLookupFlags>(0),
                                              reinterpret_cast<AvahiServiceBrowserCallback>(&AvahiDiscoverer::browse_callback),

@@ -5,7 +5,7 @@
 #include <QQueue>
 #include <QSet>
 
-class QTcpSocket;
+class NetworkClient;
 class Display;
 
 class DisplayManager : public QObject
@@ -14,7 +14,7 @@ public:
     explicit DisplayManager(QObject *parent = nullptr);
     ~DisplayManager();
 
-    bool registerClient(QTcpSocket *client);
+    bool registerClient(NetworkClient *client);
 
 private:
     QQueue<Display *> m_freeDisplays{};

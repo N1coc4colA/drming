@@ -2,7 +2,6 @@
 
 #include <QBuffer>
 #include <QDebug>
-#include <QTcpSocket>
 #include <QtEndian>
 
 #include "../parser.h"
@@ -17,10 +16,12 @@ Display::Display(const QString &connectorName, QObject *parent)
     m_timer.setInterval(60);
 }
 
-void Display::setClient(QTcpSocket *client)
+void Display::setClient(NetworkClient *client)
 {
     m_client = client;
-    connect(client, &QTcpSocket::disconnected, this, &Display::onDisconnected);
+    if (m_client) {
+        connect(m_client, &NetworkClient::disconnected, this, &Display::onDisconnected);
+    }
     onConnected();
 }
 
@@ -58,7 +59,14 @@ void Display::forward()
     m_reader.releaseVkmsFrameBuffer(fb);
 
     if (m_client && m_client->state() == QAbstractSocket::ConnectedState) {
-        m_client->write(output);
+        constexpr qsizetype chunkSize = 1000;
+        for (qsizetype offset = 0; offset < output.size(); offset += chunkSize) {
+            const auto chunk = output.mid(offset, chunkSize);
+            if (m_client->write(chunk) < 0) {
+                qWarning() << "Failed to write DTLS image chunk";
+                break;
+            }
+        }
     }
 }
 

@@ -3,8 +3,15 @@
 
 #include <QList>
 #include <QObject>
-#include <QSslServer>
-#include <QSslSocket>
+#include <QUdpSocket>
+#include <QSslConfiguration>
+#include <QHostAddress>
+#include <QMap>
+#include <QPair>
+
+#include "networkclient.h"
+
+class QDtls;
 
 class Server : public QObject
 {
@@ -20,19 +27,18 @@ public:
 
 Q_SIGNALS:
     void noClient();
-    void clientConnected(QSslSocket *client);
+    void clientConnected(NetworkClient *client);
 
 public Q_SLOTS:
     void broadcast(const QByteArray &data);
 
 private Q_SLOTS:
-    void onNewConnection(QSslSocket *socket);
-    void onSslErrors(QSslSocket *socket, const QList<QSslError> &errors);
-    void onClientDisconnected();
+    void onDatagramReceived();
 
 private:
-    QSslServer m_server{};
-    QList<QSslSocket *> m_clients{};
+    QUdpSocket m_socket{};
+    QList<NetworkClient *> m_clients{};
+    QMap<QString, QDtls *> m_dtlsMap{};
 
     static bool loadServerSslConfig(QSslConfiguration &outConfig);
 };

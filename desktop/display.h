@@ -5,8 +5,7 @@
 #include <QTimer>
 
 #include "displayreader.h"
-
-class QTcpSocket;
+#include "networkclient.h"
 
 class Display : public QObject
 {
@@ -19,12 +18,12 @@ Q_SIGNALS:
     void nowFree(Display *);
 
 public Q_SLOTS:
-    void setClient(QTcpSocket *client);
+    void setClient(NetworkClient *client);
 
 private:
     DisplayReader m_reader;
     QTimer m_timer{};
-    QTcpSocket *m_client = nullptr;
+    NetworkClient *m_client = nullptr;
     bool primaryFailureNotice = false;
 
 private Q_SLOTS:
