@@ -368,7 +368,7 @@ bool DispSetup::setCursorPlaneType()
 bool DispSetup::linkPrimaryPlaneToCrtc()
 {
     // Wait for ConfigFS to show up.
-    sleep(1);
+    sleep(2);
 
     const auto linkPath = m_primaryPlanePath + "/possible_crtcs/crtc0";
     if (QFileInfo::exists(linkPath)) {

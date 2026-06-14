@@ -23,17 +23,18 @@ int main(int argc, char *argv[])
     }
 
     if (!Parameters::instance.advertise) {
-        auto publisher = new AvahiPublisher(Parameters::instance.serviceName, "_drming._tcp", static_cast<uint16_t>(Parameters::instance.port), &app);
+        auto publisher = new AvahiPublisher(Parameters::instance.serviceName, "_drming._udp", static_cast<uint16_t>(Parameters::instance.port), &app);
         publisher->start();
     }
 
     DisplayManager manager{};
     Server server{};
 
-    QObject::connect(&server, &Server::clientConnected, [&manager](QTcpSocket *client) {
+    QObject::connect(&server, &Server::clientConnected, [&manager](NetworkClient *client) {
         // An error occurred.
         if (!manager.registerClient(client)) {
-            client->close();
+            // If registration failed, drop client
+            client->deleteLater();
         }
     });
 

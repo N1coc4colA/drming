@@ -5,6 +5,17 @@
 #include <QSslCertificate>
 #include <QSslKey>
 
+inline QSslCertificate openCertificateFromData(const QByteArray &data)
+{
+    const auto certs = QSslCertificate::fromData(data, QSsl::Pem);
+    if (certs.isEmpty()) {
+        qCritical() << "Failed to read certificate from data.";
+        return QSslCertificate("");
+    }
+
+    return certs.first();
+}
+
 inline QSslCertificate openCertificate(const QString &path)
 {
     const auto certs = QSslCertificate::fromFile(path, QSsl::Pem);
@@ -14,6 +25,11 @@ inline QSslCertificate openCertificate(const QString &path)
     }
 
     return certs.first();
+}
+
+inline auto openCertificateFiles(const QString &path)
+{
+    return QSslCertificate::fromPath(path, QSsl::Pem, QSslCertificate::PatternSyntax::Wildcard);
 }
 
 inline QSslKey keyFromData(const QByteArray &keyData)

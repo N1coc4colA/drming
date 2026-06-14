@@ -10,7 +10,7 @@ import java.util.List;
 public class MdnsHelper {
     private static final String TAG = "MdnsHelper";
 
-    private static final String SERVICE_TYPE = "_drming._tcp.";
+    private static final String SERVICE_TYPE = "_drming._udp.";
 
     private NsdManager nsdManager;
     private NsdManager.DiscoveryListener discoveryListener;

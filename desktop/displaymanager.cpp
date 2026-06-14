@@ -20,7 +20,7 @@ DisplayManager::~DisplayManager()
     m_usedDisplays.clear();
 }
 
-bool DisplayManager::registerClient(QTcpSocket *client)
+bool DisplayManager::registerClient(NetworkClient *client)
 {
     const auto number = QString::number(Parameters::instance.servedScreens);
     if (m_freeDisplays.isEmpty()) {

@@ -14,11 +14,7 @@ Window {
 
     function goBack() {
         if (stackView.depth > 1) {
-            if (window.isStreaming) {
-                networkLink.close()
-                window.isStreaming = false
-            }
-
+            networkLink.close()
             stackView.pop()
         }
     }
