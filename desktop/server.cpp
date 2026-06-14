@@ -16,38 +16,6 @@
 
 #include "parameters.h"
 
-// Internal DTLS-backed NetworkClient implementation
-class DtlsNetworkClient : public NetworkClient
-{
-public:
-    DtlsNetworkClient(const QHostAddress &addr, quint16 port, QDtls *dtls, QUdpSocket *socket, QObject *parent = nullptr)
-        : NetworkClient(parent)
-        , m_addr(addr)
-        , m_port(port)
-        , m_dtls(dtls)
-        , m_socket(socket)
-    {}
-
-    ~DtlsNetworkClient() override {
-        // Server owns the QDtls instances (stored in Server::m_dtlsMap). Do not delete here.
-    }
-
-    qint64 write(const QByteArray &data) override {
-        if (!m_dtls || !m_socket) return -1;
-        return m_dtls->writeDatagramEncrypted(m_socket, data);
-    }
-
-    QAbstractSocket::SocketState state() const override { return QAbstractSocket::ConnectedState; }
-    QHostAddress peerAddress() const override { return m_addr; }
-    quint16 peerPort() const override { return m_port; }
-
-private:
-    QHostAddress m_addr{};
-    quint16 m_port = 0;
-    QDtls *m_dtls = nullptr;
-    QUdpSocket *m_socket = nullptr;
-};
-
 // Map key helper (string form address:port)
 static inline QString keyFor(const QHostAddress &a, quint16 p) { return QStringLiteral("%1:%2").arg(a.toString()).arg(p); }
 
@@ -202,7 +170,7 @@ void Server::onDatagramReceived()
             }
 
             if (!alreadyRegistered) {
-                auto *wrapper = new DtlsNetworkClient(sender, senderPort, dtls, &m_socket, this);
+                auto *wrapper = new NetworkClient(sender, senderPort, dtls, &m_socket, this);
                 m_clients.append(wrapper);
                 Q_EMIT clientConnected(wrapper);
             }

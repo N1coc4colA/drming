@@ -5,21 +5,31 @@
 #include <QAbstractSocket>
 #include <QHostAddress>
 
+class QUdpSocket;
+class QDtls;
+
 class NetworkClient : public QObject
 {
     Q_OBJECT
-public:
-    explicit NetworkClient(QObject *parent = nullptr) : QObject(parent) {}
-    ~NetworkClient() override = default;
 
-    // Write bytes to the client. Returns number of bytes written or -1 on error.
-    virtual qint64 write(const QByteArray &data) = 0;
-    virtual QAbstractSocket::SocketState state() const = 0;
-    virtual QHostAddress peerAddress() const { return QHostAddress(); }
-    virtual quint16 peerPort() const { return 0; }
+public:
+    NetworkClient(const QHostAddress &addr, quint16 port, QDtls *dtls, QUdpSocket *socket, QObject *parent = nullptr);
+    ~NetworkClient() = default;
+
+    qint64 write(const QByteArray &data);
+
+    inline QAbstractSocket::SocketState state() const { return QAbstractSocket::ConnectedState; }
+    inline QHostAddress peerAddress() const { return m_addr; }
+    inline quint16 peerPort() const { return m_port; }
 
 Q_SIGNALS:
     void disconnected();
+
+private:
+    QHostAddress m_addr{};
+    quint16 m_port = 0;
+    QDtls *m_dtls = nullptr;
+    QUdpSocket *m_socket = nullptr;
 };
 
 #endif // NETWORKCLIENT_H

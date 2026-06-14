@@ -41,6 +41,7 @@ qt_add_executable(
 drming_desktop
     MANUAL_FINALIZATION
     ${PROJECT_SOURCES}
+    networkclient.cpp
 
 )
 
