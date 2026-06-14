@@ -2,10 +2,11 @@
 
 #include <QDebug>
 
+#include "../settings.h"
+
 #include "display.h"
 #include "dispsetup.h"
 #include "parameters.h"
-#include "settings.h"
 
 DisplayManager::DisplayManager(QObject *parent)
     : QObject(parent)

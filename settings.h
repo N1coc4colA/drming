@@ -15,6 +15,16 @@ constexpr int numberCount(const int v)
 
 static constexpr int maximumDisplayCount = 999;
 static constexpr int maximumDisplayCountLength = utils::numberCount(maximumDisplayCount);
+static constexpr int maximumLPPTries = 3;
+
+static constexpr int dtlsChunkSize = 1000;
+static constexpr int frameMSecsInterval = 60;
+static constexpr int inactivityTimeout = 5000;
+
+static constexpr auto advertisementServiceType = "_drming._udp";
+static constexpr auto frameImageFormat = "WEBP";
+
+static constexpr auto timeFormat = " HH:mm";
 
 }
 

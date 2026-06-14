@@ -11,6 +11,8 @@
 #include <set>
 #include <thread>
 
+#include "../settings.h"
+
 namespace Platform {
 
 class AvahiDiscoverer
@@ -57,7 +59,7 @@ public:
             m_sb = avahi_service_browser_new(m_client,
                                              AVAHI_IF_UNSPEC,
                                              AVAHI_PROTO_UNSPEC,
-                                             "_drming._udp",
+                                             Settings::advertisementServiceType,
                                              nullptr,
                                              static_cast<AvahiLookupFlags>(0),
                                              reinterpret_cast<AvahiServiceBrowserCallback>(&AvahiDiscoverer::browse_callback),

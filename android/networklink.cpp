@@ -8,6 +8,8 @@
 #include <QtEndian>
 #include <QHostAddress>
 
+#include "../settings.h"
+
 #include "fileprovider.h"
 
 NetworkLink::NetworkLink(QObject *parent)
@@ -23,7 +25,7 @@ NetworkLink::NetworkLink(QObject *parent)
 
     QAbstractSocket::connect(m_dtls, &QDtls::handshakeTimeout, this, [this]() { qWarning() << "DTLS handshake timeout"; });
 
-    m_inactivityTimer.setInterval(5000);
+    m_inactivityTimer.setInterval(Settings::inactivityTimeout);
     m_inactivityTimer.setSingleShot(true);
     QAbstractSocket::connect(&m_inactivityTimer, &QTimer::timeout, this, &NetworkLink::onConnectionTimeout);
 
@@ -185,7 +187,7 @@ void NetworkLink::onConnectionTimeout()
 
 void NetworkLink::processPacket(const Packets::ServerImage &srvImg)
 {
-    const auto img = QImage::fromData(srvImg.data, "WEBP");
+    const auto img = QImage::fromData(srvImg.data, Settings::frameImageFormat);
 
     if (!img.isNull()) {
         [[likely]];

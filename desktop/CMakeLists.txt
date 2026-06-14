@@ -20,6 +20,7 @@ pkg_check_modules(AVAHI REQUIRED avahi-client)
 set(PROJECT_SOURCES
     ../certificatesupport.h
     ../parser.h
+    ../settings.h
 
     main.cpp
 
@@ -32,7 +33,6 @@ set(PROJECT_SOURCES
     parameters.h parameters.cpp
     server.h server.cpp
     networkclient.h
-    settings.h
     vkmsfb.h
 )
 

@@ -12,6 +12,8 @@
 #include <QProcess>
 #include <QThread>
 
+#include "../settings.h"
+
 // See https://docs.kernel.org/gpu/vkms.html
 
 namespace {
@@ -367,22 +369,35 @@ bool DispSetup::setCursorPlaneType()
 
 bool DispSetup::linkPrimaryPlaneToCrtc()
 {
-    // Wait for ConfigFS to show up.
-    sleep(2);
-
     const auto linkPath = m_primaryPlanePath + "/possible_crtcs/crtc0";
-    if (QFileInfo::exists(linkPath)) {
-        return true;
-    }
-
     const auto link = linkPath.toLocal8Bit();
     const auto tgt = m_crtcPath.toLocal8Bit();
-    if (::symlink(tgt.constData(), link.constData()) != 0) {
-        qCritical() << "Failed to symlink primary plane → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
-        return false;
+
+    // Wait for ConfigFS to show up.
+    int i = 0;
+    for (; i < Settings::maximumLPPTries; i++) {
+        sleep(1);
+
+        if (QFileInfo::exists(linkPath)) {
+            return true;
+        }
+
+        // Ensure parent directory exists before attempting symlink
+        if (!QDir().mkpath(m_primaryPlanePath + "/possible_crtcs")) {
+            if (i == (Settings::maximumLPPTries - 1)) {
+                qCritical() << "Failed to create parent directory for primary plane symlink";
+                return false;
+            }
+            continue;
+        }
+
+        if (::symlink(tgt.constData(), link.constData()) == 0) {
+            return true;
+        }
     }
 
-    return true;
+    qCritical() << "Failed to symlink primary plane → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
+    return false;
 }
 
 bool DispSetup::linkCursorPlaneToCrtc()

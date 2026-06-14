@@ -13,6 +13,7 @@
 #include <algorithm>
 
 #include "../certificatesupport.h"
+
 #include "parameters.h"
 
 // Internal DTLS-backed NetworkClient implementation

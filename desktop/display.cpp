@@ -5,6 +5,8 @@
 #include <QtEndian>
 
 #include "../parser.h"
+#include "../settings.h"
+
 #include "parameters.h"
 
 Display::Display(const QString &connectorName, QObject *parent)
@@ -13,7 +15,7 @@ Display::Display(const QString &connectorName, QObject *parent)
 {
     QObject::connect(&m_timer, &QTimer::timeout, this, &Display::forward);
 
-    m_timer.setInterval(60);
+    m_timer.setInterval(Settings::frameMSecsInterval);
 }
 
 void Display::setClient(NetworkClient *client)
@@ -22,6 +24,7 @@ void Display::setClient(NetworkClient *client)
     if (m_client) {
         connect(m_client, &NetworkClient::disconnected, this, &Display::onDisconnected);
     }
+
     onConnected();
 }
 
@@ -51,7 +54,7 @@ void Display::forward()
     {
         QBuffer buf(&servImg.data);
         buf.open(QIODevice::WriteOnly);
-        result.save(&buf, "WEBP", Parameters::instance.qualityLevel);
+        result.save(&buf, Settings::frameImageFormat, Parameters::instance.qualityLevel);
         buf.close();
     }
 
@@ -59,7 +62,7 @@ void Display::forward()
     m_reader.releaseVkmsFrameBuffer(fb);
 
     if (m_client && m_client->state() == QAbstractSocket::ConnectedState) {
-        constexpr qsizetype chunkSize = 1000;
+        constexpr qsizetype chunkSize = Settings::dtlsChunkSize;
         for (qsizetype offset = 0; offset < output.size(); offset += chunkSize) {
             const auto chunk = output.mid(offset, chunkSize);
             if (m_client->write(chunk) < 0) {

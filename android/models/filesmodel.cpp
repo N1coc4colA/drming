@@ -1,5 +1,7 @@
 #include "filesmodel.h"
 
+#include "../settings.h"
+
 FilesModel::FilesModel(QObject *parent)
     : QAbstractListModel(parent)
 {}
@@ -29,7 +31,7 @@ QVariant FilesModel::data(const QModelIndex &index, const int role) const
     switch (role) {
     case DateTimeRole: {
         const QString localeDateFormat = QLocale::system().dateFormat(QLocale::ShortFormat);
-        return QLocale::system().toString(std::get<0>(v), localeDateFormat + " HH:mm");
+        return QLocale::system().toString(std::get<0>(v), localeDateFormat + Settings::timeFormat);
     }
     case NameRole:
         return std::get<1>(v);
@@ -53,7 +55,7 @@ QVariantMap FilesModel::get(const int index) const
 
     const auto &v = m_files[index];
     const auto localeDateFormat = QLocale::system().dateFormat(QLocale::ShortFormat);
-    const auto dt = QLocale::system().toString(std::get<0>(v), localeDateFormat + " HH:mm");
+    const auto dt = QLocale::system().toString(std::get<0>(v), localeDateFormat + Settings::timeFormat);
 
     return {{"datetime", dt}, {"name", std::get<1>(v)}, {"info", std::get<2>(v)}};
 }
