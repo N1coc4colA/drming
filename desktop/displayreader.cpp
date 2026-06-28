@@ -233,37 +233,7 @@ bool mapCursorFramebuffer(CursorFrameBuffer &cursor, int drmFd, uint32_t handle)
     return false;
 }
 
-inline void split_fourcc(const uint32_t code, uint8_t &a, uint8_t &b, uint8_t &c, uint8_t &d)
-{
-    a = static_cast<uint8_t>((code >> 0) & 0xff);
-    b = static_cast<uint8_t>((code >> 8) & 0xff);
-    c = static_cast<uint8_t>((code >> 16) & 0xff);
-    d = static_cast<uint8_t>((code >> 24) & 0xff);
-}
-
-inline void split_fourcc(const uint32_t code, char &a, char &b, char &c, char &d)
-{
-    a = static_cast<char>((code >> 0) & 0xff);
-    b = static_cast<char>((code >> 8) & 0xff);
-    c = static_cast<char>((code >> 16) & 0xff);
-    d = static_cast<char>((code >> 24) & 0xff);
-}
-
 } // namespace Drm
-
-QImage::Format qtImageFormatFromDrm(const uint32_t drmFormat)
-{
-    switch (drmFormat) {
-    case DRM_FORMAT_XRGB8888:
-        return QImage::Format_RGB32;
-    case DRM_FORMAT_ARGB8888:
-        return QImage::Format_ARGB32;
-    case DRM_FORMAT_RGB565:
-        return QImage::Format_RGB16;
-    default:
-        return QImage::Format_Invalid;
-    }
-}
 
 DisplayReader::DisplayReader(const QString &connectorName)
     : m_connectorName(connectorName)
@@ -518,15 +488,15 @@ void DisplayReader::releaseCursorFrameBuffer(CursorFrameBuffer &cursor)
     cursor = {};
 }
 
-QImage DisplayReader::compositeWithCursor(const QImage &primary, const CursorFrameBuffer &cursor)
+QImage DisplayReader::compositeWithCursor(const QImage &primary, const CursorFrameBuffer &cursor, const DrmFormat::FormatDescriptor &fmtDesc)
 {
-    if (!cursor.data || cursor.width == 0 || cursor.height == 0) {
+    if (!cursor.data || cursor.width == 0 || cursor.height == 0 || cursor.stride == 0) {
         [[unlikely]];
 
         return primary;
     }
 
-    const QImage cursorImg = imageFromFrameBuffer(static_cast<const uint8_t *>(cursor.data), cursor.width, cursor.height, cursor.stride, cursor.format);
+    const QImage cursorImg = imageFromFrameBuffer(static_cast<const uint8_t *>(cursor.data), cursor.width, cursor.height, cursor.stride, fmtDesc);
     if (cursorImg.isNull()) {
         [[unlikely]];
 
@@ -543,31 +513,13 @@ QImage DisplayReader::compositeWithCursor(const QImage &primary, const CursorFra
 }
 
 QImage DisplayReader::imageFromFrameBuffer(
-    const uint8_t *data, const uint32_t width, const uint32_t height, const uint32_t stride, const uint32_t format)
+    const uint8_t *data, const uint32_t width, const uint32_t height, const uint32_t stride, const DrmFormat::FormatDescriptor &fmtDesc)
 {
-    if (!data || !width || !height || !stride) {
-        [[unlikely]];
+    QImage output(reinterpret_cast<const uchar *>(data), static_cast<int>(width), static_cast<int>(height), static_cast<int>(stride), fmtDesc.qtFormat);
 
-        return {};
+    if (fmtDesc.convert) {
+        fmtDesc.convert(output);
     }
 
-    const auto fmt = qtImageFormatFromDrm(format);
-
-    if (fmt == QImage::Format_Invalid) {
-        [[unlikely]];
-        uint8_t a, b, c, d;
-        Drm::split_fourcc(format, a, b, c, d);
-
-        qWarning() << "Image format for frame is invalid:" << format << ";" << a << b << c << d;
-
-        return {};
-    }
-
-    return QImage(reinterpret_cast<const uchar *>(data), static_cast<int>(width), static_cast<int>(height), static_cast<int>(stride), fmt);
-}
-
-QPixmap DisplayReader::pixmapFromFrameBuffer(
-    const uint8_t *data, const uint32_t width, const uint32_t height, const uint32_t stride, const uint32_t format)
-{
-    return QPixmap::fromImage(imageFromFrameBuffer(data, width, height, stride, format));
+    return output;
 }

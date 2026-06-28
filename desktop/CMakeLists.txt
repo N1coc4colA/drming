@@ -30,9 +30,10 @@ set(PROJECT_SOURCES
     displaymanager.h displaymanager.cpp
     displayreader.h displayreader.cpp
     dispsetup.h dispsetup.cpp
+    networkclient.h networkclient.cpp
     parameters.h parameters.cpp
     server.h server.cpp
-    networkclient.h
+    sse.h sse.cpp
     vkmsfb.h
 )
 
@@ -41,7 +42,6 @@ qt_add_executable(
 drming_desktop
     MANUAL_FINALIZATION
     ${PROJECT_SOURCES}
-    networkclient.cpp
 
 )
 

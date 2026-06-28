@@ -21,6 +21,10 @@ public Q_SLOTS:
 
 private:
     DisplayReader m_reader;
+
+    std::optional<DrmFormat::FormatDescriptor> m_cursorFrameDescriptor{};
+    std::optional<DrmFormat::FormatDescriptor> m_vkmsFrameDescriptor{};
+
     QTimer m_timer{};
     NetworkClient *m_client = nullptr;
     bool primaryFailureNotice = false;

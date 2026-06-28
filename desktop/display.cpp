@@ -47,11 +47,58 @@ void Display::forward()
     const auto hasCursor = m_reader.getCursorFrameBuffer(cursorFb, fb);
 
     Packets::ServerImage servImg{};
-    auto result = m_reader.imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, fb.format);
+
+    if (!m_vkmsFrameDescriptor.has_value()) {
+        [[unlikely]];
+
+        m_vkmsFrameDescriptor = DrmFormat::resolve(fb.format);
+
+        if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) {
+            [[unlikely]];
+
+            char a, b, c, d;
+            Drm::split_fourcc(fb.format, a, b, c, d);
+
+            qWarning() << "Image format for frame is invalid:" << fb.format << ";" << a << b << c << d;
+
+            m_client->disconnect();
+            return;
+        }
+    }
+
+    if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) {
+        [[unlikely]];
+        return;
+    }
+
+    auto result = m_reader.imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, m_vkmsFrameDescriptor.value());
     if (hasCursor) {
         [[likely]];
 
-        result = m_reader.compositeWithCursor(result, cursorFb);
+        if (!m_cursorFrameDescriptor.has_value()) {
+            [[unlikely]];
+
+            m_cursorFrameDescriptor = DrmFormat::resolve(cursorFb.format);
+
+            if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) {
+                [[unlikely]];
+
+                char a, b, c, d;
+                Drm::split_fourcc(cursorFb.format, a, b, c, d);
+
+                qWarning() << "Image format for frame is invalid:" << cursorFb.format << ";" << a << b << c << d;
+
+                m_client->disconnect();
+                return;
+            }
+        }
+
+        if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) {
+            [[unlikely]];
+            return;
+        }
+
+        result = m_reader.compositeWithCursor(result, cursorFb, m_cursorFrameDescriptor.value());
     }
 
     {
