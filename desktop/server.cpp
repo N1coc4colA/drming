@@ -30,6 +30,7 @@ bool Server::loadServerSslConfig(QSslConfiguration &outConfig)
     const auto serverCert = openCertificate(Parameters::instance.serverCertPath);
     const auto serverKey = openKey(Parameters::instance.serverKeyPath);
     if (serverKey.isNull() || serverCert.isNull()) {
+        [[unlikely]];
         return false;
     }
 
@@ -46,10 +47,12 @@ bool Server::listen(const QHostAddress &address, const quint16 port)
 {
     QSslConfiguration sslConfig{};
     if (!loadServerSslConfig(sslConfig)) {
-        qWarning() << "SSL config not loaded; DTLS connections may not use server certificate.";
+        qCritical() << "SSL config not loaded; DTLS connections may not use server certificate.";
+        return false;
     }
 
     if (!m_socket.bind(address, port)) {
+        [[unlikely]];
         qCritical() << "Failed to bind UDP socket:" << m_socket.errorString();
         return false;
     }
@@ -82,8 +85,7 @@ void Server::broadcast(const QByteArray &data)
     // Send encrypted datagram to all known DTLS associations
     // We keep track of associations via m_clients list and rely on the DtlsNetworkClient to do the encryption.
     for (auto client : m_clients) {
-        if (!client) continue;
-        if (client->state() == QAbstractSocket::ConnectedState) {
+        if (client && client->state() == QAbstractSocket::ConnectedState) {
             client->write(data);
         }
     }
@@ -96,7 +98,10 @@ void Server::onDatagramReceived()
         QHostAddress sender;
         quint16 senderPort = 0;
         qint64 read = m_socket.readDatagram(dgram.data(), dgram.size(), &sender, &senderPort);
-        if (read <= 0) continue;
+        if (read <= 0) {
+            continue;
+        }
+
         dgram.resize(read);
 
         const auto k = keyFor(sender, senderPort);
@@ -105,12 +110,16 @@ void Server::onDatagramReceived()
         QDtls *dtls = m_dtlsMap.value(k, nullptr);
 
         if (!dtls) {
+            [[unlikely]];
+
             // Create new server-side DTLS object
             dtls = new QDtls(QSslSocket::SslServerMode, this);
             QSslConfiguration conf = QSslConfiguration::defaultDtlsConfiguration();
             if (loadServerSslConfig(conf)) {
+                [[likely]];
                 dtls->setDtlsConfiguration(conf);
             }
+
             dtls->setMtuHint(1200);
             dtls->setPeer(sender, senderPort);
             m_dtlsMap.insert(k, dtls);
@@ -124,6 +133,8 @@ void Server::onDatagramReceived()
             }
 
             if (dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) {
+                [[unlikely]];
+
                 qInfo() << "DTLS client closed:" << sender.toString() << senderPort;
 
                 auto client = std::find_if(m_clients.begin(), m_clients.end(), [&](NetworkClient *c) {
@@ -149,6 +160,7 @@ void Server::onDatagramReceived()
 
         // Continue or start handshake
         if (!dtls->doHandshake(&m_socket, dgram)) {
+            [[unlikely]];
             if (dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) {
                 qInfo() << "DTLS handshake aborted by peer:" << sender.toString() << senderPort;
             } else {

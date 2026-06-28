@@ -12,6 +12,8 @@
 #include <QFileInfo>
 #include <QPainter>
 
+#include "sse.h"
+
 namespace Drm {
 
 struct DrmResourcesDeleter
@@ -160,6 +162,8 @@ QString drmDeviceForConnector(const QString &connectorName)
 bool mapFramebuffer(VkmsFrameBuffer &fb, uint32_t handle)
 {
     if (handle == 0 || fb.fd < 0 || fb.size == 0) {
+        [[unlikely]];
+
         return false;
     }
 
@@ -194,6 +198,8 @@ bool mapFramebuffer(VkmsFrameBuffer &fb, uint32_t handle)
 bool mapCursorFramebuffer(CursorFrameBuffer &cursor, int drmFd, uint32_t handle)
 {
     if (handle == 0 || drmFd < 0 || cursor.size == 0) {
+        [[unlikely]];
+
         return false;
     }
 
@@ -229,10 +235,18 @@ bool mapCursorFramebuffer(CursorFrameBuffer &cursor, int drmFd, uint32_t handle)
 
 inline void split_fourcc(const uint32_t code, uint8_t &a, uint8_t &b, uint8_t &c, uint8_t &d)
 {
-    a = (uint8_t) (code >> 0) & 0xff;
-    b = (uint8_t) (code >> 8) & 0xff;
-    c = (uint8_t) (code >> 16) & 0xff;
-    d = (uint8_t) (code >> 24) & 0xff;
+    a = static_cast<uint8_t>((code >> 0) & 0xff);
+    b = static_cast<uint8_t>((code >> 8) & 0xff);
+    c = static_cast<uint8_t>((code >> 16) & 0xff);
+    d = static_cast<uint8_t>((code >> 24) & 0xff);
+}
+
+inline void split_fourcc(const uint32_t code, char &a, char &b, char &c, char &d)
+{
+    a = static_cast<char>((code >> 0) & 0xff);
+    b = static_cast<char>((code >> 8) & 0xff);
+    c = static_cast<char>((code >> 16) & 0xff);
+    d = static_cast<char>((code >> 24) & 0xff);
 }
 
 } // namespace Drm
@@ -263,12 +277,16 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
 
     const QString drmDevicePath = drmDeviceForConnector(m_connectorName);
     if (drmDevicePath.isEmpty()) {
+        [[unlikely]];
+
         return false;
     }
 
     const QByteArray drmPathBytes = QFile::encodeName(drmDevicePath);
     fb.fd = ::open(drmPathBytes.constData(), O_RDWR | O_CLOEXEC);
     if (fb.fd < 0) {
+        [[unlikely]];
+
         return false;
     }
 
@@ -279,6 +297,8 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
 
     DrmResourcesPtr resources(drmModeGetResources(fb.fd));
     if (!resources) {
+        [[unlikely]];
+
         goto err;
     }
 
@@ -302,6 +322,8 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
     }
 
     if (!connector) {
+        [[unlikely]];
+
         goto err;
     }
 
@@ -319,16 +341,22 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
     }
 
     if (!encoder || !encoder->crtc_id) {
+        [[unlikely]];
+
         goto err;
     }
 
     crtc.reset(drmModeGetCrtc(fb.fd, encoder->crtc_id));
     if (!crtc || !crtc->buffer_id) {
+        [[unlikely]];
+
         goto err;
     }
 
     mfb.reset(drmModeGetFB2(fb.fd, crtc->buffer_id));
     if (!mfb) {
+        [[unlikely]];
+
         goto err;
     }
 
@@ -342,6 +370,8 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
     fb.size = static_cast<std::size_t>(fb.stride) * fb.height;
 
     if (!mapFramebuffer(fb, mfb->handles[0])) {
+        [[unlikely]];
+
         goto err;
     }
 
@@ -355,14 +385,20 @@ err:
 void DisplayReader::releaseVkmsFrameBuffer(VkmsFrameBuffer &fb)
 {
     if (fb.data && fb.size > 0) {
+        [[likely]];
+
         ::munmap(fb.data, fb.size);
         fb.data = nullptr;
     }
     if (fb.buffer_fd >= 0) {
+        [[likely]];
+
         ::close(fb.buffer_fd);
         fb.buffer_fd = -1;
     }
     if (fb.fd >= 0) {
+        [[likely]];
+
         ::close(fb.fd);
         fb.fd = -1;
     }
@@ -466,10 +502,14 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
 void DisplayReader::releaseCursorFrameBuffer(CursorFrameBuffer &cursor)
 {
     if (cursor.data && cursor.size > 0) {
+        [[likely]];
+
         ::munmap(cursor.data, cursor.size);
         cursor.data = nullptr;
     }
     if (cursor.buffer_fd >= 0) {
+        [[likely]];
+
         ::close(cursor.buffer_fd);
         cursor.buffer_fd = -1;
     }
@@ -481,12 +521,15 @@ void DisplayReader::releaseCursorFrameBuffer(CursorFrameBuffer &cursor)
 QImage DisplayReader::compositeWithCursor(const QImage &primary, const CursorFrameBuffer &cursor)
 {
     if (!cursor.data || cursor.width == 0 || cursor.height == 0) {
+        [[unlikely]];
+
         return primary;
     }
 
     const QImage cursorImg = imageFromFrameBuffer(static_cast<const uint8_t *>(cursor.data), cursor.width, cursor.height, cursor.stride, cursor.format);
-
     if (cursorImg.isNull()) {
+        [[unlikely]];
+
         return primary;
     }
 
@@ -503,15 +546,20 @@ QImage DisplayReader::imageFromFrameBuffer(
     const uint8_t *data, const uint32_t width, const uint32_t height, const uint32_t stride, const uint32_t format)
 {
     if (!data || !width || !height || !stride) {
+        [[unlikely]];
+
         return {};
     }
 
-    const QImage::Format fmt = qtImageFormatFromDrm(format);
+    const auto fmt = qtImageFormatFromDrm(format);
+
     if (fmt == QImage::Format_Invalid) {
+        [[unlikely]];
         uint8_t a, b, c, d;
         Drm::split_fourcc(format, a, b, c, d);
 
         qWarning() << "Image format for frame is invalid:" << format << ";" << a << b << c << d;
+
         return {};
     }
 

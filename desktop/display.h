@@ -1,7 +1,6 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
-#include <QObject>
 #include <QTimer>
 
 #include "displayreader.h"

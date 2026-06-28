@@ -13,8 +13,7 @@ Display::Display(const QString &connectorName, QObject *parent)
     : QObject(parent)
     , m_reader(connectorName)
 {
-    QObject::connect(&m_timer, &QTimer::timeout, this, &Display::forward);
-
+    connect(&m_timer, &QTimer::timeout, this, &Display::forward);
     m_timer.setInterval(Settings::frameMSecsInterval);
 }
 
@@ -32,6 +31,8 @@ void Display::forward()
 {
     VkmsFrameBuffer fb{};
     if (!m_reader.getVkmsFrameBuffer(fb)) {
+        [[unlikely]];
+
         if (!primaryFailureNotice) {
             primaryFailureNotice = true;
             qCritical() << "Failed to get primary";
@@ -48,6 +49,8 @@ void Display::forward()
     Packets::ServerImage servImg{};
     auto result = m_reader.imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, fb.format);
     if (hasCursor) {
+        [[likely]];
+
         result = m_reader.compositeWithCursor(result, cursorFb);
     }
 
@@ -66,6 +69,8 @@ void Display::forward()
         for (qsizetype offset = 0; offset < output.size(); offset += chunkSize) {
             const auto chunk = output.mid(offset, chunkSize);
             if (m_client->write(chunk) < 0) {
+                [[unlikely]];
+
                 qWarning() << "Failed to write DTLS image chunk";
                 break;
             }

@@ -13,6 +13,7 @@ NetworkClient::NetworkClient(const QHostAddress &addr, quint16 port, QDtls *dtls
 qint64 NetworkClient::write(const QByteArray &data)
 {
     if (!m_dtls || !m_socket) {
+        [[unlikely]];
         return -1;
     }
 
