@@ -98,6 +98,8 @@ struct Validator<Type>
         const auto lower = static_cast<O>(Type::LOWER);
         const auto upper = static_cast<O>(Type::UPPER);
         if (o >= lower && o <= upper) {
+            [[likely]];
+
             return static_cast<Type>(o);
         }
 
@@ -270,6 +272,8 @@ public:
 
                 const auto type = read<Type, quint16>();
                 if (!type.has_value()) {
+                    [[unlikely]];
+
                     // Invalid type value — consume and try to resync
                     m_array.remove(0, sizeof(quint16));
 
