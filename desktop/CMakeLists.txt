@@ -34,6 +34,7 @@ set(PROJECT_SOURCES
     parameters.h parameters.cpp
     server.h server.cpp
     sse.h sse.cpp
+    utils.h utils.cpp
     vkmsfb.h
 )
 

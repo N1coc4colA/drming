@@ -28,6 +28,8 @@ private:
     bool linkConnectorToEncoder();
     bool writeEdidAndEnable();
 
+    bool linkPlaneToCrtc(const QString &planePath, const QString &crtcPath);
+
     QString findVirtualConnectorName() const;
 
     QString m_instanceName;

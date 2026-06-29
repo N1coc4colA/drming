@@ -14,6 +14,8 @@
 
 #include "../settings.h"
 
+#include "utils.h"
+
 // See https://docs.kernel.org/gpu/vkms.html
 
 namespace {
@@ -367,25 +369,26 @@ bool DispSetup::setCursorPlaneType()
     return true;
 }
 
-bool DispSetup::linkPrimaryPlaneToCrtc()
+bool DispSetup::linkPlaneToCrtc(const QString &planePath, const QString &crtcPath)
 {
-    const auto linkPath = m_primaryPlanePath + "/possible_crtcs/crtc0";
+    const auto linkDir = planePath + "/possible_crtcs";
+    const auto linkPath = linkDir + "/crtc0";
     const auto link = linkPath.toLocal8Bit();
-    const auto tgt = m_crtcPath.toLocal8Bit();
+    const auto tgt = crtcPath.toLocal8Bit();
 
     // Wait for ConfigFS to show up.
     int i = 0;
-    for (; i < Settings::maximumLPPTries; i++) {
-        sleep(1);
+    for (; i < Settings::maximumLPTries; i++) {
+        msleep(500);
 
         if (QFileInfo::exists(linkPath)) {
             return true;
         }
 
         // Ensure parent directory exists before attempting symlink
-        if (!QDir().mkpath(m_primaryPlanePath + "/possible_crtcs")) {
-            if (i == (Settings::maximumLPPTries - 1)) {
-                qCritical() << "Failed to create parent directory for primary plane symlink";
+        if (!QDir().mkpath(linkDir)) {
+            if (i == (Settings::maximumLPTries - 1)) {
+                qCritical() << "Failed to create parent directory for plane symlink";
                 return false;
             }
             continue;
@@ -396,25 +399,18 @@ bool DispSetup::linkPrimaryPlaneToCrtc()
         }
     }
 
-    qCritical() << "Failed to symlink primary plane → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
+    qCritical() << "Failed to symlink plane → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
     return false;
+}
+
+bool DispSetup::linkPrimaryPlaneToCrtc()
+{
+    return linkPlaneToCrtc(m_primaryPlanePath, m_crtcPath);
 }
 
 bool DispSetup::linkCursorPlaneToCrtc()
 {
-    const auto linkPath = m_cursorPlanePath + "/possible_crtcs/crtc0";
-    if (QFileInfo::exists(linkPath)) {
-        return true;
-    }
-
-    const auto link = linkPath.toLocal8Bit();
-    const auto tgt = m_crtcPath.toLocal8Bit();
-    if (::symlink(tgt.constData(), link.constData()) != 0) {
-        qCritical() << "Failed to symlink cursor plane → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
-        return false;
-    }
-
-    return true;
+    return linkPlaneToCrtc(m_cursorPlanePath, m_crtcPath);
 }
 
 bool DispSetup::linkEncoderToCrtc()
