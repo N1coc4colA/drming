@@ -2,6 +2,7 @@
 
 #include <QBuffer>
 #include <QDebug>
+#include <QDtls>
 #include <QtEndian>
 
 #include "../parser.h"
@@ -112,6 +113,8 @@ void Display::forward()
     m_reader.releaseVkmsFrameBuffer(fb);
 
     if (m_client && m_client->state() == QAbstractSocket::ConnectedState) {
+        [[likely]];
+
         constexpr qsizetype chunkSize = Settings::dtlsChunkSize;
         for (qsizetype offset = 0; offset < output.size(); offset += chunkSize) {
             const auto chunk = output.mid(offset, chunkSize);
@@ -119,6 +122,10 @@ void Display::forward()
                 [[unlikely]];
 
                 qWarning() << "Failed to write DTLS image chunk";
+                const auto err = m_client->dtls()->dtlsError();
+                if (err != QDtlsError::NoError) {
+                    qWarning() << "DTLS Error" << static_cast<int>(err) << ":" << m_client->dtls()->dtlsErrorString();
+                }
                 break;
             }
         }

@@ -1,8 +1,6 @@
 #ifndef NETWORKCLIENT_H
 #define NETWORKCLIENT_H
 
-#include <QObject>
-#include <QAbstractSocket>
 #include <QHostAddress>
 
 class QUdpSocket;
@@ -21,6 +19,7 @@ public:
     inline QAbstractSocket::SocketState state() const { return QAbstractSocket::ConnectedState; }
     inline QHostAddress peerAddress() const { return m_addr; }
     inline quint16 peerPort() const { return m_port; }
+    inline QDtls *dtls() { return m_dtls; }
 
 Q_SIGNALS:
     void disconnected();
