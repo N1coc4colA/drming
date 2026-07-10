@@ -8,21 +8,20 @@
 #include "mdns.h"
 #include "networklink.h"
 #include "networkstatus.h"
-#include "palette.h"
 
 #include "models/servicesmodel.h"
 
-class Application : public QApplication
+class Application : public QGuiApplication
 {
     Q_OBJECT
 
 public:
     Application(int &argc, char **argv, const int flags = ApplicationFlags)
-        : QApplication(argc, argv, flags)
+        : QGuiApplication(argc, argv, flags)
     {
         QQuickStyle::setFallbackStyle("Basic");
-        QApplication::setPalette(readPalette(":/assets/palette.data"));
-        QObject::connect(qApp, &QGuiApplication::aboutToQuit, [this] {
+
+        QObject::connect(qApp, &Application::aboutToQuit, [this] {
             if (m_networkLink) {
                 m_networkLink->close();
             }

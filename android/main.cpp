@@ -4,6 +4,7 @@
 
 #include "application.h"
 #include "declarative/videoframeitem.h"
+#include "palette.h"
 
 int main(int argc, char *argv[])
 {
@@ -16,6 +17,8 @@ int main(int argc, char *argv[])
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, qApp, [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
 
     engine.loadFromModule("drming", "Main");
+
+    QApplication::setPalette(readPalette(":/assets/palette.data"));
 
     return QApplication::exec();
 }
