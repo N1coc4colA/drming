@@ -13,6 +13,7 @@ class VideoFrameItem : public QQuickItem
 public:
     explicit VideoFrameItem(QQuickItem* parent = nullptr);
 
+protected:
     QSGNode* updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*) override;
 
 public Q_SLOTS:
@@ -21,14 +22,19 @@ public Q_SLOTS:
         {
             QMutexLocker locker(&m_mtx);
             m_currentImage = image.convertToFormat(QImage::Format_RGBA8888);
+            m_imageSize = m_currentImage.size();
             m_imageDirty = true;
         }
 
         update();
     }
 
+protected:
+    void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
+
 private:
     QImage m_currentImage{};
+    QSize m_imageSize{};
     QMutex m_mtx{};
     bool m_imageDirty = false;
 };

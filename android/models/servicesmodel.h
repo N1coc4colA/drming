@@ -4,7 +4,7 @@
 #include <QAbstractListModel>
 #include <QVariantMap>
 
-#include "mdnsmanager.h"
+#include "../mdns.h"
 
 class ServicesModel : public QAbstractListModel
 {
@@ -16,12 +16,12 @@ public:
 
     explicit ServicesModel(QObject *parent = nullptr);
 
-    int rowCount(const QModelIndex &parent = QModelIndex()) const override;
-    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
-    QHash<int, QByteArray> roleNames() const override;
+    [[nodiscard]] int rowCount(const QModelIndex &parent) const override;
+    [[nodiscard]] QVariant data(const QModelIndex &index, int role) const override;
+    [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
-    Q_INVOKABLE int count() const { return m_services.count(); }
-    Q_INVOKABLE QVariantMap get(int index) const;
+    Q_INVOKABLE [[nodiscard]] int count() const { return static_cast<int>(m_services.count()); }
+    Q_INVOKABLE [[nodiscard]] QVariantMap get(int index) const;
 
     Q_INVOKABLE void clear();
 
@@ -36,7 +36,7 @@ private Q_SLOTS:
 private:
     QList<QPair<QString, ServiceInfo>> m_services{};
 
-    int findServiceIndex(const QString &name) const;
+    [[nodiscard]] int findServiceIndex(const QString &key) const;
 };
 
 #endif // SERVICESMODEL_H

@@ -8,25 +8,27 @@ class DispSetup
 public:
     explicit DispSetup(const QString &instanceName);
 
-    inline bool isSetup() const { return m_setup; }
-    inline const QString &virtualConnectorName() const { return m_virtualConnectorName; }
-    inline const QString &basePath() const { return m_basePath; }
+    [[nodiscard]] bool isSetup() const { return m_setup; }
+    [[nodiscard]] const QString &virtualConnectorName() const { return m_virtualConnectorName; }
+    [[nodiscard]] const QString &basePath() const { return m_basePath; }
 
 private:
-    bool makeEnvChecks();
-    bool makeVkmsInstance();
-    bool makeCrtc();
-    bool makeEncoder();
-    bool makePrimaryPlane();
-    bool makeCursorPlane();
-    bool setPrimaryPlaneType();
-    bool setCursorPlaneType();
-    bool linkPrimaryPlaneToCrtc();
-    bool linkCursorPlaneToCrtc();
-    bool linkEncoderToCrtc();
-    bool makeConnector();
-    bool linkConnectorToEncoder();
-    bool writeEdidAndEnable();
+    bool makeEnvChecks() const;
+    bool makeVkmsInstance() const;
+    bool makeCrtc() const;
+    bool makeEncoder() const;
+    bool makePrimaryPlane() const;
+    bool makeCursorPlane() const;
+    bool setPrimaryPlaneType() const;
+    bool setCursorPlaneType() const;
+    bool linkPrimaryPlaneToCrtc() const;
+    bool linkCursorPlaneToCrtc() const;
+    bool linkEncoderToCrtc() const;
+    bool makeConnector() const;
+    bool linkConnectorToEncoder() const;
+    bool writeEdidAndEnable() const;
+
+    [[nodiscard]] bool linkPlaneToCrtc(const QString &planePath, const QString &crtcPath) const;
 
     QString findVirtualConnectorName() const;
 
@@ -42,9 +44,5 @@ private:
 
     bool m_setup = false;
 };
-
-bool isConfigfsMounted();
-bool isVkmsModuleLoaded();
-bool isVkmsConfigEnabled();
 
 #endif

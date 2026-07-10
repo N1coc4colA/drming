@@ -1,10 +1,12 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Shapes
 
-Rectangle {
-    id: servicesList
-    color: "transparent"
+EasyListView {
+    id: root
+    emptyText: networkState().connected ?  qsTr("No services found") : qsTr("No internet connection")
+    model: servicesModel()
 
     property string searchQuery: ""
     property var selectedService: ({
@@ -17,91 +19,70 @@ Rectangle {
 
     signal serviceSelected(var service)
 
-    ListView {
-        id: listView
-        anchors.fill: parent
-        spacing: 8
-        clip: true
-        model: servicesModel
+    delegate: Item {
+        visible: model.name.toLowerCase().includes(searchQuery.toLowerCase())
 
-        delegate: Rectangle {
-            width: listView.width
-            height: visible ? 140 : 0
-            color: "#ffffff"
-            radius: 8
-            border.color: "#e0e0e0"
+        height: visible ? 140 : 0
+        width: root.width
+
+        Rectangle {
+            color: palette.mid
+
+            border.color: palette.dark
             border.width: 1
-
-            // Filter based on search query
-            visible: model.name.toLowerCase().includes(searchQuery.toLowerCase())
+            radius: GlobalVars.standardRounding
+            anchors.fill: parent
+            anchors.leftMargin: GlobalVars.innerSpacing
+            anchors.rightMargin: anchors.leftMargin
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: function() {
-                    selectedService.name = model.name;
-                    selectedService.host = model.host;
-                    selectedService.ip = model.ip;
-                    selectedService.port = model.port;
-                    selectedService.type = model.type;
-
-                    servicesList.serviceSelected(selectedService);
-                }
 
                 ColumnLayout {
                     id: cl
+
                     anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 4
+                    anchors.margins: GlobalVars.standardSpacing*2
+                    spacing: GlobalVars.standardSpacing/2
 
-                    Text {
-                        text: model.name
-                        font.pixelSize: 18
+                    Label {
+                        font.pixelSize: Math.max(18, 18 * GlobalVars.scaling)
                         font.bold: true
-                        color: "#333333"
+                        text: model.name
                     }
 
-                    Text {
+                    Label {
+                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
                         text: qsTr("Host: %1").arg(model.host)
-                        font.pixelSize: 14
-                        color: "#666666"
+
                         Layout.maximumWidth: 100;
                     }
 
-                    Text {
+                    Label {
+                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
                         text: qsTr("IP: %1").arg(model.ip)
-                        font.pixelSize: 14
-                        color: "#666666"
+
                         Layout.maximumWidth: 100;
                     }
 
-                    Text {
+                    Label {
+                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
                         text: qsTr("Port: %1").arg(model.port)
-                        font.pixelSize: 14
-                        color: "#666666"
+
                         Layout.maximumWidth: 100;
                     }
                 }
+
+                onClicked: function() {
+                    selectedService.name = model.name
+                    selectedService.host = model.host
+                    selectedService.ip = model.ip
+                    selectedService.port = model.port
+                    selectedService.type = model.type
+
+                    root.serviceSelected(selectedService)
+                }
             }
-        }
-
-        ScrollBar.vertical: ScrollBar {
-            active: servicesModel.count > 0
-        }
-    }
-
-    Text {
-        anchors.centerIn: parent
-        text: networkState.connected ?  qsTr("No services found") : qsTr("No internet connection")
-        font.pixelSize: 16
-        color: "#999999"
-        visible: servicesModel.count === 0
-    }
-
-    onVisibleChanged: function(visibility) {
-        if (visibility) {
-            mdnsManager.startDiscovery();
-        } else {
-            mdnsManager.stopDiscovery();
         }
     }
 }

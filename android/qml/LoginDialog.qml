@@ -2,87 +2,84 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-Dialog {
+EasyDialog {
     id: root
-
+    modal: true
     title: qsTr("Login")
-    anchors.centerIn: ApplicationWindow.overlay
 
-    property string hostIp: "";
-    property string hostPort: "";
-    property bool isValid: true//clientPinField.acceptableInput && serverPinField.acceptableInput
+    property string hostIp: ""
+    property string hostPort: ""
+    property string clientName: ""
+    property bool isValid: false
 
-    //property alias pinCode: clientPinField.text
-    //property alias serverPinCode: serverPinField.text
-    property int pinCode: 0
-    property int serverPinCode: 0
-
-    signal submitted
     signal cancelled
+    signal submitted
 
-    GridLayout {
-        columns: 2
+    content: ColumnLayout {
+        id: contentItem
+        Layout.margins: GlobalVars.outterSpacing
+        spacing: GlobalVars.standardSpacing
 
-        Label {
-            text: qsTr("Server IP:")
-        }
-        Label {
-            text: root.hostIp
-        }
+        GridLayout {
+            columns: 2
 
-        Label {
-            text: qsTr("Server port:")
-        }
-        Label {
-            text: root.hostPort
-        }
+            Label {
+                text: qsTr("Server IP:")
+            }
+            Label {
+                text: root.hostIp
+            }
 
-        /*Label {
-            text: qsTr("Server PIN")
-        }
-        TextField {
-            id: serverPinField
-            placeholderText: "PIN"
-            maximumLength: 4
-            inputMask: "9999"
-            inputMethodHints: Qt.ImhDigitsOnly
-            echoMode: TextInput.Password
-        }
+            Label {
+                text: qsTr("Server port:")
+            }
+            Label {
+                text: root.hostPort
+            }
 
-        Label {
-            text: qsTr("Client PIN")
+            Label {
+                text: qsTr("Key to use:")
+            }
+            EasyComboBox {
+                id: clientEntry
+
+                onCurrentIndexChanged: root.isValid = clientEntry.currentIndex > -1
+                onCurrentTextChanged: root.clientName = currentText
+                onVisibleChanged: clientEntry.model = fileProvider().validClientEntries()
+            }
         }
-        TextField {
-            id: clientPinField
-            placeholderText: "PIN"
-            maximumLength: 4
-            inputMask: "9999"
-            inputMethodHints: Qt.ImhDigitsOnly
-            echoMode: TextInput.Password
-        }*/
     }
 
-    footer: DialogButtonBox {
-        Button {
+    footer: RowLayout {
+        Layout.margins: GlobalVars.outterSpacing
+        spacing: GlobalVars.outterSpacing
+
+        EasyButton {
+            icon.source: "qrc:/assets/window-close.svg"
             text: qsTr("Cancel")
+
             DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
-            onClicked: root.reject()
+
+            onClicked: {
+                root.close()
+                root.cancelled()
+            }
         }
-        Button {
-            text: qsTr("Continue")
+        Item {
+            Layout.fillWidth: true
+        }
+
+        EasyButton {
             enabled: root.isValid
+            icon.source: "qrc:/assets/go-next.svg"
+            text: qsTr("Continue")
+
             DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
-            onClicked: root.submitted()
+
+            onClicked: {
+                root.close()
+                root.submitted()
+            }
         }
-    }
-
-    onAccepted: function() {
-        root.close();
-        root.submitted();
-    }
-
-    onRejected: function() {
-        root.close();
-        root.cancelled();
     }
 }

@@ -1,32 +1,32 @@
-#include "mdnsmanager.h"
+#include "mdns.h"
 
 #include <QCoreApplication>
 #include <QDebug>
 
-#ifdef Q_OS_ANDROID
-#include <QJniObject>
-
-#include "native.h"
-#else
 #include <avahi-client/client.h>
 #include <avahi-client/lookup.h>
 #include <avahi-common/error.h>
 #include <avahi-common/malloc.h>
 #include <avahi-common/simple-watch.h>
+
 #include <set>
 #include <thread>
-#endif
 
-#ifndef Q_OS_ANDROID
+#include <ctrack.hpp>
+
+#include "../settings.h"
+
+namespace Platform {
+
 class AvahiDiscoverer
 {
 public:
-    explicit AvahiDiscoverer(MdnsManager &manager)
+    explicit AvahiDiscoverer(Mdns &manager)
         : m_manager(manager)
     {
-        QObject::connect(&m_manager, &MdnsManager::dispatchServiceFound, &m_manager, &MdnsManager::onServiceFound, Qt::QueuedConnection);
-        QObject::connect(&m_manager, &MdnsManager::dispatchServiceLost, &m_manager, &MdnsManager::onServiceLost, Qt::QueuedConnection);
-        QObject::connect(&m_manager, &MdnsManager::dispatchServiceResolved, &m_manager, &MdnsManager::onServiceResolved, Qt::QueuedConnection);
+        QObject::connect(&m_manager, &Mdns::dispatchServiceFound, &m_manager, &Mdns::onServiceFound, Qt::QueuedConnection);
+        QObject::connect(&m_manager, &Mdns::dispatchServiceLost, &m_manager, &Mdns::onServiceLost, Qt::QueuedConnection);
+        QObject::connect(&m_manager, &Mdns::dispatchServiceResolved, &m_manager, &Mdns::onServiceResolved, Qt::QueuedConnection);
     }
 
     void start()
@@ -37,9 +37,9 @@ public:
 
         m_running = true;
 
-        m_thread = std::thread([this]() {
+        m_thread = std::thread([this] {
             // All Avahi objects created here, on the poll thread
-            if (!(m_poll = avahi_simple_poll_new())) {
+            if (!((m_poll = avahi_simple_poll_new()))) {
                 qCritical() << "Failed to create simple poll object.";
                 m_running = false;
                 return;
@@ -48,7 +48,7 @@ public:
             int error = 0;
             m_client = avahi_client_new(avahi_simple_poll_get(m_poll),
                                         static_cast<AvahiClientFlags>(0),
-                                        (AvahiClientCallback) client_callback,
+                                        reinterpret_cast<AvahiClientCallback>(&AvahiDiscoverer::client_callback),
                                         this,
                                         &error);
             if (!m_client) {
@@ -62,10 +62,10 @@ public:
             m_sb = avahi_service_browser_new(m_client,
                                              AVAHI_IF_UNSPEC,
                                              AVAHI_PROTO_UNSPEC,
-                                             "_drming._tcp",
+                                             Settings::advertisementServiceType,
                                              nullptr,
                                              static_cast<AvahiLookupFlags>(0),
-                                             (AvahiServiceBrowserCallback) browse_callback,
+                                             reinterpret_cast<AvahiServiceBrowserCallback>(&AvahiDiscoverer::browse_callback),
                                              this); // pass 'this', not m_client
             if (!m_sb) {
                 qCritical() << "Failed to create service browser: " << avahi_strerror(avahi_client_errno(m_client));
@@ -74,6 +74,7 @@ public:
                 avahi_simple_poll_free(m_poll);
                 m_poll = nullptr;
                 m_running = false;
+
                 return;
             }
 
@@ -106,27 +107,31 @@ public:
 private:
     std::set<AvahiServiceResolver *> m_pendingResolvers{};
     std::thread m_thread{};
-    MdnsManager &m_manager;
+    Mdns &m_manager;
     AvahiSimplePoll *m_poll = nullptr;
     AvahiClient *m_client = nullptr;
     AvahiServiceBrowser *m_sb = nullptr;
     std::atomic<bool> m_running = false;
-    bool m_ready = false;
 
     static void resolve_callback(AvahiServiceResolver *r,
-                                 AvahiIfIndex interface,
-                                 AvahiProtocol protocol,
-                                 AvahiResolverEvent event,
+                                 const AvahiIfIndex interface,
+                                 const AvahiProtocol protocol,
+                                 const AvahiResolverEvent event,
                                  const char *name,
                                  const char *type,
                                  const char *domain,
                                  const char *host_name,
                                  const AvahiAddress *address,
-                                 uint16_t port,
-                                 AvahiStringList *txt,
-                                 AvahiLookupResultFlags flags,
+                                 const uint16_t port,
+                                 const AvahiStringList *txt,
+                                 const AvahiLookupResultFlags flags,
                                  AvahiDiscoverer *c)
     {
+        Q_UNUSED(interface);
+        Q_UNUSED(protocol);
+        Q_UNUSED(txt);
+        Q_UNUSED(flags);
+
         AvahiClient *client = avahi_service_resolver_get_client(r);
 
         switch (event) {
@@ -149,16 +154,19 @@ private:
         avahi_service_resolver_free(r);
     }
 
-    static void browse_callback(AvahiServiceBrowser *b,
-                                AvahiIfIndex interface,
-                                AvahiProtocol protocol,
-                                AvahiBrowserEvent event,
+    static void browse_callback(const AvahiServiceBrowser *b,
+                                const AvahiIfIndex interface,
+                                const AvahiProtocol protocol,
+                                const AvahiBrowserEvent event,
                                 const char *name,
                                 const char *type,
                                 const char *domain,
-                                AvahiLookupResultFlags flags,
+                                const AvahiLookupResultFlags flags,
                                 AvahiDiscoverer *c)
     {
+        Q_UNUSED(flags);
+        Q_UNUSED(b);
+
         switch (event) {
         case AVAHI_BROWSER_FAILURE: {
             qCritical() << "(Browser) " << avahi_strerror(avahi_client_errno(c->m_client));
@@ -167,7 +175,7 @@ private:
         case AVAHI_BROWSER_NEW: {
             Q_EMIT c->m_manager.dispatchServiceFound(name, type);
 
-            auto resolver = avahi_service_resolver_new(c->m_client,
+            const auto resolver = avahi_service_resolver_new(c->m_client,
                                                        interface,
                                                        protocol,
                                                        name,
@@ -175,7 +183,7 @@ private:
                                                        domain,
                                                        AVAHI_PROTO_UNSPEC,
                                                        static_cast<AvahiLookupFlags>(0),
-                                                       (AvahiServiceResolverCallback) resolve_callback,
+                                                       reinterpret_cast<AvahiServiceResolverCallback>(&AvahiDiscoverer::resolve_callback),
                                                        c);
 
             /* Resolve the newly discovered service */
@@ -198,110 +206,38 @@ private:
         }
     }
 
-    static void client_callback(AvahiClient *client, AvahiClientState state, AvahiDiscoverer *c)
+    static void client_callback(AvahiClient *client, const AvahiClientState state, const AvahiDiscoverer *c)
     {
+        Q_UNUSED(c);
+
         if (state == AVAHI_CLIENT_FAILURE) {
             qCritical() << "Server connection failure: " << avahi_strerror(avahi_client_errno(client));
+            // [TODO] Maybe use stopDiscovery on owner with thread dispatch
             //avahi_simple_poll_quit(c->m_poll);
         }
     }
 };
-#endif
 
-MdnsManager::MdnsManager(QObject *parent)
-    : QObject(parent)
-#ifndef Q_OS_ANDROID
+Mdns::Mdns(QObject *parent)
+    : ::Mdns(parent)
     , m_avahi(new AvahiDiscoverer(*this))
-#endif
 {
-    assert(!m_instance);
-
-    m_instance = this;
+    CTRACK;
 }
 
-#ifndef Q_OS_ANDROID
-MdnsManager::~MdnsManager()
+Mdns::~Mdns()
 {
     delete m_avahi;
 }
-#endif
 
-MdnsManager *MdnsManager::m_instance = nullptr;
-
-MdnsManager &MdnsManager::instance()
+void Mdns::startDiscovery()
 {
-    return *m_instance;
-}
-
-void MdnsManager::startDiscovery()
-{
-#ifdef Q_OS_ANDROID
-    if (!createNativeObject_MdnsHelper(m_javaHelper)) {
-        return;
-    }
-
-    m_javaHelper.callMethod<void>("startDiscovery");
-#else
     m_avahi->start();
-#endif
 }
 
-void MdnsManager::stopDiscovery()
+void Mdns::stopDiscovery()
 {
-#ifdef Q_OS_ANDROID
-    if (m_javaHelper.isValid()) {
-        m_javaHelper.callMethod<void>("stopDiscovery");
-    }
-#else
     m_avahi->stop();
-#endif
 }
 
-void MdnsManager::onServiceFound(const QString &name, const QString &type)
-{
-    qDebug() << "Found:" << name << type;
-
-    const auto fullName = name + "*";
-    const ServiceInfo info{name, type, "", "", -1};
-    m_services[fullName] = info;
-
-    Q_EMIT serviceFound(fullName, info);
-    Q_EMIT countChanged(count());
-}
-
-void MdnsManager::onServiceLost(const QString &name, const QString &ip)
-{
-    qDebug() << "Lost:" << name;
-
-    const auto fullName = name + "*" + ip;
-    m_services.remove(fullName);
-    if (ip.isEmpty()) {
-        QStringList keys{};
-        for (const auto &key : m_services.keys()) {
-            if (key.startsWith(name)) {
-                keys.append(key);
-            }
-        }
-
-        for (const auto &key : keys) {
-            m_services.remove(key);
-            Q_EMIT serviceLost(key);
-        }
-    }
-
-    Q_EMIT serviceLost(fullName);
-    Q_EMIT countChanged(count());
-}
-
-void MdnsManager::onServiceResolved(const QString &name, const QString &host, const QString &ip, const int port)
-{
-    qDebug() << "Resolved:" << name << host << ip << port;
-
-    const auto fullName = name + "*" + ip;
-    m_services[fullName].name = name;
-    m_services[fullName].host = host;
-    m_services[fullName].ip = ip;
-    m_services[fullName].port = port;
-
-    Q_EMIT serviceResolved(fullName, m_services[fullName]);
-}
+} // namespace Platform

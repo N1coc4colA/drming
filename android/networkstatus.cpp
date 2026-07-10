@@ -1,17 +1,39 @@
 #include "networkstatus.h"
 
-#include <QtSystemDetection>
+#include <QCoreApplication>
 
-#include "native.h"
+#include "application.h"
+
+#ifdef Q_OS_ANDROID
+#include "platform/android/networkstatus.h"
+#else
+#include "platform/linux/networkstatus.h"
+#endif
+
+NetworkState *NetworkState::m_instance = nullptr;
+
+NetworkState *NetworkState::instance()
+{
+    if (!m_instance) {
+        m_instance = new Platform::NetworkState(qApp);
+    }
+
+    return m_instance;
+}
 
 NetworkState::NetworkState(QObject *parent)
     : QObject{parent}
 {
-#ifdef Q_OS_ANDROID
-    if (!createNativeObject_NetworkHelper(m_javaHelper)) {
-        return;
+    assert(!m_instance);
+    m_instance = this;
+}
+
+void NetworkState::onConnectivityChanged(const bool connected)
+{
+    m_connected = connected;
+    if (!connected) {
+        Application::instance()->servicesModel()->clear();
     }
-#else
-    m_connected = true;
-#endif
+
+    Q_EMIT connectivityChanged(connected);
 }

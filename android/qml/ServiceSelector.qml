@@ -2,13 +2,17 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-Popup {
+Dialog {
     id: popup
-    anchors.centerIn: parent
-    width: Math.min(parent.width - 40, 400)
-    height: contentHeight + 40
-    modal: true
     focus: true
+    modal: true
+    title: qsTr("Connect to Service?")
+
+    anchors.centerIn: parent
+    height: contentHeight + 40
+    width: Math.min(parent.width - 40, 400)
+
+    property var serviceInfo: null
 
     signal accepted
     signal rejected
@@ -18,76 +22,33 @@ Popup {
         popup.open()
     }
 
-    property var serviceInfo: null
-
     ColumnLayout {
-        width: parent.width - 40
         anchors.centerIn: parent
         spacing: 16
-
-        Text {
-            text: qsTr("Connect to Service?")
-            font.pixelSize: 20
-            font.bold: true
-            color: "#333333"
-            Layout.fillWidth: true
-        }
+        width: parent.width - 40
 
         Rectangle {
-            Layout.fillWidth: true
             height: 1
-            color: "#e0e0e0"
+            Layout.fillWidth: true
         }
 
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: GlobalVars.standardSpacing
 
             Text {
+                font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
                 text: qsTr("Service: %1").arg(popup.serviceInfo ? name : "")
-                font.pixelSize: 14
-                color: "#333333"
             }
 
             Text {
+                font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
                 text: qsTr("Host: %1").arg(popup.serviceInfo ? host : "")
-                font.pixelSize: 14
-                color: "#666666"
             }
 
             Text {
+                font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
                 text: qsTr("Port: %1").arg(popup.serviceInfo ? port : "")
-                font.pixelSize: 14
-                color: "#666666"
-            }
-        }
-
-        Rectangle {
-            Layout.fillWidth: true
-            height: 1
-            color: "#e0e0e0"
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
-
-            Button {
-                text: qsTr("Cancel")
-                Layout.fillWidth: true
-                onClicked: {
-                    popup.rejected()
-                    popup.close()
-                }
-            }
-
-            Button {
-                text: qsTr("Accept")
-                Layout.fillWidth: true
-                onClicked: {
-                    popup.accepted()
-                    popup.close()
-                }
             }
         }
     }

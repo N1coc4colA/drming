@@ -1,136 +1,180 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import VideoStream
+
 
 Window {
     id: window
+    color: palette.window
+    title: qsTr("Device Remote Manager")
+    visible: true
+
     width: 640
     height: 480
-    visible: true
-    title: qsTr("Device Remote Manager")
-    color: "black"
 
-    enum ViewState {
-        ServiceList,
-        Confirmed
+    function goBack() {
+        if (stackView.depth > 1) {
+            networkLink().close()
+            stackView.pop()
+        }
     }
 
-    property int viewState: Main.ViewState.ServiceList
-    property var selectedService: null
+    Binding {
+        target: GlobalVars
+        property: "screen"
+        value: window.screen
+    }
 
     StackView {
         id: stackView
+        initialItem: homeView
+
         anchors.fill: parent
 
-        initialItem: servicesView
+        Component {
+            id: homeView
+
+            HomePage {
+                id: hom
+
+                onCertsViewNeeded: stackView.push(certsView)
+                onKeysViewNeeded: stackView.push(keysView)
+                onServicesViewNeeded: stackView.push(servicesView)
+            }
+        }
+
+        Component {
+            id: certsView
+
+            CertificatesPages {
+                id: certificates
+                visible: false
+
+                onBack: goBack()
+            }
+        }
+
+        Component {
+            id: keysView
+
+            KeysPage {
+                id: keys
+                visible: false
+
+                onBack: goBack()
+            }
+        }
 
         Component {
             id: servicesView
-            Rectangle {
-                color: "#f5f5f5"
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 12
+            ServicesPage {
+                id: services
+                visible: false
 
-                    SearchBar {
-                        id: searchBar
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 48
-                    }
-
-                    ServicesList {
-                        id: servicesList
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        searchQuery: searchBar.searchText
-
-                        onServiceSelected: (service) => {
-                            window.selectedService = service;
-                            authDialog.hostIp = service.ip;
-                            authDialog.hostPort = service.port;
-                            authDialog.open();
-                        }
-                    }
+                onBack: goBack()
+                onDisplayStream: {
+                    stackView.pop()
+                    stackView.push(streamView)
                 }
             }
         }
 
         Component {
-            id: streamViewerComponent
-            VideoFrame {
-                id: streamViewer
+            id: streamView
 
-                Connections {
-                    target: networkLink
+            StreamPage {
+                id: stream
+                visible: false
 
-                    function onImageReady(image) {
-                        streamViewer.setImage(image);
-                    }
-                }
+                onBack: goBack()
             }
         }
-    }
 
-    LoginDialog {
-        id: authDialog
-        x: (window.width - width)/2
-        y: (window.height - height)/2
+        Component {
+            id: shaderBlurEffectSource
 
-        onSubmitted: function() {
-            networkLink.connect(authDialog.hostIp, authDialog.hostPort);
-            stackView.push(streamViewerComponent);
+            ShaderEffectSource {
+                hideSource: false
+                live: true
+                textureSize: Qt.size(width / 2, height / 2)
+                sourceItem: stackView
+                visible: false
+
+                anchors.fill: shaderBlurEffectSource.parent
+            }
+        }
+
+        Loader {
+            id: blurLoader
+            sourceComponent: shaderBlurEffectSource
+
+            anchors.fill: parent
         }
     }
 
-    Dialog {
+    // Keep the singleton's shaderBlurSource in sync with the Loader's instantiated item.
+    Binding {
+        target: GlobalVars
+        property: "shaderBlurSource"
+        value: blurLoader.item
+    }
+
+    EasyDialog {
         id: errorDialog
+        modal: true
+        title: qsTr("Connection error")
+
         x: (window.width - width)/2
         y: (window.height - height)/2
-        title: qsTr("Connection error")
-        modal: true
-        standardButtons: Dialog.Ok
-        onAccepted: {
-            stackView.push(servicesView);
-        }
 
-        Label {
+        property string errorText: ""
+
+        content: Label {
             id: errorLabel
-            text: ""
-            wrapMode: Text.Wrap
-            width: parent.width - 32
             horizontalAlignment: Text.AlignHCenter
+            text: errorDialog.errorText
+            wrapMode: Text.Wrap
+
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.margins: 16
+        }
+
+        footer: RowLayout {
+            Layout.margins: GlobalVars.outterSpacing
+            spacing: GlobalVars.outterSpacing
+
+            Item {
+                Layout.fillWidth: true
+            }
+            EasyButton {
+                text: qsTr("Ok")
+                icon.source: "qrc:/assets/window-close.svg"
+
+                DialogButtonBox.buttonRole: DialogButtonBox.Ok
+
+                onClicked: errorDialog.close()
+            }
         }
     }
 
     Connections {
-        target: networkLink
+        target: networkLink()
 
         function onError(message) {
             // Show the message and return to the base services view
-            errorLabel.text = message || qsTr("Unknown connection error");
-            networkLink.close();
-            stackView.pop();
-            errorDialog.open();
+            errorDialog.errorText = message || qsTr("Unknown connection error")
+            networkLink().close()
+            stackView.pop()
+            errorDialog.open()
         }
     }
 
-    Keys.onReleased: {
+    // [TODO] Could not attach Keys property to:  Main_QMLTYPE_0(0x1cf65ba0)  is not an Item
+    Keys.onReleased: (event) => {
         if (event.key === Qt.Key_Back) {
-            if (window.isStreaming && stackView.depth > 1) {
-                networkLink.close();
-                window.isStreaming = false;
-                stackView.pop();
-                event.accepted = true;
-            }
+            goBack()
+            event.accepted = true
         }
-    }
-
-    Component.onCompleted: {
-        mdnsManager.startDiscovery();
     }
 }

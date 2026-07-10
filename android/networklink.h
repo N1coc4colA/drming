@@ -2,8 +2,9 @@
 #define NETWORKLINK_H
 
 #include <QImage>
-#include <QObject>
-#include <QTcpSocket>
+#include <QTimer>
+#include <QUdpSocket>
+#include <QDtls>
 
 #include "../parser.h"
 
@@ -13,10 +14,10 @@ class NetworkLink : public QObject, Packets::Parser<NetworkLink>
 
 public:
     explicit NetworkLink(QObject *parent = nullptr);
-    ~NetworkLink();
+    ~NetworkLink() override;
 
     void processPacket(const Packets::ServerImage &img);
-    inline void processPacket(const Packets::ClientResolution &res) { Q_UNUSED(res); }
+    void processPacket(const Packets::ClientResolution &res) { Q_UNUSED(res); }
     void processPacket(const Packets::ServerBrightness &brightness);
 
 Q_SIGNALS:
@@ -27,17 +28,20 @@ Q_SIGNALS:
 
 public Q_SLOTS:
     void close();
-    void connect(const QString &address, int port);
+    void connect(const QString &address, int port, const QString &clientName);
 
 private Q_SLOTS:
     void onConnected();
     void onDisconnected();
-    void onError(QAbstractSocket::SocketError err);
+    void onError(QAbstractSocket::SocketError error);
     void onDataAvailable();
+    void onConnectionTimeout();
 
 private:
     QByteArray m_buffer{};
-    QTcpSocket *m_socket = nullptr;
+    QUdpSocket *m_udpSocket = nullptr;
+    QDtls *m_dtls = nullptr;
+    QTimer m_inactivityTimer{};
     quint16 m_format = 0;
     quint32 m_width = 0;
     quint32 m_height = 0;
@@ -45,8 +49,6 @@ private:
     qsizetype m_imageSize = 0;
 
     bool m_connectionReady = false;
-
-    void protocolStateUpdate();
 };
 
 #endif // NETWORKLINK_H

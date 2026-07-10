@@ -29,9 +29,9 @@ enum class Type : quint16 {
 /* Packets definitions */
 struct ServerImage
 {
-    static constexpr Type type = Type::ServerImage;
+    static constexpr auto type = Type::ServerImage;
 
-    qsizetype imageSize;
+    qsizetype imageSize = 0;
     QByteArray data;
 
     using mQSizeType = qsizetype ServerImage::*;
@@ -43,7 +43,7 @@ struct ServerImage
 
 struct ClientResolution
 {
-    static constexpr Type type = Type::ClientResolution;
+    static constexpr auto type = Type::ClientResolution;
 
     quint32 width;
     quint32 height;
@@ -54,7 +54,7 @@ struct ClientResolution
 
 struct ServerBrightness
 {
-    static constexpr Type type = Type::ServerBrightness;
+    static constexpr auto type = Type::ServerBrightness;
 
     qfloat16 brightness;
 
@@ -98,6 +98,8 @@ struct Validator<Type>
         const auto lower = static_cast<O>(Type::LOWER);
         const auto upper = static_cast<O>(Type::UPPER);
         if (o >= lower && o <= upper) {
+            [[likely]];
+
             return static_cast<Type>(o);
         }
 
@@ -130,7 +132,7 @@ struct find_packet<Wanted>
 };
 
 template<Type Wanted, typename... Ts>
-using find_packet_t = typename find_packet<Wanted, Ts...>::type;
+using find_packet_t = find_packet<Wanted, Ts...>::type;
 
 template<typename>
 struct variant_types;
@@ -139,11 +141,11 @@ template<typename... Ts>
 struct variant_types<std::variant<Ts...>>
 {
     template<Type Wanted>
-    using find = typename find_packet<Wanted, Ts...>::type;
+    using find = find_packet<Wanted, Ts...>::type;
 };
 
 template<typename V, Type Wanted>
-using TypeToPacket = typename variant_types<V>::template find<Wanted>;
+using TypeToPacket = variant_types<V>::template find<Wanted>;
 
 /* Packet parser */
 template<typename, typename = void>
@@ -230,7 +232,7 @@ class Parser
                 T &packet = std::get<T>(m_current);
                 auto sized = T::variableMembers[m_parsed - membersCount];
 
-                const auto len = std::visit([&](auto &&ptr) { return (packet.*ptr); }, sized.first);
+                const auto len = std::visit([&](auto &&ptr) { return packet.*ptr; }, sized.first);
                 if (m_array.size() < static_cast<qsizetype>(len)) {
                     return false;
                 }
@@ -263,13 +265,15 @@ public:
     {
         while (true) {
             switch (m_state) {
-            case Packets::Type::None: {
+            case Type::None: {
                 if (m_array.size() < static_cast<qsizetype>(sizeof(quint16))) {
                     return;
                 }
 
                 const auto type = read<Type, quint16>();
                 if (!type.has_value()) {
+                    [[unlikely]];
+
                     // Invalid type value — consume and try to resync
                     m_array.remove(0, sizeof(quint16));
 
@@ -318,7 +322,7 @@ public:
 
 private:
     QByteArray m_array{};
-    Packets::Type m_state = Packets::Type::None;
+    Type m_state = Type::None;
     PacketVariant m_current{};
     Receiver &m_receiver;
     size_t m_parsed = 0;
@@ -330,9 +334,9 @@ public:
     template<typename T>
     static QByteArray generate(T &t)
     {
-        static constexpr size_t variableMembersCount = has_variableMembers<T>::value ? (std::end(T::variableMembers) - std::begin(T::variableMembers))
+        static constexpr size_t variableMembersCount = has_variableMembers<T>::value ? std::end(T::variableMembers) - std::begin(T::variableMembers)
                                                                                      : 0;
-        static constexpr size_t membersCount = has_members<T>::value ? (std::end(T::members) - std::begin(T::members)) : 0;
+        static constexpr size_t membersCount = has_members<T>::value ? std::end(T::members) - std::begin(T::members) : 0;
 
         // Update size fields from actual data lengths before serializing
         for (size_t i = 0; i < variableMembersCount; i++) {
@@ -364,7 +368,7 @@ public:
         requires(!has_variableMembers<T>::value)
     static QByteArray generate(const T &t)
     {
-        static constexpr size_t membersCount = has_members<T>::value ? (std::end(T::members) - std::begin(T::members)) : 0;
+        static constexpr size_t membersCount = has_members<T>::value ? std::end(T::members) - std::begin(T::members) : 0;
 
         QByteArray output{};
         QDataStream stream(&output, QIODeviceBase::WriteOnly);

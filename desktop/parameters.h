@@ -10,10 +10,14 @@ struct Parameters
     QString serviceName;
     QString serviceIp;
     QHostAddress serviceHostIp;
-    int jpegCompression;
+    int qualityLevel;
     int servedScreens = 0;
     int port;
     bool advertise;
+
+    QString trustedCertsPath;
+    QString serverCertPath;
+    QString serverKeyPath;
 
     static Parameters instance;
 };

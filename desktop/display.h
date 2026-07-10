@@ -1,12 +1,10 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
-#include <QObject>
 #include <QTimer>
 
 #include "displayreader.h"
-
-class QTcpSocket;
+#include "networkclient.h"
 
 class Display : public QObject
 {
@@ -15,16 +13,20 @@ class Display : public QObject
 public:
     explicit Display(const QString &connectorName, QObject *parent = nullptr);
 
-public Q_SLOTS:
-    void setClient(QTcpSocket *client);
-
 Q_SIGNALS:
     void nowFree(Display *);
 
+public Q_SLOTS:
+    void setClient(NetworkClient *client);
+
 private:
     DisplayReader m_reader;
+
+    std::optional<DrmFormat::FormatDescriptor> m_cursorFrameDescriptor{};
+    std::optional<DrmFormat::FormatDescriptor> m_vkmsFrameDescriptor{};
+
     QTimer m_timer{};
-    QTcpSocket *m_client = nullptr;
+    NetworkClient *m_client = nullptr;
     bool primaryFailureNotice = false;
 
 private Q_SLOTS:

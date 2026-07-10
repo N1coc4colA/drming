@@ -1,0 +1,21 @@
+<RCC>
+    <qresource prefix="/">
+        <file>assets/application-certificate.svg</file>
+        <file>assets/application-x-pem-key.svg</file>
+        <file>assets/edit-delete.svg</file>
+        <file>assets/user-desktop.svg</file>
+        <file>assets/palette.data</file>
+        <file>assets/document-new.svg</file>
+        <file>assets/edit-clear.svg</file>
+        <file>assets/edit-find.svg</file>
+        <file>assets/help-about.svg</file>
+        <file>assets/go-next.svg</file>
+        <file>assets/window-close.svg</file>
+        <file>assets/go-previous.svg</file>
+        <file>assets/check.svg</file>
+        <file>assets/warning.svg</file>
+        <file>assets/warning-red.svg</file>
+        <file>assets/dialog-ok-apply.svg</file>
+        <file>assets/go-down.svg</file>
+    </qresource>
+</RCC>

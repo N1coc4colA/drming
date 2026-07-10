@@ -4,16 +4,17 @@
 #include "parameters.h"
 #include "server.h"
 
+#include "../settings.h"
+
 #include <QCoreApplication>
 
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
-    app.setApplicationName("drming");
-    app.setApplicationVersion("1.0");
+    QCoreApplication::setApplicationName("drming");
+    QCoreApplication::setApplicationVersion("1.0");
 
-    CommandParser parser{};
-    switch (parser.parse()) {
+    switch (CommandParser().parse()) {
     case CommandParser::Failure:
         return EXIT_FAILURE;
     case CommandParser::Stop:
@@ -23,17 +24,21 @@ int main(int argc, char *argv[])
     }
 
     if (!Parameters::instance.advertise) {
-        auto publisher = new AvahiPublisher(Parameters::instance.serviceName, "_drming._tcp", static_cast<uint16_t>(Parameters::instance.port), &app);
+        const auto publisher = new AvahiPublisher(Parameters::instance.serviceName,
+                                            Settings::advertisementServiceType,
+                                            static_cast<uint16_t>(Parameters::instance.port),
+                                            &app);
         publisher->start();
     }
 
     DisplayManager manager{};
     Server server{};
 
-    QObject::connect(&server, &Server::clientConnected, [&manager](QTcpSocket *client) {
+    QObject::connect(&server, &Server::clientConnected, [&manager](NetworkClient *client) {
         // An error occurred.
         if (!manager.registerClient(client)) {
-            client->close();
+            // If registration failed, drop client
+            client->deleteLater();
         }
     });
 
@@ -43,5 +48,5 @@ int main(int argc, char *argv[])
 
     qInfo() << "Ready!";
 
-    return app.exec();
+    return QCoreApplication::exec();
 }
