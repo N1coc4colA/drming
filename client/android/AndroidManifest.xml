@@ -25,10 +25,9 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <!-- Qt loads your compiled binary by this name -->
             <meta-data
                 android:name="android.app.lib_name"
-                android:value="drming_android"/>
+                android:value="drming_client"/>
         </activity>
     </application>
 </manifest>

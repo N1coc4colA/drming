@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(drming_desktop VERSION 0.1 LANGUAGES CXX)
+project(drming_server VERSION 0.1 LANGUAGES CXX)
 
 
 set(CMAKE_AUTOUIC ON)
@@ -40,14 +40,14 @@ set(PROJECT_SOURCES
 
 
 qt_add_executable(
-drming_desktop
+drming_server
     MANUAL_FINALIZATION
     ${PROJECT_SOURCES}
 
 )
 
 target_link_libraries(
-drming_desktop
+drming_server
     PRIVATE
         Qt6::Core
         Qt6::Gui
@@ -60,11 +60,11 @@ drming_desktop
 
 include(GNUInstallDirs)
 install(
-TARGETS drming_desktop
+TARGETS drming_server
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 
-qt_finalize_executable(drming_desktop)
+qt_finalize_executable(drming_server)

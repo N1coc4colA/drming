@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(drming_android VERSION 0.1 LANGUAGES CXX)
+project(drming_client VERSION 0.1 LANGUAGES CXX)
 
 
 set(CMAKE_AUTOUIC ON)
@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -O0")
 set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -g -O0")
 
-option(ANDROID_MULTI_MODE "Build for all supported Android architectures." OFF)
+option(ANDROID_MULTI_MODE "Build for all supported Android architectures." ON)
 if (ANDROID_MULTI_MODE)
     set(QT_ANDROID_BUILD_ALL_ABIS "TRUE")
 endif()
@@ -64,7 +64,7 @@ endif()
 qt_standard_project_setup(REQUIRES 6.10)
 
 qt_add_executable(
-drming_android
+drming_client
     ${PROJECT_SOURCES}
     ${PROJECT_PLATFORM_HEADERS}
     ${PROJECT_PLATFORM_SOURCES}
@@ -76,7 +76,7 @@ set_source_files_properties(
     PROPERTIES QT_QML_SINGLETON_TYPE TRUE
 )
 
-qt_add_qml_module(drming_android
+qt_add_qml_module(drming_client
     URI drming
     QML_FILES
         qml/Main.qml
@@ -109,7 +109,7 @@ qt_add_qml_module(drming_android
 )
 
 set_target_properties(
-drming_android
+drming_client
     PROPERTIES
         QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/android
         QT_ANDROID_VERSION_CODE 1
@@ -119,14 +119,14 @@ drming_android
 )
 
 target_compile_definitions(
-drming_android
+drming_client
     PRIVATE
         QT_NO_SIGNALS_SLOTS_KEYWORDS
         QT_NO_EMIT
 )
 
 target_link_libraries(
-drming_android
+drming_client
     PRIVATE
         Qt6::Core
         Qt6::Gui
@@ -139,7 +139,7 @@ drming_android
 
 if(ANDROID)
     set_target_properties(
-    drming_android
+    drming_client
     PROPERTIES
         QT_ANDROID_EXTRA_LIBS "${ANDROID_OPENSSL_DIR}/${CMAKE_ANDROID_ARCH_ABI}/libcrypto_3.so;${ANDROID_OPENSSL_DIR}/${CMAKE_ANDROID_ARCH_ABI}/libssl_3.so"
     )
@@ -150,5 +150,5 @@ if (NOT ANDROID)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(AVAHI REQUIRED avahi-client)
 
-    target_link_libraries(drming_android PRIVATE ${AVAHI_LIBRARIES})
+    target_link_libraries(drming_client PRIVATE ${AVAHI_LIBRARIES})
 endif()
