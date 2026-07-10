@@ -1,12 +1,9 @@
 #include "server.h"
 
-#include <QFile>
 #include <QSslCertificate>
 #include <QSslConfiguration>
 #include <QSslError>
-#include <QSslKey>
 #include <QMap>
-#include <QPair>
 #include <QHostAddress>
 #include <QDebug>
 #include <QDtls>
@@ -17,7 +14,7 @@
 #include "parameters.h"
 
 // Map key helper (string form address:port)
-static inline QString keyFor(const QHostAddress &a, quint16 p) { return QStringLiteral("%1:%2").arg(a.toString()).arg(p); }
+static QString keyFor(const QHostAddress &a, const quint16 p) { return QStringLiteral("%1:%2").arg(a.toString()).arg(p); }
 
 Server::Server(QObject *parent)
     : QObject(parent)
@@ -31,6 +28,7 @@ bool Server::loadServerSslConfig(QSslConfiguration &outConfig)
     const auto serverKey = openKey(Parameters::instance.serverKeyPath);
     if (serverKey.isNull() || serverCert.isNull()) {
         [[unlikely]];
+
         return false;
     }
 
@@ -53,6 +51,7 @@ bool Server::listen(const QHostAddress &address, const quint16 port)
 
     if (!m_socket.bind(address, port)) {
         [[unlikely]];
+
         qCritical() << "Failed to bind UDP socket:" << m_socket.errorString();
         return false;
     }
@@ -63,7 +62,7 @@ bool Server::listen(const QHostAddress &address, const quint16 port)
 
 void Server::close()
 {
-    for (auto client : m_clients) {
+    for (const auto client : m_clients) {
         if (client) {
             client->deleteLater();
         }
@@ -84,7 +83,7 @@ void Server::broadcast(const QByteArray &data)
 {
     // Send encrypted datagram to all known DTLS associations
     // We keep track of associations via m_clients list and rely on the DtlsNetworkClient to do the encryption.
-    for (auto client : m_clients) {
+    for (const auto client : m_clients) {
         if (client && client->state() == QAbstractSocket::ConnectedState) {
             client->write(data);
         }
@@ -97,7 +96,7 @@ void Server::onDatagramReceived()
         QByteArray dgram(m_socket.pendingDatagramSize(), Qt::Uninitialized);
         QHostAddress sender;
         quint16 senderPort = 0;
-        qint64 read = m_socket.readDatagram(dgram.data(), dgram.size(), &sender, &senderPort);
+        const qint64 read = m_socket.readDatagram(dgram.data(), dgram.size(), &sender, &senderPort);
         if (read <= 0) {
             continue;
         }
@@ -117,6 +116,7 @@ void Server::onDatagramReceived()
             QSslConfiguration conf = QSslConfiguration::defaultDtlsConfiguration();
             if (loadServerSslConfig(conf)) {
                 [[likely]];
+
                 dtls->setDtlsConfiguration(conf);
             }
 
@@ -137,7 +137,7 @@ void Server::onDatagramReceived()
 
                 qInfo() << "DTLS client closed:" << sender.toString() << senderPort;
 
-                auto client = std::find_if(m_clients.begin(), m_clients.end(), [&](NetworkClient *c) {
+                auto client = std::ranges::find_if(m_clients, [&](const NetworkClient *c) {
                     return c && c->peerAddress() == sender && c->peerPort() == senderPort;
                 });
                 if (client != m_clients.end()) {
@@ -161,6 +161,7 @@ void Server::onDatagramReceived()
         // Continue or start handshake
         if (!dtls->doHandshake(&m_socket, dgram)) {
             [[unlikely]];
+
             if (dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) {
                 qInfo() << "DTLS handshake aborted by peer:" << sender.toString() << senderPort;
             } else {
@@ -174,7 +175,7 @@ void Server::onDatagramReceived()
 
         if (dtls->isConnectionEncrypted()) {
             bool alreadyRegistered = false;
-            for (auto c : m_clients) {
+            for (const auto c : m_clients) {
                 if (c && c->peerAddress() == sender && c->peerPort() == senderPort) {
                     alreadyRegistered = true;
                     break;

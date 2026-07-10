@@ -17,16 +17,16 @@ public:
 
     explicit FilesModel(QObject *parent = nullptr);
 
-    int rowCount(const QModelIndex &parent = QModelIndex()) const override;
-    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
-    QHash<int, QByteArray> roleNames() const override;
+    [[nodiscard]] int rowCount(const QModelIndex &parent) const override;
+    [[nodiscard]] QVariant data(const QModelIndex &index, int role) const override;
+    [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
-    Q_INVOKABLE int count() const { return m_files.count(); }
-    Q_INVOKABLE QVariantMap get(int index) const;
+    Q_INVOKABLE [[nodiscard]] int count() const { return static_cast<int>(m_files.count()); }
+    Q_INVOKABLE [[nodiscard]] QVariantMap get(int index) const;
 
     void setData(const MapType &newData);
 
-    inline const MapType &internalData() const { return m_files; }
+    [[nodiscard]] const MapType &internalData() const { return m_files; }
 
 Q_SIGNALS:
     void countChanged();

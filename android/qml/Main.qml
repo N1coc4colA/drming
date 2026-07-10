@@ -14,7 +14,7 @@ Window {
 
     function goBack() {
         if (stackView.depth > 1) {
-            networkLink.close()
+            networkLink().close()
             stackView.pop()
         }
     }
@@ -159,19 +159,19 @@ Window {
     }
 
     Connections {
-        target: networkLink
+        target: networkLink()
 
         function onError(message) {
             // Show the message and return to the base services view
             errorDialog.errorText = message || qsTr("Unknown connection error")
-            networkLink.close()
+            networkLink().close()
             stackView.pop()
             errorDialog.open()
         }
     }
 
     // [TODO] Could not attach Keys property to:  Main_QMLTYPE_0(0x1cf65ba0)  is not an Item
-    Keys.onReleased: {
+    Keys.onReleased: (event) => {
         if (event.key === Qt.Key_Back) {
             goBack()
             event.accepted = true

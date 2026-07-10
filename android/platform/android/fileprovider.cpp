@@ -26,12 +26,14 @@ void FileProvider::loadClients()
 
 void FileProvider::deleteServerCert(const QString &file)
 {
+    // [TODO] Generate error on j failure
     jDeleteServerCert(file);
     loadServerCerts();
 }
 
 void FileProvider::deleteClient(const QString &file)
 {
+    // [TODO] Generate error on j failure
     jDeleteClient(file);
     loadClients();
 }

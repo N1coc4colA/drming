@@ -2,6 +2,8 @@
 
 #include <QCoreApplication>
 
+#include "application.h"
+
 #ifdef Q_OS_ANDROID
 #include "platform/android/networkstatus.h"
 #else
@@ -24,4 +26,14 @@ NetworkState::NetworkState(QObject *parent)
 {
     assert(!m_instance);
     m_instance = this;
+}
+
+void NetworkState::onConnectivityChanged(const bool connected)
+{
+    m_connected = connected;
+    if (!connected) {
+        Application::instance()->servicesModel()->clear();
+    }
+
+    Q_EMIT connectivityChanged(connected);
 }

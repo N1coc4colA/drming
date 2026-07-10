@@ -37,7 +37,6 @@ public:
 private:
     bool createClientPathStorage(const QString &name);
     bool copyFile(const QString &title, const QString &filter, const QString &dst);
-    bool isClientEntryValid(const QString &name);
 
     static constexpr auto folderName = "drming";
 };

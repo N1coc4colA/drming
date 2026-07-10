@@ -1,8 +1,6 @@
 #ifndef DISPLAYREADER_H
 #define DISPLAYREADER_H
 
-#include <QImage>
-#include <QPixmap>
 #include <QString>
 
 #include "sse.h"
@@ -11,12 +9,12 @@
 class DisplayReader
 {
 public:
-    explicit DisplayReader(const QString &connectorName);
+    explicit DisplayReader(QString connectorName);
 
-    bool getVkmsFrameBuffer(VkmsFrameBuffer &fb);
+    bool getVkmsFrameBuffer(VkmsFrameBuffer &fb) const;
     static void releaseVkmsFrameBuffer(VkmsFrameBuffer &fb);
 
-    bool getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFrameBuffer &primary);
+    static bool getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFrameBuffer &primary);
     static void releaseCursorFrameBuffer(CursorFrameBuffer &cursor);
 
     static QImage compositeWithCursor(const QImage &primary, const CursorFrameBuffer &cursor, const DrmFormat::FormatDescriptor &fmtDesc);

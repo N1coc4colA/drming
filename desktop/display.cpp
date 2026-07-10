@@ -1,7 +1,6 @@
 #include "display.h"
 
 #include <QBuffer>
-#include <QDebug>
 #include <QDtls>
 #include <QtEndian>
 
@@ -45,7 +44,7 @@ void Display::forward()
     primaryFailureNotice = false;
 
     CursorFrameBuffer cursorFb{};
-    const auto hasCursor = m_reader.getCursorFrameBuffer(cursorFb, fb);
+    const auto hasCursor = DisplayReader::getCursorFrameBuffer(cursorFb, fb);
 
     Packets::ServerImage servImg{};
 
@@ -62,7 +61,9 @@ void Display::forward()
 
             qWarning() << "Image format for frame is invalid:" << fb.format << ";" << a << b << c << d;
 
-            m_client->disconnect();
+            if (m_client) {
+                m_client->disconnect();
+            }
             return;
         }
     }
@@ -72,7 +73,7 @@ void Display::forward()
         return;
     }
 
-    auto result = m_reader.imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, m_vkmsFrameDescriptor.value());
+    auto result = DisplayReader::imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, m_vkmsFrameDescriptor.value());
     if (hasCursor) {
         [[likely]];
 
@@ -89,17 +90,21 @@ void Display::forward()
 
                 qWarning() << "Image format for frame is invalid:" << cursorFb.format << ";" << a << b << c << d;
 
-                m_client->disconnect();
+                if (m_client) {
+                    // [TODO] Generate error on failure
+                    m_client->disconnect();
+                }
                 return;
             }
         }
 
         if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) {
             [[unlikely]];
+
             return;
         }
 
-        result = m_reader.compositeWithCursor(result, cursorFb, m_cursorFrameDescriptor.value());
+        result = DisplayReader::compositeWithCursor(result, cursorFb, m_cursorFrameDescriptor.value());
     }
 
     {
@@ -109,8 +114,8 @@ void Display::forward()
         buf.close();
     }
 
-    auto output = Packets::Writer::generate(servImg);
-    m_reader.releaseVkmsFrameBuffer(fb);
+    const auto output = Packets::Writer::generate(servImg);
+    DisplayReader::releaseVkmsFrameBuffer(fb);
 
     if (m_client && m_client->state() == QAbstractSocket::ConnectedState) {
         [[likely]];

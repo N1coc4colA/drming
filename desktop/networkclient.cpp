@@ -2,9 +2,9 @@
 
 #include <QDtls>
 
-NetworkClient::NetworkClient(const QHostAddress &addr, quint16 port, QDtls *dtls, QUdpSocket *socket, QObject *parent)
+NetworkClient::NetworkClient(QHostAddress addr, const quint16 port, QDtls *dtls, QUdpSocket *socket, QObject *parent)
     : QObject(parent)
-    , m_addr(addr)
+    , m_addr(std::move(addr))
     , m_port(port)
     , m_dtls(dtls)
     , m_socket(socket)
@@ -14,6 +14,7 @@ qint64 NetworkClient::write(const QByteArray &data)
 {
     if (!m_dtls || !m_socket) {
         [[unlikely]];
+
         return -1;
     }
 

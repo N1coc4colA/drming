@@ -55,18 +55,18 @@ private:
     Fn<FilesModel::MapType()> jServerCerts;
     Fn<FilesModel::MapType()> jClients;
 
-    Fn<bool(QString)> jDeleteServerCert;
-    Fn<bool(QString)> jDeleteClient;
-    Fn<int(QString)> jAddServerCert;
-    Fn<int(QString, QString)> jAddClientCert;
-    Fn<int(QString, QString)> jAddClientKey;
+    Fn<bool(const QString &)> jDeleteServerCert;
+    Fn<bool(const QString &)> jDeleteClient;
+    Fn<int(const QString &)> jAddServerCert;
+    Fn<int(const QString &, const QString &)> jAddClientCert;
+    Fn<int(const QString &, const QString &)> jAddClientKey;
 
-    Fn<QByteArray(QString)> jClientCertData;
-    Fn<QByteArray(QString)> jClientKeyData;
+    Fn<QByteArray(const QString &)> jClientCertData;
+    Fn<QByteArray(const QString &)> jClientKeyData;
 
     Fn<QList<QByteArray>()> jTrustedCertsData;
 
-    Fn<bool(QString, QString)> jUpdateClientEntry;
+    Fn<bool(const QString &, const QString &)> jUpdateClientEntry;
     Fn<QList<QString>()> jValidClientEntries;
 
     friend class JavaProxy<FileProvider>;

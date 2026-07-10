@@ -11,12 +11,12 @@ StandardPage {
 
         icon.source: "qrc:/assets/document-new.svg"
 
-        onClicked: fileProvider.addServerCert()
+        onClicked: fileProvider().addServerCert()
     }
 
     content: EasyListView {
         emptyText: qsTr("No certificates loaded")
-        model: fileProvider.serverCertsModel()
+        model: fileProvider().serverCertsModel()
 
         delegate: RowLayout {
             height: visible ? Math.max(40, 40 * GlobalVars.scaling) : 0
@@ -72,7 +72,7 @@ StandardPage {
                         borderColor: "transparent"
                         highlightColor: "#e33636"
 
-                        onClicked: fileProvider.deleteServerCert(model.name)
+                        onClicked: fileProvider().deleteServerCert(model.name)
                     }
                 }
             }
@@ -85,7 +85,7 @@ StandardPage {
 
     onVisibleChanged: {
         if (root.visible) {
-            fileProvider.loadServerCerts()
+            fileProvider().loadServerCerts()
         }
     }
 }

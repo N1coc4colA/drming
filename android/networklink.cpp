@@ -14,7 +14,7 @@
 
 NetworkLink::NetworkLink(QObject *parent)
     : QObject{parent}
-    , Packets::Parser<NetworkLink>(*this)
+    , Parser(*this)
     , m_udpSocket(new QUdpSocket(this))
     , m_dtls(new QDtls(QSslSocket::SslClientMode, this))
 {
@@ -23,7 +23,7 @@ NetworkLink::NetworkLink(QObject *parent)
     QAbstractSocket::connect(m_udpSocket, &QUdpSocket::readyRead, this, &NetworkLink::onDataAvailable);
     QAbstractSocket::connect(m_udpSocket, &QUdpSocket::errorOccurred, this, &NetworkLink::onError);
 
-    QAbstractSocket::connect(m_dtls, &QDtls::handshakeTimeout, this, [this]() { qWarning() << "DTLS handshake timeout"; });
+    QAbstractSocket::connect(m_dtls, &QDtls::handshakeTimeout, this, [this] { qWarning() << "DTLS handshake timeout"; });
 
     m_inactivityTimer.setInterval(Settings::inactivityTimeout);
     m_inactivityTimer.setSingleShot(true);
@@ -65,11 +65,11 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
     // Use encrypted connection
     const auto clientData = FileProvider::instance()->clientData(clientName);
     if (clientData.first.isNull()) {
-        Q_EMIT NetworkLink::error(tr("The certificate of '%1' that was about to be used is invalid.").arg(clientName));
+        Q_EMIT error(tr("The certificate of '%1' that was about to be used is invalid.").arg(clientName));
         return;
     }
     if (clientData.second.isNull()) {
-        Q_EMIT NetworkLink::error(tr("The key of '%1' that was about to be used is invalid.").arg(clientName));
+        Q_EMIT error(tr("The key of '%1' that was about to be used is invalid.").arg(clientName));
         return;
     }
 
@@ -89,7 +89,7 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
     // Bind ephemeral local port
     if (!m_udpSocket->bind(QHostAddress::AnyIPv4, 0)) {
         qWarning() << "Failed to bind UDP socket:" << m_udpSocket->errorString();
-        Q_EMIT NetworkLink::error(m_udpSocket->errorString());
+        Q_EMIT error(m_udpSocket->errorString());
         return;
     }
 
@@ -97,7 +97,7 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
     m_udpSocket->connectToHost(address, static_cast<quint16>(port));
 
     if (!m_dtls->doHandshake(m_udpSocket)) {
-        Q_EMIT NetworkLink::error(tr("Failed to start DTLS handshake: %1").arg(m_dtls->dtlsErrorString()));
+        Q_EMIT error(tr("Failed to start DTLS handshake: %1").arg(m_dtls->dtlsErrorString()));
         return;
     }
 
@@ -142,10 +142,8 @@ void NetworkLink::onDataAvailable()
         if (!m_dtls->isConnectionEncrypted()) {
             // Continue handshake with incoming datagram
             if (!m_dtls->doHandshake(m_udpSocket, dgram)) {
-                if (m_dtls->dtlsError() == QDtlsError::PeerVerificationError) {
-                    Q_EMIT NetworkLink::error(tr("DTLS handshake error: %1").arg(m_dtls->dtlsErrorString()));
-                } else {
-                    Q_EMIT NetworkLink::error(tr("DTLS handshake error: %1").arg(m_dtls->dtlsErrorString()));
+                if (m_dtls->dtlsError() != QDtlsError::NoError) {
+                    Q_EMIT error(tr("DTLS handshake error: %1").arg(m_dtls->dtlsErrorString()));
                 }
                 return;
             }
@@ -185,13 +183,14 @@ void NetworkLink::onConnectionTimeout()
     }
 }
 
-void NetworkLink::processPacket(const Packets::ServerImage &srvImg)
+void NetworkLink::processPacket(const Packets::ServerImage &img)
 {
-    const auto img = QImage::fromData(srvImg.data, Settings::frameImageFormat);
+    const auto converted = QImage::fromData(img.data, Settings::frameImageFormat);
 
-    if (!img.isNull()) {
+    if (!converted.isNull()) {
         [[likely]];
-        Q_EMIT imageReady(img);
+
+        Q_EMIT imageReady(converted);
     }
 }
 

@@ -3,7 +3,7 @@
 #include <QCoreApplication>
 #include <QDebug>
 
-#include <stdlib.h>
+#include <cstdlib>
 
 #include "parameters.h"
 

@@ -4,7 +4,6 @@
 #include <QImage>
 #include <QMutex>
 #include <QQuickItem>
-#include <QSGNode>
 
 class QSGSimpleTextureNode;
 
@@ -14,7 +13,8 @@ class VideoFrameItem : public QQuickItem
 public:
     explicit VideoFrameItem(QQuickItem* parent = nullptr);
 
-    QSGNode* updatePaintNode(QSGNode* oldNode, QQuickItem::UpdatePaintNodeData*) override;
+protected:
+    QSGNode* updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*) override;
 
 public Q_SLOTS:
     void setImage(const QImage& image)

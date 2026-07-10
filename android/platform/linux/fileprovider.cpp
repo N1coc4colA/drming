@@ -57,7 +57,7 @@ QPair<QSslCertificate, QSslKey> FileProvider::clientData(const QString &name)
 
 QList<QSslCertificate> FileProvider::trustedCerts()
 {
-    return openCertificateFiles(FileProvider::instance()->serverCertsPath() + "*");
+    return openCertificateFiles(instance()->serverCertsPath() + "*");
 }
 
 void FileProvider::loadServerCerts()

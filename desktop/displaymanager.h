@@ -12,7 +12,7 @@ class DisplayManager : public QObject
 {
 public:
     explicit DisplayManager(QObject *parent = nullptr);
-    ~DisplayManager();
+    ~DisplayManager() override;
 
     bool registerClient(NetworkClient *client);
 

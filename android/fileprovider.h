@@ -38,8 +38,8 @@ public:
 
     Q_INVOKABLE virtual bool updateClientEntry(const QVariantMap &map) = 0;
 
-    inline bool hasError() const { return m_dirCreationError; }
-    inline QString errorMessage() const { return m_errorMessage; }
+    [[nodiscard]] bool hasError() const { return m_dirCreationError; }
+    [[nodiscard]] QString errorMessage() const { return m_errorMessage; }
 
     Q_INVOKABLE FilesModel *clientCertsModel() { return m_clientFiles; }
     Q_INVOKABLE FilesModel *serverCertsModel() { return m_serverFiles; }

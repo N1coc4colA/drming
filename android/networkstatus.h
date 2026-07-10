@@ -11,7 +11,7 @@ class NetworkState : public QObject
 public:
     explicit NetworkState(QObject *parent = nullptr);
 
-    inline bool getConnected() const { return m_connected; }
+    [[nodiscard]] bool getConnected() const { return m_connected; }
 
     static NetworkState *instance();
 
@@ -19,11 +19,7 @@ Q_SIGNALS:
     void connectivityChanged(bool connected);
 
 public Q_SLOTS:
-    inline void onConnectivityChanged(bool connected)
-    {
-        m_connected = connected;
-        Q_EMIT connectivityChanged(connected);
-    }
+    void onConnectivityChanged(bool connected);
 
 protected:
     bool m_connected = false;

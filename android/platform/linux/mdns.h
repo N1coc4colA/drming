@@ -13,7 +13,7 @@ class Mdns : public ::Mdns
 
 public:
     explicit Mdns(QObject *parent = nullptr);
-    ~Mdns();
+    ~Mdns() override;
 
     void startDiscovery() override;
     void stopDiscovery() override;

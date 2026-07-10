@@ -18,8 +18,6 @@ public:
     Q_INVOKABLE void stopDiscovery() override;
 
 private:
-    QHash<QString, ::ServiceInfo> m_services{};
-
     QJniObject m_javaHelper{};
 };
 

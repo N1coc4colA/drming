@@ -45,7 +45,7 @@ EasyDialog {
 
                 onCurrentIndexChanged: root.isValid = clientEntry.currentIndex > -1
                 onCurrentTextChanged: root.clientName = currentText
-                onVisibleChanged: clientEntry.model = fileProvider.validClientEntries()
+                onVisibleChanged: clientEntry.model = fileProvider().validClientEntries()
             }
         }
     }

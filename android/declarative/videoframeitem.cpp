@@ -36,7 +36,7 @@ void VideoFrameItem::geometryChange(const QRectF& newGeometry, const QRectF& old
     }
 }
 
-inline void submit(QQuickWindow* window, const QRectF& dst, const QImage& localImage, QSGSimpleTextureNode*& node)
+inline void submit(const QQuickWindow* window, const QRectF& dst, const QImage& localImage, QSGSimpleTextureNode*& node)
 {
     if (!node) {
         node = new QSGSimpleTextureNode();
@@ -49,7 +49,7 @@ inline void submit(QQuickWindow* window, const QRectF& dst, const QImage& localI
     node->markDirty(QSGNode::DirtyMaterial | QSGNode::DirtyGeometry);
 }
 
-QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, QQuickItem::UpdatePaintNodeData* data)
+QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* data)
 {
     Q_UNUSED(data);
 
@@ -87,7 +87,7 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, QQuickItem::UpdatePai
     }
 
     node->setRect(dst);
-    node->markDirty(dirty ? (QSGNode::DirtyMaterial | QSGNode::DirtyGeometry) : QSGNode::DirtyGeometry);
+    node->markDirty(dirty ? QSGNode::DirtyMaterial | QSGNode::DirtyGeometry : QSGNode::DirtyGeometry);
 
     return node;
 }

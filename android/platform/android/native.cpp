@@ -1,7 +1,6 @@
 #include "native.h"
 
 #include <QDebug>
-
 #include <QJniArray>
 #include <QJniEnvironment>
 #include <QJniObject>
@@ -28,7 +27,7 @@ private:
     T &m_instance;
 };
 
-void onServiceFound(JNIEnv *env, jclass clazz, jstring jname, jstring jtype)
+void onServiceFound(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jtype)
 {
     Q_UNUSED(clazz);
 
@@ -41,7 +40,7 @@ void onServiceFound(JNIEnv *env, jclass clazz, jstring jname, jstring jtype)
     env->ReleaseStringUTFChars(jtype, type);
 }
 
-void onServiceLost(JNIEnv *env, jclass clazz, jstring jname, jstring jip)
+void onServiceLost(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jip)
 {
     Q_UNUSED(clazz);
 
@@ -54,7 +53,7 @@ void onServiceLost(JNIEnv *env, jclass clazz, jstring jname, jstring jip)
     env->ReleaseStringUTFChars(jip, ip);
 }
 
-void onServiceResolved(JNIEnv *env, jclass clazz, jstring jname, jstring jhost, jstring jip, jint port)
+void onServiceResolved(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jhost, const jstring jip, const jint port)
 {
     Q_UNUSED(clazz);
 
@@ -69,8 +68,9 @@ void onServiceResolved(JNIEnv *env, jclass clazz, jstring jname, jstring jhost, 
     env->ReleaseStringUTFChars(jip, ip);
 }
 
-void onConnectivityChanged(JNIEnv *env, jclass clazz, jboolean connected)
+void onConnectivityChanged(const JNIEnv *env, const jclass clazz, const jboolean connected)
 {
+    Q_UNUSED(env);
     Q_UNUSED(clazz);
 
     NetworkState::instance()->onConnectivityChanged(connected);
@@ -100,12 +100,12 @@ public:
 
         m_instance.jServerCerts = [&instance]() -> FilesModel::MapType {
             FilesModel::MapType out{};
-            auto list = instance.callObjectMethod("getServerCerts", "()Ljava/util/List;");
+            const auto list = instance.callObjectMethod("getServerCerts", "()Ljava/util/List;");
             const jint size = list.callMethod<jint>("size");
             out.reserve(size);
 
             for (jint i = 0; i < size; ++i) {
-                auto obj = list.callObjectMethod<jobject, jint>("get", jint(i));
+                auto obj = list.callObjectMethod<jobject, jint>("get", static_cast<jint>(i));
                 const long lastModified = obj.getField<jlong>("lastModified");
                 const auto name = obj.getObjectField<jstring>("name").toString();
 
@@ -121,7 +121,7 @@ public:
             out.reserve(size);
 
             for (jint i = 0; i < size; ++i) {
-                const auto obj = list.callObjectMethod<jobject, jint>("get", jint(i));
+                const auto obj = list.callObjectMethod<jobject, jint>("get", static_cast<jint>(i));
                 const long lastModified = obj.getField<jlong>("lastModified");
                 const auto name = obj.getObjectField<jstring>("name").toString();
                 const auto hasCert = obj.getField<jboolean>("hasCert");
@@ -133,32 +133,32 @@ public:
             return out;
         };
 
-        m_instance.jDeleteServerCert = [&instance](QString a) -> bool {
+        m_instance.jDeleteServerCert = [&instance](const QString &a) -> bool {
             const auto ja = QJniObject::fromString(a);
             return instance.callMethod<jboolean, jstring>("deleteServerCert", ja.object<jstring>());
         };
-        m_instance.jDeleteClient = [&instance](QString a) -> bool {
+        m_instance.jDeleteClient = [&instance](const QString &a) -> bool {
             const auto ja = QJniObject::fromString(a);
             return instance.callMethod<jboolean, jstring>("deleteClient", ja.object<jstring>());
         };
-        m_instance.jAddServerCert = [&instance](QString a) -> int {
+        m_instance.jAddServerCert = [&instance](const QString &a) -> int {
             const auto ja = QJniObject::fromString(a);
             return instance.callMethod<jint, jstring>("addServerCert", ja.object<jstring>());
         };
-        m_instance.jAddClientCert = [&instance](QString a, QString b) -> int {
+        m_instance.jAddClientCert = [&instance](const QString &a, const QString &b) -> int {
             const auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
             return instance.callMethod<jint, jstring, jstring>("addClientCert", ja.object<jstring>(), jb.object<jstring>());
         };
-        m_instance.jAddClientKey = [&instance](QString a, QString b) -> int {
+        m_instance.jAddClientKey = [&instance](const QString &a, const QString &b) -> int {
             const auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
             return instance.callMethod<jint, jstring, jstring>("addClientKey", ja.object<jstring>(), jb.object<jstring>());
         };
 
-        m_instance.jClientCertData = [&instance](QString a) -> QByteArray {
+        m_instance.jClientCertData = [&instance](const QString &a) -> QByteArray {
             const auto ja = QJniObject::fromString(a);
             return QJniArray<jbyte>(instance.callObjectMethod<jbyte[]>("getClientCertData", ja.object<jstring>())).toContainer();
         };
-        m_instance.jClientKeyData = [&instance](QString a) -> QByteArray {
+        m_instance.jClientKeyData = [&instance](const QString &a) -> QByteArray {
             const auto ja = QJniObject::fromString(a);
             return QJniArray<jbyte>(instance.callObjectMethod<jbyte[]>("getClientKeyData", ja.object<jstring>())).toContainer();
         };
@@ -176,7 +176,7 @@ public:
             return out;
         };
 
-        m_instance.jUpdateClientEntry = [&instance](QString a, QString b) -> bool {
+        m_instance.jUpdateClientEntry = [&instance](const QString &a, const QString &b) -> bool {
             const auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
             return instance.callMethod<jboolean, jstring, jstring>("updateClientEntry", ja.object<jstring>(), jb.object<jstring>());
         };
@@ -189,25 +189,25 @@ private:
     T &m_instance;
 };
 
-bool registerNativeMethods_MdnsHelper(QJniObject &m_javaHelper)
+bool registerNativeMethods_MdnsHelper(const QJniObject &m_javaHelper)
 {
-    auto env = QJniEnvironment().jniEnv();
+    const auto env = QJniEnvironment().jniEnv();
     if (!env) {
         return false;
     }
 
     // Get the class from the already-loaded object, not FindClass
-    auto clazz = env->GetObjectClass(m_javaHelper.object<jobject>());
+    const auto clazz = env->GetObjectClass(m_javaHelper.object<jobject>());
     if (!clazz) {
         return false;
     }
 
-    const std::vector<JNINativeMethod> methods = {{"nativeOnServiceFound", "(Ljava/lang/String;Ljava/lang/String;)V", (void *) ::onServiceFound},
-                                                  {"nativeOnServiceLost", "(Ljava/lang/String;Ljava/lang/String;)V", (void *) ::onServiceLost},
+    const std::vector<JNINativeMethod> methods = {{"nativeOnServiceFound", "(Ljava/lang/String;Ljava/lang/String;)V", reinterpret_cast<void *>(onServiceFound)},
+                                                  {"nativeOnServiceLost", "(Ljava/lang/String;Ljava/lang/String;)V", reinterpret_cast<void *>(onServiceLost)},
                                                   {"nativeOnServiceResolved",
                                                    "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V",
-                                                   (void *) ::onServiceResolved}};
-    const auto regResult = env->RegisterNatives(clazz, methods.data(), methods.size());
+                                                   reinterpret_cast<void *>(onServiceResolved)}};
+    const auto regResult = env->RegisterNatives(clazz, methods.data(), static_cast<jint>(methods.size()));
     if (regResult != 0) {
         qWarning() << "Failed to register native methods for MdnsHelper:" << regResult;
         env->DeleteLocalRef(clazz);
@@ -220,21 +220,21 @@ bool registerNativeMethods_MdnsHelper(QJniObject &m_javaHelper)
     return true;
 }
 
-bool registerNativeMethods_NetworkHelper(QJniObject &m_javaHelper)
+bool registerNativeMethods_NetworkHelper(const QJniObject &m_javaHelper)
 {
-    auto env = QJniEnvironment().jniEnv();
+    const auto env = QJniEnvironment().jniEnv();
     if (!env) {
         return false;
     }
 
     // Get the class from the already-loaded object, not FindClass
-    auto clazz = env->GetObjectClass(m_javaHelper.object<jobject>());
+    const auto clazz = env->GetObjectClass(m_javaHelper.object<jobject>());
     if (!clazz) {
         return false;
     }
 
-    const std::vector<JNINativeMethod> methods = {{"nativeOnConnectivityChanged", "(Z)V", (void *) ::onConnectivityChanged}};
-    const auto regResult = env->RegisterNatives(clazz, methods.data(), methods.size());
+    const std::vector<JNINativeMethod> methods = {{"nativeOnConnectivityChanged", "(Z)V", reinterpret_cast<void *>(onConnectivityChanged)}};
+    const auto regResult = env->RegisterNatives(clazz, methods.data(), static_cast<jint>(methods.size()));
     if (regResult != 0) {
         qWarning() << "Failed to register native methods for NetworkHelper:" << regResult;
         env->DeleteLocalRef(clazz);
@@ -247,21 +247,21 @@ bool registerNativeMethods_NetworkHelper(QJniObject &m_javaHelper)
     return true;
 }
 
-bool registerNativeMethods_FileHelper(QJniObject &m_javaHelper)
+bool registerNativeMethods_FileHelper(const QJniObject &m_javaHelper)
 {
-    auto env = QJniEnvironment().jniEnv();
+    const auto env = QJniEnvironment().jniEnv();
     if (!env) {
         return false;
     }
 
     // Get the class from the already-loaded object, not FindClass
-    auto clazz = env->GetObjectClass(m_javaHelper.object<jobject>());
+    const auto clazz = env->GetObjectClass(m_javaHelper.object<jobject>());
     if (!clazz) {
         return false;
     }
 
-    const std::vector<JNINativeMethod> methods = {};
-    const auto regResult = env->RegisterNatives(clazz, methods.data(), methods.size());
+    constexpr std::vector<JNINativeMethod> methods = {};
+    const auto regResult = env->RegisterNatives(clazz, methods.data(), static_cast<jint>(methods.size()));
     if (regResult != 0) {
         qWarning() << "Failed to register native methods for FileHelper:" << regResult;
         env->DeleteLocalRef(clazz);
@@ -280,7 +280,7 @@ bool createNativeObject_MdnsHelper(QJniObject &m_javaHelper)
         return true;
     }
 
-    auto activity = QJniObject::callStaticObjectMethod("org/qtproject/qt/android/QtNative", "activity", "()Landroid/app/Activity;");
+    const auto activity = QJniObject::callStaticObjectMethod("org/qtproject/qt/android/QtNative", "activity", "()Landroid/app/Activity;");
 
     if (!activity.isValid()) {
         qWarning() << "Failed to get Android activity";
@@ -309,7 +309,7 @@ bool createNativeObject_NetworkHelper(QJniObject &m_javaHelper)
         return true;
     }
 
-    auto activity = QJniObject::callStaticObjectMethod("org/qtproject/qt/android/QtNative", "activity", "()Landroid/app/Activity;");
+    const auto activity = QJniObject::callStaticObjectMethod("org/qtproject/qt/android/QtNative", "activity", "()Landroid/app/Activity;");
 
     if (!activity.isValid()) {
         qWarning() << "Failed to get Android activity";
@@ -334,14 +334,14 @@ bool createNativeObject_NetworkHelper(QJniObject &m_javaHelper)
 
 bool createNativeObject_FileHelper(Platform::FileProvider &provider)
 {
-    JavaProxy<Platform::FileProvider> proxy(provider);
+    JavaProxy proxy(provider);
     auto &m_javaHelper = proxy.object();
 
     if (m_javaHelper.isValid()) {
         return true;
     }
 
-    auto activity = QJniObject::callStaticObjectMethod("org/qtproject/qt/android/QtNative", "activity", "()Landroid/app/Activity;");
+    const auto activity = QJniObject::callStaticObjectMethod("org/qtproject/qt/android/QtNative", "activity", "()Landroid/app/Activity;");
 
     if (!activity.isValid()) {
         qWarning() << "Failed to get Android activity";

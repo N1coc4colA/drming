@@ -1,15 +1,12 @@
 #include "utils.h"
 
-#include <errno.h>
-#include <time.h>
+#include <cerrno>
+#include <ctime>
 
 int msleep(const long msec)
 {
-    struct timespec ts;
-    int res;
-
-    ts.tv_sec = msec / 1000;
-    ts.tv_nsec = (msec % 1000) * 1000000;
+    timespec ts{.tv_sec = msec / 1000, .tv_nsec = (msec % 1000) * 1000000};
+    int res = 0;
 
     do {
         res = nanosleep(&ts, &ts);

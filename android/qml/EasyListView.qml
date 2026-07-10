@@ -14,7 +14,7 @@ Item {
 
         ScrollBar.vertical: ScrollBar {
             id: scrollBar
-            active: servicesModel.count > 0
+            active: servicesModel().count > 0
 
             background: Rectangle {
                 color: palette.dark

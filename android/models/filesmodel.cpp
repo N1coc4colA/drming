@@ -17,7 +17,7 @@ void FilesModel::setData(const MapType &newData)
 
 int FilesModel::rowCount(const QModelIndex &parent) const
 {
-    return parent.isValid() ? 0 : m_files.count();
+    return parent.isValid() ? 0 : static_cast<int>(m_files.count());
 }
 
 QVariant FilesModel::data(const QModelIndex &index, const int role) const

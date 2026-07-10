@@ -19,7 +19,7 @@ struct FormatDescriptor
 
 // Returns nullopt for DRM formats that have no usable Qt equivalent
 // (sub-byte packed, darkness, two-channel, 10-bit packed variants, etc.).
-std::optional<FormatDescriptor> resolve(const uint32_t drmFourcc);
+std::optional<FormatDescriptor> resolve(uint32_t drmFourcc);
 
 } // namespace DrmFormat
 

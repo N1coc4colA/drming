@@ -29,17 +29,17 @@ StandardPage {
         id: authDialog
 
         onSubmitted: function() {
-            networkLink.connect(authDialog.hostIp, authDialog.hostPort, authDialog.clientName)
+            networkLink().connect(authDialog.hostIp, authDialog.hostPort, authDialog.clientName)
             root.displayStream()
         }
     }
 
     onVisibleChanged: {
         if (root.visible) {
-            mdnsManager.startDiscovery()
-            fileProvider.loadClients()
+            mdnsManager().startDiscovery()
+            fileProvider().loadClients()
         } else {
-            mdnsManager.stopDiscovery()
+            mdnsManager().stopDiscovery()
         }
     }
 }

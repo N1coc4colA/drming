@@ -21,7 +21,7 @@ EasyPage {
         id: stream
 
         Connections {
-            target: networkLink
+            target: networkLink()
 
             function onImageReady(image) {
                 stream.setImage(image);

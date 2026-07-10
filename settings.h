@@ -7,7 +7,7 @@ namespace utils {
 
 constexpr int numberCount(const int v)
 {
-    const auto reduced = int(v / 10);
+    const auto reduced = v / 10;
     return 1 + (reduced > 0 ? numberCount(reduced) : 0);
 }
 

@@ -8,8 +8,11 @@
 #include <avahi-common/error.h>
 #include <avahi-common/malloc.h>
 #include <avahi-common/simple-watch.h>
+
 #include <set>
 #include <thread>
+
+#include <ctrack.hpp>
 
 #include "../settings.h"
 
@@ -34,9 +37,9 @@ public:
 
         m_running = true;
 
-        m_thread = std::thread([this]() {
+        m_thread = std::thread([this] {
             // All Avahi objects created here, on the poll thread
-            if (!(m_poll = avahi_simple_poll_new())) {
+            if (!((m_poll = avahi_simple_poll_new()))) {
                 qCritical() << "Failed to create simple poll object.";
                 m_running = false;
                 return;
@@ -109,22 +112,26 @@ private:
     AvahiClient *m_client = nullptr;
     AvahiServiceBrowser *m_sb = nullptr;
     std::atomic<bool> m_running = false;
-    bool m_ready = false;
 
     static void resolve_callback(AvahiServiceResolver *r,
-                                 AvahiIfIndex interface,
-                                 AvahiProtocol protocol,
-                                 AvahiResolverEvent event,
+                                 const AvahiIfIndex interface,
+                                 const AvahiProtocol protocol,
+                                 const AvahiResolverEvent event,
                                  const char *name,
                                  const char *type,
                                  const char *domain,
                                  const char *host_name,
                                  const AvahiAddress *address,
-                                 uint16_t port,
-                                 AvahiStringList *txt,
-                                 AvahiLookupResultFlags flags,
+                                 const uint16_t port,
+                                 const AvahiStringList *txt,
+                                 const AvahiLookupResultFlags flags,
                                  AvahiDiscoverer *c)
     {
+        Q_UNUSED(interface);
+        Q_UNUSED(protocol);
+        Q_UNUSED(txt);
+        Q_UNUSED(flags);
+
         AvahiClient *client = avahi_service_resolver_get_client(r);
 
         switch (event) {
@@ -147,16 +154,19 @@ private:
         avahi_service_resolver_free(r);
     }
 
-    static void browse_callback(AvahiServiceBrowser *b,
-                                AvahiIfIndex interface,
-                                AvahiProtocol protocol,
-                                AvahiBrowserEvent event,
+    static void browse_callback(const AvahiServiceBrowser *b,
+                                const AvahiIfIndex interface,
+                                const AvahiProtocol protocol,
+                                const AvahiBrowserEvent event,
                                 const char *name,
                                 const char *type,
                                 const char *domain,
-                                AvahiLookupResultFlags flags,
+                                const AvahiLookupResultFlags flags,
                                 AvahiDiscoverer *c)
     {
+        Q_UNUSED(flags);
+        Q_UNUSED(b);
+
         switch (event) {
         case AVAHI_BROWSER_FAILURE: {
             qCritical() << "(Browser) " << avahi_strerror(avahi_client_errno(c->m_client));
@@ -165,7 +175,7 @@ private:
         case AVAHI_BROWSER_NEW: {
             Q_EMIT c->m_manager.dispatchServiceFound(name, type);
 
-            auto resolver = avahi_service_resolver_new(c->m_client,
+            const auto resolver = avahi_service_resolver_new(c->m_client,
                                                        interface,
                                                        protocol,
                                                        name,
@@ -196,8 +206,10 @@ private:
         }
     }
 
-    static void client_callback(AvahiClient *client, AvahiClientState state, AvahiDiscoverer *c)
+    static void client_callback(AvahiClient *client, const AvahiClientState state, const AvahiDiscoverer *c)
     {
+        Q_UNUSED(c);
+
         if (state == AVAHI_CLIENT_FAILURE) {
             qCritical() << "Server connection failure: " << avahi_strerror(avahi_client_errno(client));
             // [TODO] Maybe use stopDiscovery on owner with thread dispatch
@@ -209,7 +221,9 @@ private:
 Mdns::Mdns(QObject *parent)
     : ::Mdns(parent)
     , m_avahi(new AvahiDiscoverer(*this))
-{}
+{
+    CTRACK;
+}
 
 Mdns::~Mdns()
 {

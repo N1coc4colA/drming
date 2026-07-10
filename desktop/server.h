@@ -1,13 +1,10 @@
 #ifndef SERVER_H
 #define SERVER_H
 
-#include <QList>
-#include <QObject>
 #include <QUdpSocket>
 #include <QSslConfiguration>
 #include <QHostAddress>
 #include <QMap>
-#include <QPair>
 
 #include "networkclient.h"
 
@@ -23,7 +20,7 @@ public:
     bool listen(const QHostAddress &address = QHostAddress::Any, quint16 port = 0);
     void close();
 
-    inline bool hasClient() const { return !m_clients.isEmpty(); }
+    [[nodiscard]] bool hasClient() const { return !m_clients.isEmpty(); }
 
 Q_SIGNALS:
     void noClient();

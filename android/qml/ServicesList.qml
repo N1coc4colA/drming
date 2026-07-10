@@ -5,8 +5,8 @@ import QtQuick.Shapes
 
 EasyListView {
     id: root
-    emptyText: networkState.connected ?  qsTr("No services found") : qsTr("No internet connection")
-    model: servicesModel
+    emptyText: networkState().connected ?  qsTr("No services found") : qsTr("No internet connection")
+    model: servicesModel()
 
     property string searchQuery: ""
     property var selectedService: ({

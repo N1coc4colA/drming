@@ -125,19 +125,19 @@ QString drmDeviceForConnector(const QString &connectorName)
 
     for (const QFileInfo &cardInfo : cards) {
         const QByteArray cardPathBytes = QFile::encodeName(cardInfo.absoluteFilePath());
-        const int fd = ::open(cardPathBytes.constData(), O_RDONLY | O_CLOEXEC);
+        const int fd = open(cardPathBytes.constData(), O_RDONLY | O_CLOEXEC);
         if (fd < 0) {
             continue;
         }
 
-        DrmResourcesPtr resources(drmModeGetResources(fd));
+        const DrmResourcesPtr resources(drmModeGetResources(fd));
         if (!resources) {
-            ::close(fd);
+            close(fd);
             continue;
         }
 
         for (int i = 0; i < resources->count_connectors; ++i) {
-            DrmConnectorPtr connector(drmModeGetConnector(fd, resources->connectors[i]));
+            const DrmConnectorPtr connector(drmModeGetConnector(fd, resources->connectors[i]));
             if (!connector) {
                 continue;
             }
@@ -148,18 +148,18 @@ QString drmDeviceForConnector(const QString &connectorName)
                                                QString::number(connector->connector_type_id));
 
             if (connectorName == sysfsName) {
-                ::close(fd);
+                close(fd);
                 return cardInfo.absoluteFilePath();
             }
         }
 
-        ::close(fd);
+        close(fd);
     }
 
     return {};
 }
 
-bool mapFramebuffer(VkmsFrameBuffer &fb, uint32_t handle)
+bool mapFramebuffer(VkmsFrameBuffer &fb, const uint32_t handle)
 {
     if (handle == 0 || fb.fd < 0 || fb.size == 0) {
         [[unlikely]];
@@ -170,8 +170,8 @@ bool mapFramebuffer(VkmsFrameBuffer &fb, uint32_t handle)
     drm_mode_map_dumb mapReq{};
     mapReq.handle = handle;
 
-    if (::drmIoctl(fb.fd, DRM_IOCTL_MODE_MAP_DUMB, &mapReq) == 0) {
-        fb.data = ::mmap(nullptr, fb.size, PROT_READ, MAP_SHARED, fb.fd, static_cast<off_t>(mapReq.offset));
+    if (drmIoctl(fb.fd, DRM_IOCTL_MODE_MAP_DUMB, &mapReq) == 0) {
+        fb.data = mmap(nullptr, fb.size, PROT_READ, MAP_SHARED, fb.fd, static_cast<__off_t>(mapReq.offset));
         if (fb.data != MAP_FAILED) {
             return true;
         }
@@ -180,22 +180,22 @@ bool mapFramebuffer(VkmsFrameBuffer &fb, uint32_t handle)
     }
 
     int primeFd = -1;
-    if (::drmPrimeHandleToFD(fb.fd, handle, DRM_CLOEXEC | DRM_RDWR, &primeFd) == 0) {
+    if (drmPrimeHandleToFD(fb.fd, handle, DRM_CLOEXEC | DRM_RDWR, &primeFd) == 0) {
         fb.buffer_fd = primeFd;
-        fb.data = ::mmap(nullptr, fb.size, PROT_READ, MAP_SHARED, fb.buffer_fd, 0);
+        fb.data = mmap(nullptr, fb.size, PROT_READ, MAP_SHARED, fb.buffer_fd, 0);
         if (fb.data != MAP_FAILED) {
             return true;
         }
 
         fb.data = nullptr;
-        ::close(fb.buffer_fd);
+        close(fb.buffer_fd);
         fb.buffer_fd = -1;
     }
 
     return false;
 }
 
-bool mapCursorFramebuffer(CursorFrameBuffer &cursor, int drmFd, uint32_t handle)
+bool mapCursorFramebuffer(CursorFrameBuffer &cursor, const int drmFd, const uint32_t handle)
 {
     if (handle == 0 || drmFd < 0 || cursor.size == 0) {
         [[unlikely]];
@@ -207,8 +207,8 @@ bool mapCursorFramebuffer(CursorFrameBuffer &cursor, int drmFd, uint32_t handle)
     drm_mode_map_dumb mapReq{};
     mapReq.handle = handle;
 
-    if (::drmIoctl(drmFd, DRM_IOCTL_MODE_MAP_DUMB, &mapReq) == 0) {
-        cursor.data = ::mmap(nullptr, cursor.size, PROT_READ, MAP_SHARED, drmFd, static_cast<off_t>(mapReq.offset));
+    if (drmIoctl(drmFd, DRM_IOCTL_MODE_MAP_DUMB, &mapReq) == 0) {
+        cursor.data = mmap(nullptr, cursor.size, PROT_READ, MAP_SHARED, drmFd, static_cast<__off_t>(mapReq.offset));
         if (cursor.data != MAP_FAILED) {
             return true;
         }
@@ -218,15 +218,15 @@ bool mapCursorFramebuffer(CursorFrameBuffer &cursor, int drmFd, uint32_t handle)
 
     // Fall back to PRIME
     int primeFd = -1;
-    if (::drmPrimeHandleToFD(drmFd, handle, DRM_CLOEXEC | DRM_RDWR, &primeFd) == 0) {
+    if (drmPrimeHandleToFD(drmFd, handle, DRM_CLOEXEC | DRM_RDWR, &primeFd) == 0) {
         cursor.buffer_fd = primeFd;
-        cursor.data = ::mmap(nullptr, cursor.size, PROT_READ, MAP_SHARED, cursor.buffer_fd, 0);
+        cursor.data = mmap(nullptr, cursor.size, PROT_READ, MAP_SHARED, cursor.buffer_fd, 0);
         if (cursor.data != MAP_FAILED) {
             return true;
         }
 
         cursor.data = nullptr;
-        ::close(cursor.buffer_fd);
+        close(cursor.buffer_fd);
         cursor.buffer_fd = -1;
     }
 
@@ -235,11 +235,11 @@ bool mapCursorFramebuffer(CursorFrameBuffer &cursor, int drmFd, uint32_t handle)
 
 } // namespace Drm
 
-DisplayReader::DisplayReader(const QString &connectorName)
-    : m_connectorName(connectorName)
+DisplayReader::DisplayReader(QString connectorName)
+    : m_connectorName(std::move(connectorName))
 {}
 
-bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
+bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb) const
 {
     using namespace Drm;
 
@@ -253,7 +253,7 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
     }
 
     const QByteArray drmPathBytes = QFile::encodeName(drmDevicePath);
-    fb.fd = ::open(drmPathBytes.constData(), O_RDWR | O_CLOEXEC);
+    fb.fd = open(drmPathBytes.constData(), O_RDWR | O_CLOEXEC);
     if (fb.fd < 0) {
         [[unlikely]];
 
@@ -265,7 +265,7 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
     DrmCrtcPtr crtc{};
     DrmFB2Ptr mfb{};
 
-    DrmResourcesPtr resources(drmModeGetResources(fb.fd));
+    const DrmResourcesPtr resources(drmModeGetResources(fb.fd));
     if (!resources) {
         [[unlikely]];
 
@@ -336,7 +336,7 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
     fb.height = mfb->height;
     fb.stride = mfb->pitches[0];
     fb.format = mfb->pixel_format;
-    fb.bpp = (fb.format == DRM_FORMAT_RGB565) ? 16 : 32;
+    fb.bpp = fb.format == DRM_FORMAT_RGB565 ? 16 : 32;
     fb.size = static_cast<std::size_t>(fb.stride) * fb.height;
 
     if (!mapFramebuffer(fb, mfb->handles[0])) {
@@ -357,19 +357,19 @@ void DisplayReader::releaseVkmsFrameBuffer(VkmsFrameBuffer &fb)
     if (fb.data && fb.size > 0) {
         [[likely]];
 
-        ::munmap(fb.data, fb.size);
+        munmap(fb.data, fb.size);
         fb.data = nullptr;
     }
     if (fb.buffer_fd >= 0) {
         [[likely]];
 
-        ::close(fb.buffer_fd);
+        close(fb.buffer_fd);
         fb.buffer_fd = -1;
     }
     if (fb.fd >= 0) {
         [[likely]];
 
-        ::close(fb.fd);
+        close(fb.fd);
         fb.fd = -1;
     }
 
@@ -392,14 +392,14 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
     drmSetClientCap(primary.fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
     drmSetClientCap(primary.fd, DRM_CLIENT_CAP_ATOMIC, 1);
 
-    DrmPlaneResPtr planeRes(drmModeGetPlaneResources(primary.fd));
+    const DrmPlaneResPtr planeRes(drmModeGetPlaneResources(primary.fd));
     if (!planeRes) {
         qWarning() << "Invalid plane res\n";
         return false;
     }
 
     for (uint32_t i = 0; i < planeRes->count_planes; ++i) {
-        DrmPlanePtr plane(drmModeGetPlane(primary.fd, planeRes->planes[i]));
+        const DrmPlanePtr plane(drmModeGetPlane(primary.fd, planeRes->planes[i]));
         if (!plane) {
             qDebug() << "No plane\n";
             continue;
@@ -410,7 +410,7 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
             continue;
         }
 
-        DrmObjectPropsPtr props(drmModeObjectGetProperties(primary.fd, plane->plane_id, DRM_MODE_OBJECT_PLANE));
+        const DrmObjectPropsPtr props(drmModeObjectGetProperties(primary.fd, plane->plane_id, DRM_MODE_OBJECT_PLANE));
         if (!props) {
             continue;
         }
@@ -419,14 +419,14 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
         int32_t crtcX = 0, crtcY = 0;
 
         for (uint32_t j = 0; j < props->count_props; ++j) {
-            DrmPropertyPtr prop(drmModeGetProperty(primary.fd, props->props[j]));
+            const DrmPropertyPtr prop(drmModeGetProperty(primary.fd, props->props[j]));
             if (!prop) {
                 continue;
             }
 
             const QLatin1String propName(prop->name);
             if (propName == QLatin1String("type")) {
-                isCursor = (props->prop_values[j] == DRM_PLANE_TYPE_CURSOR);
+                isCursor = props->prop_values[j] == DRM_PLANE_TYPE_CURSOR;
             } else if (propName == QLatin1String("CRTC_X")) {
                 crtcX = static_cast<int32_t>(props->prop_values[j]);
             } else if (propName == QLatin1String("CRTC_Y")) {
@@ -441,7 +441,7 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
         qDebug() << "plane->crtc_x = " << plane->crtc_x << ", plane->crtc_y = " << plane->crtc_y;
         qDebug() << "x: " << crtcX << " y: " << crtcY;
 
-        DrmFB2Ptr mfb(drmModeGetFB2(primary.fd, plane->fb_id));
+        const DrmFB2Ptr mfb(drmModeGetFB2(primary.fd, plane->fb_id));
         if (!mfb || mfb->handles[0] == 0) {
             continue;
         }
@@ -474,13 +474,13 @@ void DisplayReader::releaseCursorFrameBuffer(CursorFrameBuffer &cursor)
     if (cursor.data && cursor.size > 0) {
         [[likely]];
 
-        ::munmap(cursor.data, cursor.size);
+        munmap(cursor.data, cursor.size);
         cursor.data = nullptr;
     }
     if (cursor.buffer_fd >= 0) {
         [[likely]];
 
-        ::close(cursor.buffer_fd);
+        close(cursor.buffer_fd);
         cursor.buffer_fd = -1;
     }
     // cursor.fd is borrowed from the primary VkmsFrameBuffer — do not close it here
@@ -515,7 +515,7 @@ QImage DisplayReader::compositeWithCursor(const QImage &primary, const CursorFra
 QImage DisplayReader::imageFromFrameBuffer(
     const uint8_t *data, const uint32_t width, const uint32_t height, const uint32_t stride, const DrmFormat::FormatDescriptor &fmtDesc)
 {
-    QImage output(reinterpret_cast<const uchar *>(data), static_cast<int>(width), static_cast<int>(height), static_cast<int>(stride), fmtDesc.qtFormat);
+    QImage output(data, static_cast<int>(width), static_cast<int>(height), static_cast<int>(stride), fmtDesc.qtFormat);
 
     if (fmtDesc.convert) {
         fmtDesc.convert(output);

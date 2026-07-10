@@ -30,7 +30,7 @@ bool DisplayManager::registerClient(NetworkClient *client)
         }
 
         const auto instance = Parameters::instance.targetScreen + "_" + QString(Settings::maximumDisplayCountLength - number.size(), '0') + number;
-        DispSetup setup(instance);
+        const DispSetup setup(instance);
         if (!setup.isSetup()) {
             return false;
         }
@@ -39,11 +39,11 @@ bool DisplayManager::registerClient(NetworkClient *client)
         m_freeDisplays.enqueue(new Display(setup.virtualConnectorName(), this));
     }
 
-    auto disp = m_freeDisplays.dequeue();
-    m_usedDisplays.insert(disp);
-    disp->setClient(client);
+    const auto display = m_freeDisplays.dequeue();
+    m_usedDisplays.insert(display);
+    display->setClient(client);
 
-    connect(disp, &Display::nowFree, this, [this](Display *disp) { m_freeDisplays.enqueue(disp); });
+    connect(display, &Display::nowFree, this, [this](Display *disp) { m_freeDisplays.enqueue(disp); });
 
     return true;
 }

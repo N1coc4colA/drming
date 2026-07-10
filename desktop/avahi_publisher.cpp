@@ -7,7 +7,7 @@
 #include <avahi-common/error.h>
 #include <avahi-common/simple-watch.h>
 
-void AvahiPublisher::group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state, AvahiPublisher *c)
+void AvahiPublisher::group_callback(const AvahiEntryGroup *g, const AvahiEntryGroupState state, const AvahiPublisher *c)
 {
     Q_UNUSED(g);
 
@@ -27,13 +27,13 @@ void AvahiPublisher::group_callback(AvahiEntryGroup *g, AvahiEntryGroupState sta
     }
 }
 
-void AvahiPublisher::client_callback(AvahiClient *client, AvahiClientState state, AvahiPublisher *c)
+void AvahiPublisher::client_callback(AvahiClient *client, const AvahiClientState state, AvahiPublisher *c)
 {
     if (state != AVAHI_CLIENT_S_RUNNING) {
         return;
     }
 
-    c->m_group = avahi_entry_group_new(client, (AvahiEntryGroupCallback) &group_callback, c);
+    c->m_group = avahi_entry_group_new(client, reinterpret_cast<AvahiEntryGroupCallback>(&group_callback), c);
     const auto ret = avahi_entry_group_add_service(c->m_group,
                                                    AVAHI_IF_UNSPEC,
                                                    AVAHI_PROTO_UNSPEC,
@@ -52,14 +52,14 @@ void AvahiPublisher::client_callback(AvahiClient *client, AvahiClientState state
     }
 }
 
-AvahiPublisher::AvahiPublisher(const QString &serviceName, const QString &protocol, const uint16_t port, QObject *parent)
+AvahiPublisher::AvahiPublisher(QString serviceName, QString protocol, const uint16_t port, QObject *parent)
     : QObject(parent)
-    , m_serviceName(serviceName)
-    , m_protocol(protocol)
+    , m_serviceName(std::move(serviceName))
+    , m_protocol(std::move(protocol))
     , m_port(port)
 {
-    connect(this, &AvahiPublisher::started, []() { qInfo() << "Service publishing started."; });
-    connect(this, &AvahiPublisher::stopped, []() { qInfo() << "Service publishing stopped."; });
+    connect(this, &AvahiPublisher::started, [] { qInfo() << "Service publishing started."; });
+    connect(this, &AvahiPublisher::stopped, [] { qInfo() << "Service publishing stopped."; });
     connect(this, &AvahiPublisher::dispatchStopped, this, &AvahiPublisher::stopped, Qt::QueuedConnection);
     connect(this, &AvahiPublisher::dispatchStarted, this, &AvahiPublisher::started, Qt::QueuedConnection);
     connect(qApp, &QCoreApplication::aboutToQuit, this, &AvahiPublisher::stop);
@@ -76,7 +76,7 @@ void AvahiPublisher::start()
         return;
     }
 
-    m_thread = std::thread([this]() {
+    m_thread = std::thread([this] {
         m_ready = true;
 
         m_poll = avahi_simple_poll_new();

@@ -3,7 +3,6 @@
 #include <drm_fourcc.h>
 #include <immintrin.h>
 
-#include <algorithm>
 #include <array>
 #include <cstring>
 
@@ -35,8 +34,6 @@ struct Mask4
 
 // Named 32-bit swizzle masks
 constexpr Mask4 kSwapRB = {2, 1, 0, 3};   // ABGR/XBGR → ARGB/XRGB
-constexpr Mask4 kRotRight = {1, 2, 3, 0}; // RGBA/RGBX → ARGB/XRGB
-constexpr Mask4 kReverse = {3, 2, 1, 0};  // BGRA/BGRX → ARGB/XRGB
 
 struct ShuffleMask
 {
@@ -49,12 +46,12 @@ struct ShuffleMask
 // Build a 16-byte SSSE3 _mm_shuffle_epi8 mask from a 4-byte per-pixel mask.
 // Each 128-bit register holds 4 pixels × 4 bytes.  Pixel p occupies bytes
 // [p*4 .. p*4+3]; we apply the same per-pixel permutation to all four.
-constexpr ShuffleMask make_shuffle32(Mask4 m)
+constexpr ShuffleMask make_shuffle32(const Mask4 m)
 {
     ShuffleMask s{};
     for (int p = 0; p < 4; ++p)
         for (int b = 0; b < 4; ++b)
-            s.bytes[p * 4 + b] = int8_t(p * 4 + m.v[b]);
+            s.bytes[p * 4 + b] = static_cast<int8_t>(p * 4 + m.v[b]);
     return s;
 }
 
@@ -62,7 +59,7 @@ constexpr ShuffleMask make_shuffle32(Mask4 m)
 // The shuffle constant is fully materialised at compile time; no runtime
 // construction, no shared dispatch code.
 template<Mask4 M>
-__attribute__((target("ssse3"))) static void swizzle32(QImage &img)
+__attribute__((target("ssse3"))) void swizzle32(QImage &img)
 {
     // Compile-time: fills a plain int8_t array — legal in constexpr.
     static constexpr ShuffleMask kMask = make_shuffle32(M);
@@ -96,7 +93,7 @@ __attribute__((target("ssse3"))) static void swizzle32(QImage &img)
 //  Qt Format_RGB16:   word R[15:11]G[10:5]B[4:0]
 //  Conversion: swap the 5-bit R and B fields, G is unchanged.
 // ─────────────────────────────────────────────────────────────────────────────
-static void swizzle_bgr565(QImage &img)
+void swizzle_bgr565(QImage &img)
 {
     for (int y = 0; y < img.height(); ++y) {
         auto *line = reinterpret_cast<uint16_t *>(img.scanLine(y));
@@ -105,7 +102,7 @@ static void swizzle_bgr565(QImage &img)
             const uint16_t r = (p >> 0) & 0x1Fu;
             const uint16_t g = (p >> 5) & 0x3Fu;
             const uint16_t b = (p >> 11) & 0x1Fu;
-            line[x] = uint16_t((r << 11) | (g << 5) | b);
+            line[x] = static_cast<uint16_t>((r << 11) | (g << 5) | b);
         }
     }
 }
@@ -145,7 +142,7 @@ static void swizzle_bgr565(QImage &img)
 // Used for both 16-bit-per-channel (unitBytes=2, pixelBytes=8) and
 // 32-bit-per-channel (unitBytes=4, pixelBytes=16).
 template<int UnitBytes>
-static void swizzle_swap_rb_wide(QImage &img)
+void swizzle_swap_rb_wide(QImage &img)
 {
     constexpr int pixelBytes = UnitBytes * 4;
     for (int y = 0; y < img.height(); ++y) {
@@ -207,7 +204,7 @@ struct Entry
 };
 
 // clang-format off
-static constexpr std::array kTable = std::to_array<Entry>({
+constexpr std::array kTable = std::to_array<Entry>({
 
     // ── Indexed / palette ────────────────────────────────────────────────────
     // C8: caller must populate the QImage colour table for meaningful display.

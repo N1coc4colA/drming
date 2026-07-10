@@ -44,129 +44,6 @@ bool writeFile(const QString &path, const QByteArray &value)
     return f.write(value) == value.size();
 }
 
-bool makeSymlink(const QString &linkPath, const QString &target)
-{
-    if (QFileInfo::exists(linkPath)) {
-        return true;
-    }
-
-    const auto link = linkPath.toLocal8Bit();
-    const auto tgt = target.toLocal8Bit();
-    if (::symlink(tgt.constData(), link.constData()) != 0) {
-        qCritical() << ">> symlink(" << tgt.constData() << ", " << link.constData() << ") failed: " << ::strerror(errno);
-        return false;
-    }
-
-    return true;
-}
-
-QByteArray buildSyntheticEdid()
-{
-    const uint16_t pixelClock10kHz = 2167;
-    const uint16_t hActive = 1024, hBlank = 320;
-    const uint16_t vActive = 768, vBlank = 38;
-    const uint8_t hSyncOff = 24, hSyncW = 136;
-    const uint8_t vSyncOff = 3, vSyncW = 6;
-
-    unsigned char edid[128] = {};
-
-    edid[0] = 0x00;
-    edid[1] = 0xFF;
-    edid[2] = 0xFF;
-    edid[3] = 0xFF;
-    edid[4] = 0xFF;
-    edid[5] = 0xFF;
-    edid[6] = 0xFF;
-    edid[7] = 0x00;
-
-    edid[8] = 0x55;
-    edid[9] = 0x33; // Manufacturer "VRT"
-    edid[10] = 0x00;
-    edid[11] = 0x00; // Product code
-    edid[12] = 0x00;
-    edid[13] = 0x00;
-    edid[14] = 0x00;
-    edid[15] = 0x00;
-    edid[16] = 0x01;
-    edid[17] = 0x20; // Week 1, year 2022
-    edid[18] = 0x01;
-    edid[19] = 0x03; // EDID 1.3
-    edid[20] = 0x80; // Digital input
-    edid[21] = 0x00;
-    edid[22] = 0x00; // No physical size
-    edid[23] = 0x78; // Gamma 2.2
-    edid[24] = 0x0A; // Feature support
-
-    for (int i = 25; i < 35; ++i) {
-        edid[i] = 0x00; // Chromaticity
-    }
-
-    edid[35] = 0x00;
-    edid[36] = 0x00;
-    edid[37] = 0x00; // Established timings
-
-    for (int i = 38; i < 54; i += 2) {
-        edid[i] = 0x01;
-        edid[i + 1] = 0x01;
-    } // Standard timings unused
-
-    // Descriptor 1: detailed timing 1024x768 @ 20Hz
-    edid[54] = (pixelClock10kHz) & 0xFF;
-    edid[55] = (pixelClock10kHz >> 8) & 0xFF;
-    edid[56] = hActive & 0xFF;
-    edid[57] = hBlank & 0xFF;
-    edid[58] = ((hActive >> 4) & 0xF0) | ((hBlank >> 8) & 0x0F);
-    edid[59] = vActive & 0xFF;
-    edid[60] = vBlank & 0xFF;
-    edid[61] = ((vActive >> 4) & 0xF0) | ((vBlank >> 8) & 0x0F);
-    edid[62] = hSyncOff;
-    edid[63] = hSyncW;
-    edid[64] = ((vSyncOff & 0xF) << 4) | (vSyncW & 0xF);
-    edid[65] = 0x00;
-    edid[66] = 0x00;
-    edid[67] = 0x00;
-    edid[68] = 0x00; // No physical size
-    edid[69] = 0x00;
-    edid[70] = 0x00; // No border
-    edid[71] = 0x18; // +hsync +vsync
-
-    // Descriptor 2: monitor name
-    edid[72] = 0x00;
-    edid[73] = 0x00;
-    edid[74] = 0x00;
-    edid[75] = 0xFC;
-    edid[76] = 0x00;
-    const char *name = "VirtDisp\n   ";
-    for (int i = 0; i < 13; ++i) {
-        edid[77 + i] = static_cast<unsigned char>(name[i]);
-    }
-
-    // Descriptors 3 & 4: dummy
-    edid[90] = 0x00;
-    edid[91] = 0x00;
-    edid[92] = 0x00;
-    edid[93] = 0x10;
-    edid[94] = 0x00;
-    edid[108] = 0x00;
-    edid[109] = 0x00;
-    edid[110] = 0x00;
-    edid[111] = 0x10;
-    edid[112] = 0x00;
-
-    edid[126] = 0x00; // No extensions
-
-    int sum = 0;
-    for (int i = 0; i < 127; ++i) {
-        sum += edid[i];
-    }
-
-    edid[127] = static_cast<unsigned char>((256 - (sum % 256)) % 256);
-
-    return QByteArray(reinterpret_cast<const char *>(edid), 128);
-}
-
-} // namespace
-
 bool isConfigfsMounted()
 {
     QFile f("/proc/mounts");
@@ -217,11 +94,12 @@ bool loadVkmsModule()
     process.start("modprobe", {"vkms", "enable_cursor=1"});
 
     while (!process.waitForFinished()) {
-        ;
     }
 
     return process.exitCode() == 0;
 }
+
+} // namespace
 
 DispSetup::DispSetup(const QString &instanceName)
     : m_instanceName(instanceName)
@@ -233,7 +111,7 @@ DispSetup::DispSetup(const QString &instanceName)
     , m_connectorPath(m_basePath + "/connectors/connector0")
     , m_enabledPath(m_basePath + "/enabled")
 {
-    const std::array<bool (DispSetup::*)(), 14> funcs{
+    constexpr std::array<bool (DispSetup::*)() const, 14> funcs{
         &DispSetup::makeEnvChecks,
         &DispSetup::makeVkmsInstance,
         &DispSetup::makeCrtc,
@@ -273,7 +151,7 @@ DispSetup::DispSetup(const QString &instanceName)
     }
 }
 
-bool DispSetup::makeEnvChecks()
+bool DispSetup::makeEnvChecks() const
 {
     if (!isConfigfsMounted()) {
         qCritical() << "configfs is not mounted.";
@@ -298,7 +176,7 @@ bool DispSetup::makeEnvChecks()
     return true;
 }
 
-bool DispSetup::makeVkmsInstance()
+bool DispSetup::makeVkmsInstance() const
 {
     if (!QDir().mkpath(m_basePath)) {
         qCritical() << "Failed to create VKMS instance: " << m_basePath << '\n';
@@ -308,7 +186,7 @@ bool DispSetup::makeVkmsInstance()
     return true;
 }
 
-bool DispSetup::makeCrtc()
+bool DispSetup::makeCrtc() const
 {
     if (!QDir().mkpath(m_crtcPath)) {
         qCritical() << "Failed to create CRTC: " << m_crtcPath << '\n';
@@ -318,7 +196,7 @@ bool DispSetup::makeCrtc()
     return true;
 }
 
-bool DispSetup::makeEncoder()
+bool DispSetup::makeEncoder() const
 {
     if (!QDir().mkpath(m_encoderPath)) {
         qCritical() << "Failed to create encoder: " << m_encoderPath << '\n';
@@ -328,7 +206,7 @@ bool DispSetup::makeEncoder()
     return true;
 }
 
-bool DispSetup::makePrimaryPlane()
+bool DispSetup::makePrimaryPlane() const
 {
     if (!QDir().mkpath(m_primaryPlanePath)) {
         qCritical() << "Failed to create primary plane: " << m_primaryPlanePath << '\n';
@@ -338,7 +216,7 @@ bool DispSetup::makePrimaryPlane()
     return true;
 }
 
-bool DispSetup::makeCursorPlane()
+bool DispSetup::makeCursorPlane() const
 {
     if (!QDir().mkpath(m_cursorPlanePath)) {
         qCritical() << "Failed to create cursor plane: " << m_cursorPlanePath << '\n';
@@ -348,7 +226,7 @@ bool DispSetup::makeCursorPlane()
     return true;
 }
 
-bool DispSetup::setPrimaryPlaneType()
+bool DispSetup::setPrimaryPlaneType() const
 {
     // DRM_PLANE_TYPE_PRIMARY = 1
     if (!writeFile(m_primaryPlanePath + "/type", QString::number(DRM_PLANE_TYPE_PRIMARY).toLocal8Bit())) {
@@ -359,7 +237,7 @@ bool DispSetup::setPrimaryPlaneType()
     return true;
 }
 
-bool DispSetup::setCursorPlaneType()
+bool DispSetup::setCursorPlaneType() const
 {
     if (!writeFile(m_cursorPlanePath + "/type", QString::number(DRM_PLANE_TYPE_CURSOR).toLocal8Bit())) {
         qCritical() << "Failed to set plane type to cursor.";
@@ -369,7 +247,7 @@ bool DispSetup::setCursorPlaneType()
     return true;
 }
 
-bool DispSetup::linkPlaneToCrtc(const QString &planePath, const QString &crtcPath)
+bool DispSetup::linkPlaneToCrtc(const QString &planePath, const QString &crtcPath) const
 {
     const auto linkDir = planePath + "/possible_crtcs";
     const auto linkPath = linkDir + "/crtc0";
@@ -387,33 +265,33 @@ bool DispSetup::linkPlaneToCrtc(const QString &planePath, const QString &crtcPat
 
         // Ensure parent directory exists before attempting symlink
         if (!QDir().mkpath(linkDir)) {
-            if (i == (Settings::maximumLPTries - 1)) {
+            if (i == Settings::maximumLPTries - 1) {
                 qCritical() << "Failed to create parent directory for plane symlink";
                 return false;
             }
             continue;
         }
 
-        if (::symlink(tgt.constData(), link.constData()) == 0) {
+        if (symlink(tgt.constData(), link.constData()) == 0) {
             return true;
         }
     }
 
-    qCritical() << "Failed to symlink plane → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
+    qCritical() << "Failed to symlink plane → crtc: " << linkPath << " (" << strerror(errno) << ")";
     return false;
 }
 
-bool DispSetup::linkPrimaryPlaneToCrtc()
+bool DispSetup::linkPrimaryPlaneToCrtc() const
 {
     return linkPlaneToCrtc(m_primaryPlanePath, m_crtcPath);
 }
 
-bool DispSetup::linkCursorPlaneToCrtc()
+bool DispSetup::linkCursorPlaneToCrtc() const
 {
     return linkPlaneToCrtc(m_cursorPlanePath, m_crtcPath);
 }
 
-bool DispSetup::linkEncoderToCrtc()
+bool DispSetup::linkEncoderToCrtc() const
 {
     const auto linkPath = m_encoderPath + "/possible_crtcs/crtc0";
     if (QFileInfo::exists(linkPath)) {
@@ -422,15 +300,15 @@ bool DispSetup::linkEncoderToCrtc()
 
     const auto link = linkPath.toLocal8Bit();
     const auto tgt = m_crtcPath.toLocal8Bit();
-    if (::symlink(tgt.constData(), link.constData()) != 0) {
-        qCritical() << "Failed to symlink encoder → crtc: " << linkPath << " (" << ::strerror(errno) << ")";
+    if (symlink(tgt.constData(), link.constData()) != 0) {
+        qCritical() << "Failed to symlink encoder → crtc: " << linkPath << " (" << strerror(errno) << ")";
         return false;
     }
 
     return true;
 }
 
-bool DispSetup::linkConnectorToEncoder()
+bool DispSetup::linkConnectorToEncoder() const
 {
     const auto linkPath = m_connectorPath + "/possible_encoders/encoder0";
     if (QFileInfo::exists(linkPath)) {
@@ -439,15 +317,15 @@ bool DispSetup::linkConnectorToEncoder()
 
     const auto link = linkPath.toLocal8Bit();
     const auto tgt = m_encoderPath.toLocal8Bit();
-    if (::symlink(tgt.constData(), link.constData()) != 0) {
-        qCritical() << "Failed to symlink connector → encoder: " << linkPath << " (" << ::strerror(errno) << ")";
+    if (symlink(tgt.constData(), link.constData()) != 0) {
+        qCritical() << "Failed to symlink connector → encoder: " << linkPath << " (" << strerror(errno) << ")";
         return false;
     }
 
     return true;
 }
 
-bool DispSetup::makeConnector()
+bool DispSetup::makeConnector() const
 {
     if (!QDir().mkpath(m_connectorPath)) {
         qCritical() << "Failed to create connector: " << m_connectorPath << '\n';
@@ -457,35 +335,9 @@ bool DispSetup::makeConnector()
     return true;
 }
 
-bool DispSetup::writeEdidAndEnable()
+bool DispSetup::writeEdidAndEnable() const
 {
     const auto statusPath = m_connectorPath + "/status";
-
-#ifdef EDID_READY
-    const auto edidPath = m_connectorPath + "/edid";
-    const auto edidEnablePath = m_connectorPath + "/edid_enabled";
-
-    // Disconnect first so the connector state/EDID is updated cleanly.
-    if (!writeFile(statusPath, "0")) {
-        qWarning() << "Failed to disconnect connector before setting EDID.";
-    }
-
-    const QByteArray edid = buildSyntheticEdid();
-    if (edid.size() != 128) {
-        qCritical() << "Synthetic EDID has invalid size:" << edid.size();
-        return false;
-    }
-
-    if (!writeFile(edidPath, edid)) {
-        qCritical() << "Failed to write EDID:" << edidPath;
-        return false;
-    }
-
-    if (!writeFile(edidEnablePath, "1")) {
-        qCritical() << "Failed to enable EDID.";
-        return false;
-    }
-#endif
 
     if (!writeFile(statusPath, "1")) {
         qCritical() << "Failed to set connector status.";

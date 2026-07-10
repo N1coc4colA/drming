@@ -15,7 +15,7 @@ struct ServiceInfo
     QString ip;
     int port;
 
-    inline hash_type toHashable() const { return hash_type{name + type + host + ip + QString::number(port)}; }
+    [[nodiscard]] hash_type toHashable() const { return hash_type{name + type + host + ip + QString::number(port)}; }
 
     bool operator==(const ServiceInfo &other) const
     {
@@ -36,14 +36,14 @@ class Mdns : public QObject
 
 public:
     explicit Mdns(QObject *parent = nullptr);
-    virtual ~Mdns() = default;
+    ~Mdns() override = default;
 
     static Mdns *instance();
 
     Q_INVOKABLE virtual void startDiscovery() = 0;
     Q_INVOKABLE virtual void stopDiscovery() = 0;
 
-    Q_INVOKABLE inline int count() const { return m_services.count(); }
+    Q_INVOKABLE [[nodiscard]] int count() const { return static_cast<int>(m_services.count()); }
 
 public Q_SLOTS:
     void onServiceFound(const QString &name, const QString &type);

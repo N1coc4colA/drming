@@ -11,11 +11,10 @@
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
-    app.setApplicationName("drming");
-    app.setApplicationVersion("1.0");
+    QCoreApplication::setApplicationName("drming");
+    QCoreApplication::setApplicationVersion("1.0");
 
-    CommandParser parser{};
-    switch (parser.parse()) {
+    switch (CommandParser().parse()) {
     case CommandParser::Failure:
         return EXIT_FAILURE;
     case CommandParser::Stop:
@@ -25,7 +24,7 @@ int main(int argc, char *argv[])
     }
 
     if (!Parameters::instance.advertise) {
-        auto publisher = new AvahiPublisher(Parameters::instance.serviceName,
+        const auto publisher = new AvahiPublisher(Parameters::instance.serviceName,
                                             Settings::advertisementServiceType,
                                             static_cast<uint16_t>(Parameters::instance.port),
                                             &app);
@@ -49,5 +48,5 @@ int main(int argc, char *argv[])
 
     qInfo() << "Ready!";
 
-    return app.exec();
+    return QCoreApplication::exec();
 }

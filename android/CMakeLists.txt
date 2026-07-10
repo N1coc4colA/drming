@@ -24,6 +24,10 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network Widgets)
 
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../submodules/ctrack
+    ${CMAKE_CURRENT_BINARY_DIR}/ctrack
+)
 
 set(PROJECT_SOURCES
     ../certificatesupport.h
@@ -32,6 +36,7 @@ set(PROJECT_SOURCES
 
     main.cpp
 
+    application.h
     fileprovider.h fileprovider.cpp
     mdns.h mdns.cpp
     networklink.h networklink.cpp
@@ -113,6 +118,13 @@ drming_android
         QT_ANDROID_TARGET_SDK_VERSION 36
 )
 
+target_compile_definitions(
+drming_android
+    PRIVATE
+        QT_NO_SIGNALS_SLOTS_KEYWORDS
+        QT_NO_EMIT
+)
+
 target_link_libraries(
 drming_android
     PRIVATE
@@ -122,6 +134,7 @@ drming_android
         Qt6::Quick
         Qt6::QuickControls2
         Qt6::Widgets
+        ctrack
 )
 
 if(ANDROID)

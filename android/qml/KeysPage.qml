@@ -32,7 +32,7 @@ StandardPage {
         }
 
         function updateClientData() {
-            if (fileProvider.updateClientEntry(generateMap())) {
+            if (fileProvider().updateClientEntry(generateMap())) {
                 infoDialog.model.previousName = infoDialog.model.entryName
             }
         }
@@ -93,7 +93,7 @@ StandardPage {
 
                 onClicked: {
                     errorLabel.text = ""
-                    const output = fileProvider.addClientKey(infoDialog.model.entryName)
+                    const output = fileProvider().addClientKey(infoDialog.model.entryName)
                     switch (output) {
                     case 0: {
                         errorLabel.text = qsTr("Failed to open key file.")
@@ -127,7 +127,7 @@ StandardPage {
 
                 onClicked: {
                     errorLabel.text = ""
-                    const output = fileProvider.addClientCert(infoDialog.model.entryName)
+                    const output = fileProvider().addClientCert(infoDialog.model.entryName)
                     switch (output) {
                     case 0: {
                         errorLabel.text = qsTr("Failed to open certificate file.")
@@ -196,7 +196,7 @@ StandardPage {
 
     content: EasyListView {
         emptyText: qsTr("No keys loaded")
-        model: fileProvider.clientCertsModel()
+        model: fileProvider().clientCertsModel()
 
         delegate: RowLayout {
             height: visible ? Math.max(40, 40 * GlobalVars.scaling) : 0
@@ -274,7 +274,7 @@ StandardPage {
                         borderColor: "transparent"
                         highlightColor: "#e33636"
 
-                        onClicked: fileProvider.deleteClient(model.name)
+                        onClicked: fileProvider().deleteClient(model.name)
                     }
                 }
             }
@@ -287,7 +287,7 @@ StandardPage {
 
     onVisibleChanged: {
         if (root.visible) {
-            fileProvider.loadClients();
+            fileProvider().loadClients();
         }
     }
 }

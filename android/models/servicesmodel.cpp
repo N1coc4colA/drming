@@ -3,7 +3,7 @@
 ServicesModel::ServicesModel(QObject *parent)
     : QAbstractListModel(parent)
 {
-    auto mdnsInst = Mdns::instance();
+    const auto mdnsInst = Mdns::instance();
 
     connect(mdnsInst, &Mdns::serviceFound, this, &ServicesModel::onServiceFound);
     connect(mdnsInst, &Mdns::serviceLost, this, &ServicesModel::onServiceLost);
@@ -26,7 +26,7 @@ void ServicesModel::clear()
 
 int ServicesModel::rowCount(const QModelIndex &parent) const
 {
-    return parent.isValid() ? 0 : m_services.count();
+    return parent.isValid() ? 0 : static_cast<int>(m_services.count());
 }
 
 QVariant ServicesModel::data(const QModelIndex &index, const int role) const
@@ -77,6 +77,8 @@ int ServicesModel::findServiceIndex(const QString &key) const
 
 void ServicesModel::onServiceFound(const QString &key, const ServiceInfo &info)
 {
+    Q_UNUSED(key);
+
     // If already known, update existing entry (avoid duplicates)
     const auto idx = findServiceIndex(info.name);
     if (idx != -1) {
@@ -86,6 +88,7 @@ void ServicesModel::onServiceFound(const QString &key, const ServiceInfo &info)
         return;
     }
 
+    // [TODO] See for cleanup
     /*beginInsertRows(QModelIndex(), m_services.count(), m_services.count());
     m_services.append({key, info});
     endInsertRows();
@@ -112,7 +115,8 @@ void ServicesModel::onServiceResolved(const QString &key, const ServiceInfo &inf
     const auto idx = findServiceIndex(info.name);
     if (idx == -1) {
         // If we didn't have the service yet, insert it
-        beginInsertRows(QModelIndex(), m_services.count(), m_services.count());
+        const auto servicesCount = static_cast<int>(m_services.count());
+        beginInsertRows(QModelIndex(), servicesCount, servicesCount);
         m_services.append({key, info});
         endInsertRows();
 
