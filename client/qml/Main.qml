@@ -27,7 +27,7 @@ Window {
 
     StackView {
         id: stackView
-        initialItem: homeView
+        initialItem: homeLoader.item
 
         anchors.fill: parent
 
@@ -37,9 +37,18 @@ Window {
             HomePage {
                 id: hom
 
-                onCertsViewNeeded: stackView.push(certsView)
-                onKeysViewNeeded: stackView.push(keysView)
-                onServicesViewNeeded: stackView.push(servicesView)
+                onCertsViewNeeded: {
+                    certsLoader.active = true
+                    stackView.push(certsLoader.item)
+                }
+                onKeysViewNeeded: {
+                    keysLoader.active = true
+                    stackView.push(keysLoader.item)
+                }
+                onServicesViewNeeded: {
+                    servicesLoader.active = true
+                    stackView.push(servicesLoader.item)
+                }
             }
         }
 
@@ -75,7 +84,8 @@ Window {
                 onBack: goBack()
                 onDisplayStream: {
                     stackView.pop()
-                    stackView.push(streamView)
+                    streamLoader.active = true
+                    stackView.push(streamLoader.item)
                 }
             }
         }
@@ -89,6 +99,37 @@ Window {
 
                 onBack: goBack()
             }
+        }
+
+        // Lazy-loaded page instances
+        Loader {
+            id: homeLoader
+            sourceComponent: homeView
+            active: true
+        }
+
+        Loader {
+            id: certsLoader
+            sourceComponent: certsView
+            active: false
+        }
+
+        Loader {
+            id: keysLoader
+            sourceComponent: keysView
+            active: false
+        }
+
+        Loader {
+            id: servicesLoader
+            sourceComponent: servicesView
+            active: false
+        }
+
+        Loader {
+            id: streamLoader
+            sourceComponent: streamView
+            active: false
         }
 
         Component {

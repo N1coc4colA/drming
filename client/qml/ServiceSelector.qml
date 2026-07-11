@@ -37,17 +37,17 @@ Dialog {
             spacing: GlobalVars.standardSpacing
 
             Text {
-                font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                font.pixelSize: GlobalVars.fontSizeMedium
                 text: qsTr("Service: %1").arg(popup.serviceInfo ? name : "")
             }
 
             Text {
-                font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                font.pixelSize: GlobalVars.fontSizeMedium
                 text: qsTr("Host: %1").arg(popup.serviceInfo ? host : "")
             }
 
             Text {
-                font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                font.pixelSize: GlobalVars.fontSizeMedium
                 text: qsTr("Port: %1").arg(popup.serviceInfo ? port : "")
             }
         }

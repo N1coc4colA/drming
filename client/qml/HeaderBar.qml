@@ -17,7 +17,7 @@ Item {
     readonly property bool hasRight: !!rightContent
     readonly property bool twoRows: hasLeft && hasCenter && hasRight && width < 300
 
-    readonly property real centerHeight: (root.hasCenter && loadedItem && loadedItem.centerItem) ? loadedItem.centerItem.height : Math.max(34, 34 * GlobalVars.scaling)
+    readonly property real centerHeight: (root.hasCenter && loadedItem && loadedItem.centerItem) ? loadedItem.centerItem.height : GlobalVars.buttonHeightDefault
 
     Loader {
         id: oneRowLoader

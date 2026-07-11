@@ -10,7 +10,7 @@ EasyPage {
     headerBar.centerContent: SearchBar {
         id: searchBar
 
-        onSearchTextChanged: root.searchText = searchText
+        onSearchTextChanged: root.searchText = searchBar.searchText
     }
 
     headerBar.leftContent: EasyButton {

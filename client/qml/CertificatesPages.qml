@@ -24,39 +24,40 @@ StandardPage {
 
             visible: model.name.toLowerCase().includes(root.searchText.toLowerCase())
 
-            property real breakPoint: width > Math.max(500, 500 * GlobalVars.scaling)
+            // Cache breakpoint calculation to avoid recalculation per frame
+            property bool isWide: width > Math.max(500, 500 * GlobalVars.scaling)
 
             Item {
-                Layout.fillWidth: breakPoint
+                Layout.fillWidth: isWide
             }
 
             Rectangle {
                 color: palette.mid
 
-                anchors.leftMargin: breakPoint ? GlobalVars.standardSpacing : 0
+                anchors.leftMargin: isWide ? GlobalVars.standardSpacing : 0
                 border.color: palette.dark
                 border.width: 1
                 radius: GlobalVars.standardRounding
                 Layout.maximumWidth: Math.max(500, 500 * GlobalVars.scaling)
                 Layout.preferredHeight: parent.height
-                Layout.preferredWidth: parent.width - GlobalVars.standardSpacing*2
+                Layout.preferredWidth: parent.width - GlobalVars.doubleStandardSpacing
 
                 RowLayout {
                     spacing: GlobalVars.standardSpacing
                     anchors.fill: parent
-                    anchors.leftMargin: GlobalVars.standardSpacing*2
-                    anchors.rightMargin: GlobalVars.standardSpacing/2
+                    anchors.leftMargin: GlobalVars.doubleStandardSpacing
+                    anchors.rightMargin: GlobalVars.halfStandardSpacing
 
                     Label {
                         color: "#fcd757"
                         elide: Text.ElideRight
-                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                        font.pixelSize: GlobalVars.fontSizeMedium
                         text: model.datetime
                     }
                     Label {
                         id: label
                         elide: Text.ElideRight
-                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                        font.pixelSize: GlobalVars.fontSizeMedium
                         text: model.name
 
                         Layout.fillWidth: true
@@ -78,7 +79,7 @@ StandardPage {
             }
 
             Item {
-                Layout.fillWidth: breakPoint
+                Layout.fillWidth: isWide
             }
         }
     }

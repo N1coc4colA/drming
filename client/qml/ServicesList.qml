@@ -42,31 +42,31 @@ EasyListView {
                     id: cl
 
                     anchors.fill: parent
-                    anchors.margins: GlobalVars.standardSpacing*2
-                    spacing: GlobalVars.standardSpacing/2
+                    anchors.margins: GlobalVars.doubleStandardSpacing
+                    spacing: GlobalVars.halfStandardSpacing
 
                     Label {
-                        font.pixelSize: Math.max(18, 18 * GlobalVars.scaling)
+                        font.pixelSize: GlobalVars.fontSizeLarge
                         font.bold: true
                         text: model.name
                     }
 
                     Label {
-                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                        font.pixelSize: GlobalVars.fontSizeMedium
                         text: qsTr("Host: %1").arg(model.host)
 
                         Layout.maximumWidth: 100;
                     }
 
                     Label {
-                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                        font.pixelSize: GlobalVars.fontSizeMedium
                         text: qsTr("IP: %1").arg(model.ip)
 
                         Layout.maximumWidth: 100;
                     }
 
                     Label {
-                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                        font.pixelSize: GlobalVars.fontSizeMedium
                         text: qsTr("Port: %1").arg(model.port)
 
                         Layout.maximumWidth: 100;

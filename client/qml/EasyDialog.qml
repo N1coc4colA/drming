@@ -15,7 +15,7 @@ Popup {
     y: (window.height - height)/2
     implicitHeight: contentLayout.implicitHeight + topPadding + bottomPadding
     implicitWidth: contentLayout.implicitWidth + leftPadding + rightPadding
-    padding: Math.max(16, 16 * GlobalVars.scaling)
+    padding: GlobalVars.fontSizeBase
 
     property string title: ""
     property int animationsDuration: 200
@@ -98,7 +98,7 @@ Popup {
             visible: root.title !== ""
 
             font.bold: true
-            font.pixelSize: Math.max(13, 13 * GlobalVars.scaling)
+            font.pixelSize: GlobalVars.fontSizeSmall
             horizontalAlignment: Qt.AlignHCenter
             text: root.title
 

@@ -23,17 +23,20 @@ Rectangle {
         Image {
             fillMode: Image.PreserveAspectFit
             source: "qrc:/assets/edit-find.svg"
+            cache: true
         }
 
         TextField {
             id: textInput
-            font.pixelSize: Math.max(16, 16 * GlobalVars.scaling)
+            font.pixelSize: GlobalVars.fontSizeMedium
             placeholderText: qsTr("Search...")
 
             background: Item {}
 
             Layout.fillWidth: true
             Layout.fillHeight: true
+
+            onTextChanged: searchDebounceTimer.restart()
         }
 
         Button {
@@ -44,6 +47,12 @@ Rectangle {
 
             onClicked: textInput.text = ""
         }
+    }
+
+    Timer {
+        id: searchDebounceTimer
+        interval: 150
+        onTriggered: searchBar.searchTextChanged()
     }
 
     property alias searchText: textInput.text

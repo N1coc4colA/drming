@@ -5,6 +5,9 @@ import QtQuick.Layouts
 StandardPage {
     id: root
 
+    property real dialogMaxWidth: Math.max(250, 250 * GlobalVars.scaling)
+    property real dialogMinMargin: GlobalVars.spacingBase
+
     EasyDialog {
         id: infoDialog
         modal: true
@@ -12,7 +15,7 @@ StandardPage {
 
         x: (parent.width - width)/2
         y: (parent.height - height)/2
-        width: root.width > Math.max(260, 260 * GlobalVars.scaling) ? Math.max(250, 250 * GlobalVars.scaling) : root.width - Math.max(10, 10 * GlobalVars.scaling)
+        width: root.width > Math.max(260, 260 * GlobalVars.scaling) ? root.dialogMaxWidth : root.width - root.dialogMinMargin
 
         property string errorText: ""
         property var model: QtObject {
@@ -39,11 +42,11 @@ StandardPage {
 
         content: GridLayout {
             columns: root.width > Math.max(260, 260 * GlobalVars.scaling) ? 2 : 1
-            columnSpacing: Math.max(5, 5 * GlobalVars.scaling)
-            rowSpacing: Math.max(5, 5 * GlobalVars.scaling)
+            columnSpacing: GlobalVars.spacingSmall
+            rowSpacing: GlobalVars.spacingSmall
 
             Label {
-                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
+                font.pixelSize: GlobalVars.fontSizeXSmall
                 text: qsTr("Name")
             }
             Rectangle {
@@ -56,12 +59,12 @@ StandardPage {
                 TextInput {
                     id: nameInput
                     color: palette.text
-                    font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                    font.pixelSize: GlobalVars.fontSizeMedium
                     text: infoDialog.model.entryName
                     verticalAlignment: TextInput.AlignVCenter
 
                     anchors.fill: parent
-                    anchors.margins: Math.max(3, 3 * GlobalVars.scaling)
+                    anchors.margins: GlobalVars.spacingXSmall
                     anchors.leftMargin: GlobalVars.standardSpacing
                     anchors.rightMargin: GlobalVars.standardSpacing
 
@@ -78,7 +81,7 @@ StandardPage {
             }
 
             Label {
-                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
+                font.pixelSize: GlobalVars.fontSizeXSmall
                 text: qsTr("Key")
 
                 visible: nameInput.length !== 0
@@ -86,7 +89,7 @@ StandardPage {
             EasyButton {
                 color: infoDialog.model.info.key ? "#17c245" : "#ff3045"
                 icon.source: infoDialog.model.info.key ? "qrc:/assets/check.svg" : "qrc:/assets/warning-red.svg"
-                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
+                font.pixelSize: GlobalVars.fontSizeXSmall
                 text: qsTr("Change")
 
                 visible: nameInput.length !== 0
@@ -111,7 +114,7 @@ StandardPage {
             }
 
             Label {
-                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
+                font.pixelSize: GlobalVars.fontSizeXSmall
                 text: qsTr("Certificate")
 
                 visible: nameInput.length !== 0
@@ -119,7 +122,7 @@ StandardPage {
 
             EasyButton {
                 color: infoDialog.model.info.cert ? "#17c245" : "#ff3045"
-                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
+                font.pixelSize: GlobalVars.fontSizeXSmall
                 icon.source: infoDialog.model.info.cert ? "qrc:/assets/check.svg" : "qrc:/assets/warning-red.svg"
                 text: qsTr("Change")
 
@@ -148,7 +151,7 @@ StandardPage {
             Label {
                 id: errorLabel
                 color: "#ff3045"
-                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
+                font.pixelSize: GlobalVars.fontSizeXSmall
                 horizontalAlignment: Text.AlignHCenter
 
                 visible: errorLabel.text.length !== 0
@@ -166,7 +169,7 @@ StandardPage {
                 Layout.fillWidth: true
             }
             EasyButton {
-                font.pixelSize: Math.max(11, 11 * GlobalVars.scaling)
+                font.pixelSize: GlobalVars.fontSizeXSmall
                 icon.source: "qrc:/assets/window-close.svg"
                 text: qsTr("Close")
 
@@ -199,27 +202,27 @@ StandardPage {
         model: fileProvider().clientCertsModel()
 
         delegate: RowLayout {
-            height: visible ? Math.max(40, 40 * GlobalVars.scaling) : 0
+            height: visible ? GlobalVars.rowHeightDefault : 0
             width: root.width
 
             visible: model.name.toLowerCase().includes(root.searchText.toLowerCase())
 
-            property real breakPoint: width > Math.max(500, 500 * GlobalVars.scaling)
+            property bool isWide: width > Math.max(500, 500 * GlobalVars.scaling)
 
             Item {
-                Layout.fillWidth: breakPoint
+                Layout.fillWidth: isWide
             }
 
             Rectangle {
                 color: palette.mid
 
-                anchors.leftMargin: breakPoint ? GlobalVars.standardSpacing : 0
+                anchors.leftMargin: isWide ? GlobalVars.standardSpacing : 0
                 border.color: palette.dark
                 border.width: 1
                 radius: GlobalVars.standardRounding
                 Layout.maximumWidth: Math.max(500, 500 * GlobalVars.scaling)
                 Layout.preferredHeight: parent.height
-                Layout.preferredWidth: parent.width - GlobalVars.standardSpacing * 2
+                Layout.preferredWidth: parent.width - GlobalVars.doubleStandardSpacing
 
                 MouseArea {
                     anchors.fill: parent
@@ -235,8 +238,8 @@ StandardPage {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: GlobalVars.standardSpacing * 2
-                    anchors.rightMargin: GlobalVars.standardSpacing / 2
+                    anchors.leftMargin: GlobalVars.doubleStandardSpacing
+                    anchors.rightMargin: GlobalVars.halfStandardSpacing
                     spacing: GlobalVars.standardSpacing
 
                     Image {
@@ -247,18 +250,19 @@ StandardPage {
                         source: (model.info["cert"] && model.info["key"]) ? "qrc:/assets/check.svg" : "qrc:/assets/warning.svg"
                         sourceSize.width: label.height
                         sourceSize.height: label.height
+                        cache: true
                     }
 
                     Label {
                         color: "#fcd757"
                         elide: Text.ElideRight
-                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                        font.pixelSize: GlobalVars.fontSizeMedium
                         text: model.datetime
                     }
                     Label {
                         id: label
                         elide: Text.ElideRight
-                        font.pixelSize: Math.max(14, 14 * GlobalVars.scaling)
+                        font.pixelSize: GlobalVars.fontSizeMedium
                         text: model.name
 
                         Layout.fillWidth: true
@@ -280,7 +284,7 @@ StandardPage {
             }
 
             Item {
-                Layout.fillWidth: breakPoint
+                Layout.fillWidth: isWide
             }
         }
     }

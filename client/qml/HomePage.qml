@@ -29,7 +29,7 @@ Item {
             Label {
                 id: label
                 font.bold: true
-                font.pixelSize: Math.max(16, 16 * GlobalVars.scaling)
+                font.pixelSize: GlobalVars.fontSizeBase
                 horizontalAlignment: Text.AlignHCenter
                 text: qsTr("Welcome !")
 
