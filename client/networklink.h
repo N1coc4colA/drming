@@ -8,6 +8,8 @@
 
 #include "../parser.h"
 
+class FfmpegDecoder;
+
 class NetworkLink : public QObject, Packets::Parser<NetworkLink>
 {
     Q_OBJECT
@@ -19,6 +21,7 @@ public:
     void processPacket(const Packets::ServerImage &img);
     void processPacket(const Packets::ClientResolution &res) { Q_UNUSED(res); }
     void processPacket(const Packets::ServerBrightness &brightness);
+    void processPacket(const Packets::ServerStream &img);
 
 Q_SIGNALS:
     void error(const QString &explanation);
@@ -41,6 +44,7 @@ private:
     QByteArray m_buffer{};
     QUdpSocket *m_udpSocket = nullptr;
     QDtls *m_dtls = nullptr;
+    FfmpegDecoder *m_decoder = nullptr;
     QTimer m_inactivityTimer{};
     quint16 m_format = 0;
     quint32 m_width = 0;

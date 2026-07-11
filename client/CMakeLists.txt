@@ -37,6 +37,7 @@ set(PROJECT_SOURCES
     main.cpp
 
     application.h
+    ffmpeg.h ffmpeg.cpp
     fileprovider.h fileprovider.cpp
     mdns.h mdns.cpp
     networklink.h networklink.cpp
@@ -60,11 +61,12 @@ else()
     file(GLOB_RECURSE PROJECT_PLATFORM_HEADERS ${PROJECT_SOURCE_DIR}/platform/linux/*.h)
 
      find_package(PkgConfig REQUIRED)
-     pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
-         libavdevice
+     pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
          libavformat
          libavcodec
+         libavutil
          libswscale
+         libavformat
      )
 
      set(CMAKE_FIND_LIBRARY_SUFFIXES .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
@@ -157,7 +159,7 @@ else()
             Qt6::Quick
             Qt6::QuickControls2
             Qt6::Widgets
-            PkgConfig::LIBAV
+            PkgConfig::FFMPEG
             ctrack
     )
 endif()

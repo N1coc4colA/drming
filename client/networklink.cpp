@@ -3,13 +3,15 @@
 #include <QBuffer>
 #include <QDebug>
 #include <QDir>
+#include <QHostAddress>
 #include <QSslCertificate>
 #include <QSslConfiguration>
 #include <QtEndian>
-#include <QHostAddress>
+#include <iostream>
 
 #include "../settings.h"
 
+#include "ffmpeg.h"
 #include "fileprovider.h"
 
 NetworkLink::NetworkLink(QObject *parent)
@@ -181,6 +183,22 @@ void NetworkLink::onConnectionTimeout()
         Q_EMIT error(tr("Connection timed out."));
         close();
     }
+}
+
+void NetworkLink::processPacket(const Packets::ServerStream &img)
+{
+    if (!m_decoder) {
+        m_decoder = FfmpegDecoder::instance();
+        m_decoder->setFrameCallback([this](const QImage &image) {
+            if (!image.isNull()) {
+                [[likely]];
+
+                Q_EMIT imageReady(image);
+            }
+        });
+    }
+
+    m_decoder->decode(reinterpret_cast<const uint8_t *>(img.data.constData()), img.frameSize);
 }
 
 void NetworkLink::processPacket(const Packets::ServerImage &img)
