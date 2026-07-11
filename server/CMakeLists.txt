@@ -15,7 +15,12 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Network DBus)
 find_package(Libdrm REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(AVAHI REQUIRED avahi-client)
-
+pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
+    libavdevice
+    libavformat
+    libavcodec
+    libswscale
+)
 
 set(PROJECT_SOURCES
     ../certificatesupport.h
@@ -54,6 +59,7 @@ drming_server
         Qt6::Network
         Qt6::DBus
         ${AVAHI_LIBRARIES}
+        PkgConfig::LIBAV
         Libdrm::Libdrm
 )
 

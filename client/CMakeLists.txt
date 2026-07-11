@@ -58,6 +58,16 @@ if (ANDROID)
 else()
     file(GLOB_RECURSE PROJECT_PLATFORM_SOURCES ${PROJECT_SOURCE_DIR}/platform/linux/*.cpp)
     file(GLOB_RECURSE PROJECT_PLATFORM_HEADERS ${PROJECT_SOURCE_DIR}/platform/linux/*.h)
+
+     find_package(PkgConfig REQUIRED)
+     pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
+         libavdevice
+         libavformat
+         libavcodec
+         libswscale
+     )
+
+     set(CMAKE_FIND_LIBRARY_SUFFIXES .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
 endif()
 
 
@@ -125,23 +135,38 @@ drming_client
         QT_NO_EMIT
 )
 
-target_link_libraries(
-drming_client
-    PRIVATE
-        Qt6::Core
-        Qt6::Gui
-        Qt6::Network
-        Qt6::Quick
-        Qt6::QuickControls2
-        Qt6::Widgets
-        ctrack
-)
+if (ANDROID)
+    target_link_libraries(
+    drming_client
+        PRIVATE
+            Qt6::Core
+            Qt6::Gui
+            Qt6::Network
+            Qt6::Quick
+            Qt6::QuickControls2
+            Qt6::Widgets
+            ctrack
+    )
+else()
+    target_link_libraries(
+    drming_client
+        PRIVATE
+            Qt6::Core
+            Qt6::Gui
+            Qt6::Network
+            Qt6::Quick
+            Qt6::QuickControls2
+            Qt6::Widgets
+            PkgConfig::LIBAV
+            ctrack
+    )
+endif()
 
 if(ANDROID)
     set_target_properties(
     drming_client
-    PROPERTIES
-        QT_ANDROID_EXTRA_LIBS "${ANDROID_OPENSSL_DIR}/${CMAKE_ANDROID_ARCH_ABI}/libcrypto_3.so;${ANDROID_OPENSSL_DIR}/${CMAKE_ANDROID_ARCH_ABI}/libssl_3.so"
+        PROPERTIES
+            QT_ANDROID_EXTRA_LIBS "${ANDROID_OPENSSL_DIR}/${CMAKE_ANDROID_ARCH_ABI}/libcrypto_3.so;${ANDROID_OPENSSL_DIR}/${CMAKE_ANDROID_ARCH_ABI}/libssl_3.so"
     )
 endif()
 
