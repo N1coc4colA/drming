@@ -148,6 +148,7 @@ if (ANDROID)
             Qt6::QuickControls2
             Qt6::Widgets
             ctrack
+            mediandk
     )
 else()
     target_link_libraries(
