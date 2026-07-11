@@ -1,0 +1,17 @@
+[Unit]
+Description=DRMing service
+Wants=network-online.target avahi-daemon.service
+After=network-online.target avahi-daemon.service
+
+[Service]
+Type=simple
+User=root
+Group=drming-pki
+WorkingDirectory=/
+ExecStart=/usr/bin/drming_server -t /etc/pki/drming/valids/ -k /etc/pki/drming/server.key -c /etc/pki/drming/server.crt -p 1234
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
