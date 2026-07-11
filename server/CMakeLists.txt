@@ -14,12 +14,14 @@ set(CMAKE_CXX_STANDARD 23)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Network DBus)
 find_package(Libdrm REQUIRED)
 find_package(PkgConfig REQUIRED)
+
 pkg_check_modules(AVAHI REQUIRED avahi-client)
-pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
-    libavdevice
+pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
     libavformat
     libavcodec
+    libavutil
     libswscale
+    libavformat
 )
 
 set(PROJECT_SOURCES
@@ -35,6 +37,7 @@ set(PROJECT_SOURCES
     displaymanager.h displaymanager.cpp
     displayreader.h displayreader.cpp
     dispsetup.h dispsetup.cpp
+    ffmpeg.h ffmpeg.cpp
     networkclient.h networkclient.cpp
     parameters.h parameters.cpp
     server.h server.cpp
@@ -59,7 +62,7 @@ drming_server
         Qt6::Network
         Qt6::DBus
         ${AVAHI_LIBRARIES}
-        PkgConfig::LIBAV
+        PkgConfig::FFMPEG
         Libdrm::Libdrm
 )
 

@@ -437,9 +437,6 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
         if (!isCursor) {
             continue;
         }
-        // Inside your loop where you have the plane object
-        qDebug() << "plane->crtc_x = " << plane->crtc_x << ", plane->crtc_y = " << plane->crtc_y;
-        qDebug() << "x: " << crtcX << " y: " << crtcY;
 
         const DrmFB2Ptr mfb(drmModeGetFB2(primary.fd, plane->fb_id));
         if (!mfb || mfb->handles[0] == 0) {
@@ -488,28 +485,25 @@ void DisplayReader::releaseCursorFrameBuffer(CursorFrameBuffer &cursor)
     cursor = {};
 }
 
-QImage DisplayReader::compositeWithCursor(const QImage &primary, const CursorFrameBuffer &cursor, const DrmFormat::FormatDescriptor &fmtDesc)
+void DisplayReader::compositeWithCursor(QImage &primary, const CursorFrameBuffer &cursor, const DrmFormat::FormatDescriptor &fmtDesc)
 {
     if (!cursor.data || cursor.width == 0 || cursor.height == 0 || cursor.stride == 0) {
         [[unlikely]];
 
-        return primary;
+        return;
     }
 
     const QImage cursorImg = imageFromFrameBuffer(static_cast<const uint8_t *>(cursor.data), cursor.width, cursor.height, cursor.stride, fmtDesc);
     if (cursorImg.isNull()) {
         [[unlikely]];
 
-        return primary;
+        return;
     }
 
-    QImage result = primary.convertToFormat(QImage::Format_ARGB32_Premultiplied);
-    QPainter painter(&result);
+    QPainter painter(&primary);
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     painter.drawImage(cursor.crtc_x, cursor.crtc_y, cursorImg);
     painter.end();
-
-    return result;
 }
 
 QImage DisplayReader::imageFromFrameBuffer(

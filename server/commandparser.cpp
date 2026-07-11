@@ -2,10 +2,26 @@
 
 #include <QCoreApplication>
 #include <QDebug>
+#include <QMetaEnum>
 
 #include <cstdlib>
 
 #include "parameters.h"
+
+template<typename T>
+QStringList possibleValues()
+{
+    const auto me = QMetaEnum::fromType<T>();
+
+    QStringList l;
+    l.reserve(me.keyCount());
+
+    for (int i = 0; i < me.keyCount(); i++) {
+        l.append(me.key(i));
+    }
+
+    return l;
+}
 
 CommandParser::CommandParser()
 {
@@ -22,6 +38,7 @@ CommandParser::CommandParser()
          {{"k", "key"}, QObject::tr("Key to use for server encryption"), QObject::tr("key", "Key to use for server encryption"), "./certs/server.key"},
          {{"c", "cert"}, QObject::tr("Certificate for server encryption"), QObject::tr("cert", "Certificate for server encryption"), "./certs/server.crt"},
          {{"t", "trusted"}, QObject::tr("Trusted clients' certificates"), QObject::tr("trusted", "Trusted clients' certificates"), "./certs/valids/*"},
+         {{"f", "format"}, QObject::tr("Stream format to use. Must be one of: %1.").arg(possibleValues<Opts::DisplayStreamType>().join(", ")), QObject::tr("format"), "h265"},
     });
 }
 
@@ -46,6 +63,7 @@ CommandParser::Exit CommandParser::parse()
     const auto portName = m_parser.value("port");
     const auto serviceIp = m_parser.value("ip");
     const auto compressionLevel = m_parser.value("quality");
+    const auto streamFormat = m_parser.value("format");
     const auto serviceHostIp = serviceIp.isEmpty() ? QHostAddress::Any : QHostAddress(serviceIp);
     auto valid = false;
 
@@ -64,6 +82,11 @@ CommandParser::Exit CommandParser::parse()
         return Failure;
     }
 
+    if (!possibleValues<Opts::DisplayStreamType>().contains(streamFormat)) {
+        qCritical() << "Invalid stream format:" << streamFormat;
+        return Failure;
+    }
+
     const auto quality = compressionLevel.toInt(&valid);
     if (!valid) {
         qCritical() << QObject::tr("The supplied compression level is not base 10, and could not be parsed.");
@@ -74,18 +97,18 @@ CommandParser::Exit CommandParser::parse()
         return Failure;
     }
 
-    Parameters::instance = Parameters{
-        .targetScreen = targetScreen,
-        .serviceName = serviceName,
-        .serviceIp = serviceIp,
-        .serviceHostIp = serviceHostIp,
-        .qualityLevel = quality,
-        .port = port,
-        .advertise = m_parser.isSet("no-advertise"),
-        .trustedCertsPath = m_parser.value("trusted"),
-        .serverCertPath = m_parser.value("cert"),
-        .serverKeyPath = m_parser.value("key"),
-    };
+    Parameters::instance = Parameters{.targetScreen = targetScreen,
+                                      .serviceName = serviceName,
+                                      .serviceIp = serviceIp,
+                                      .serviceHostIp = serviceHostIp,
+                                      .qualityLevel = quality,
+                                      .port = port,
+                                      .advertise = m_parser.isSet("no-advertise"),
+                                      .trustedCertsPath = m_parser.value("trusted"),
+                                      .serverCertPath = m_parser.value("cert"),
+                                      .serverKeyPath = m_parser.value("key"),
+                                      .streamFormat = static_cast<Opts::DisplayStreamType>(
+                                          QMetaEnum::fromType<Opts::DisplayStreamType>().keyToValue(streamFormat.toLocal8Bit()))};
 
     return Continue;
 }

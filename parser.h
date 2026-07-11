@@ -5,6 +5,7 @@
 #include <QDebug>
 
 #include <QFloat16>
+#include <iostream>
 #include <qtypes.h>
 
 #include <expected>
@@ -18,9 +19,10 @@ enum class Type : quint16 {
     ServerImage,
     ClientResolution,
     ServerBrightness,
+    ServerStream,
 
     MINIMUM = ServerImage,
-    MAXIMUM = ServerBrightness,
+    MAXIMUM = ServerStream,
 
     LOWER = ServerImage,
     UPPER = MAXIMUM
@@ -31,10 +33,10 @@ struct ServerImage
 {
     static constexpr auto type = Type::ServerImage;
 
-    qsizetype imageSize = 0;
+    quint64 imageSize = 0;
     QByteArray data;
 
-    using mQSizeType = qsizetype ServerImage::*;
+    using mQSizeType = quint64 ServerImage::*;
     using mByteArray = QByteArray ServerImage::*;
     using mSized = std::pair<std::variant<mQSizeType>, mByteArray>;
     static constexpr std::array<std::variant<mQSizeType>, 1> members = {&ServerImage::imageSize};
@@ -62,7 +64,21 @@ struct ServerBrightness
     static constexpr std::array<std::variant<mQFloat16>, 1> members = {&ServerBrightness::brightness};
 };
 
-using PacketVariant = std::variant<ServerImage, ClientResolution, ServerBrightness>;
+struct ServerStream
+{
+    static constexpr auto type = Type::ServerStream;
+
+    quint64 frameSize = 0;
+    QByteArray data;
+
+    using mQSizeType = quint64 ServerStream::*;
+    using mByteArray = QByteArray ServerStream::*;
+    using mSized = std::pair<std::variant<mQSizeType>, mByteArray>;
+    static constexpr std::array<std::variant<mQSizeType>, 1> members = {&ServerStream::frameSize};
+    static constexpr std::array<mSized, 1> variableMembers = {mSized{&ServerStream::frameSize, &ServerStream::data}};
+};
+
+using PacketVariant = std::variant<ServerImage, ClientResolution, ServerBrightness, ServerStream>;
 
 /* Types validators */
 template<typename T>
@@ -302,6 +318,10 @@ public:
                 }
                 case Type::ServerBrightness: {
                     done = instanceParsing<ServerBrightness>();
+                    break;
+                }
+                case Type::ServerStream: {
+                    done = instanceParsing<ServerStream>();
                     break;
                 }
                 default: {
