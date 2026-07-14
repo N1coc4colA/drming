@@ -203,7 +203,7 @@ void NetworkLink::processPacket(const Packets::ServerStream &img)
 
 void NetworkLink::processPacket(const Packets::ServerImage &img)
 {
-    const auto converted = QImage::fromData(img.data, Settings::frameImageFormat);
+    const auto converted = QImage::fromData(img.data, img.format);
 
     if (!converted.isNull()) {
         [[likely]];

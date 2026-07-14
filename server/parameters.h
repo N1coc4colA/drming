@@ -8,6 +8,8 @@ namespace Opts {
 
 Q_NAMESPACE
 enum DisplayStreamType {
+    jpg,
+    png,
     webp,
     h265,
 };

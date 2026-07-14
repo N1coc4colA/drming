@@ -183,7 +183,7 @@ void Server::onDatagramReceived()
             }
 
             if (!alreadyRegistered) {
-                auto *wrapper = new NetworkClient(sender, senderPort, dtls, &m_socket, this);
+                auto *wrapper = new NetworkClientDtls(dtls, &m_socket, this);
                 m_clients.append(wrapper);
                 Q_EMIT clientConnected(wrapper);
             }

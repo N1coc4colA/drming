@@ -122,44 +122,37 @@ void Display::onDisconnected()
     Q_EMIT nowFree(this);
 }
 
-class DisplayWebp : public Display
+void Display::sendData(QByteArray output)
+{
+    if (m_client && m_client->state() == QAbstractSocket::ConnectedState) {
+        [[likely]];
+
+        m_client->write(output);
+    }
+}
+
+class DisplayImage : public Display
 {
 public:
-    DisplayWebp(const QString &connectorName, QObject *parent = nullptr)
+    DisplayImage(const QString &connectorName, const QString &format, QObject *parent = nullptr)
         : Display(connectorName, parent)
+        , m_format(format.toLocal8Bit())
     {}
 
 private:
+    const QByteArray m_format;
+
     void processImage(const QImage &result) override
     {
         Packets::ServerImage servImg{};
         {
             QBuffer buf(&servImg.data);
             buf.open(QIODevice::WriteOnly);
-            result.save(&buf, Settings::frameImageFormat, Parameters::instance.qualityLevel);
+            result.save(&buf, m_format, Parameters::instance.qualityLevel);
             buf.close();
         }
 
-        const auto output = Packets::Writer::generate(servImg);
-
-        if (m_client && m_client->state() == QAbstractSocket::ConnectedState) {
-            [[likely]];
-
-            constexpr qsizetype chunkSize = Settings::dtlsChunkSize;
-            for (qsizetype offset = 0; offset < output.size(); offset += chunkSize) {
-                const auto chunk = output.mid(offset, chunkSize);
-                if (m_client->write(chunk) < 0) {
-                    [[unlikely]];
-
-                    qWarning() << "Failed to write DTLS image chunk";
-                    const auto err = m_client->dtls()->dtlsError();
-                    if (err != QDtlsError::NoError) {
-                        qWarning() << "DTLS Error" << static_cast<int>(err) << ":" << m_client->dtls()->dtlsErrorString();
-                    }
-                    break;
-                }
-            }
-        }
+        sendData(std::move(Packets::Writer::generate(servImg)));
     }
 };
 
@@ -181,27 +174,7 @@ private:
     void h265dataForward(const uint8_t *data, const size_t size, const int64_t pts)
     {
         Packets::ServerStream stm{.data = QByteArray("\x00\x00\x00\x01").append(reinterpret_cast<const char *>(data), static_cast<qsizetype>(size))};
-        const auto output = Packets::Writer::generate(stm);
-
-        if (m_client && m_client->state() == QAbstractSocket::ConnectedState) {
-            [[likely]];
-
-            constexpr qsizetype chunkSize = Settings::dtlsChunkSize;
-            for (qsizetype offset = 0; offset < output.size(); offset += chunkSize) {
-                const auto chunk = output.mid(offset, chunkSize);
-                if (m_client->write(chunk) < 0) {
-                    [[unlikely]];
-
-                    qWarning() << "Failed to write DTLS image chunk";
-                    const auto err = m_client->dtls()->dtlsError();
-                    if (err != QDtlsError::NoError) {
-                        qWarning() << "DTLS Error" << static_cast<int>(err) << ":" << m_client->dtls()->dtlsErrorString();
-                    }
-
-                    break;
-                }
-            }
-        }
+        sendData(std::move(Packets::Writer::generate(stm)));
     }
 
     Ffmpeg::Encoder m_encoder;
@@ -213,8 +186,14 @@ Display *generateNewDisplay(const QString &connectorName, QObject *parent)
     case Opts::DisplayStreamType::h265: {
         return new DisplayH265(connectorName, parent);
     }
+    case Opts::DisplayStreamType::jpg: {
+        return new DisplayImage(connectorName, "JPG", parent);
+    }
+    case Opts::DisplayStreamType::png: {
+        return new DisplayImage(connectorName, "PNG", parent);
+    }
     case Opts::DisplayStreamType::webp: {
-        return new DisplayWebp(connectorName, parent);
+        return new DisplayImage(connectorName, "WEBP", parent);
     }
     }
 }

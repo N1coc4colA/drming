@@ -22,6 +22,8 @@ public Q_SLOTS:
 protected:
     NetworkClient *m_client = nullptr;
 
+    void sendData(QByteArray output);
+
 private:
     DisplayReader m_reader;
 

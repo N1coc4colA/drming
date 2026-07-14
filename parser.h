@@ -33,14 +33,17 @@ struct ServerImage
 {
     static constexpr auto type = Type::ServerImage;
 
-    quint64 imageSize = 0;
+    qsizetype formatSize = 0;
+    qsizetype imageSize = 0;
+    QByteArray format;
     QByteArray data;
 
-    using mQSizeType = quint64 ServerImage::*;
+    using mQSizeType = qsizetype ServerImage::*;
     using mByteArray = QByteArray ServerImage::*;
     using mSized = std::pair<std::variant<mQSizeType>, mByteArray>;
-    static constexpr std::array<std::variant<mQSizeType>, 1> members = {&ServerImage::imageSize};
-    static constexpr std::array<mSized, 1> variableMembers = {mSized{&ServerImage::imageSize, &ServerImage::data}};
+    static constexpr std::array<std::variant<mQSizeType>, 2> members = {&ServerImage::formatSize, &ServerImage::imageSize};
+    static constexpr std::array<mSized, 2> variableMembers = {mSized{&ServerImage::formatSize, &ServerImage::format},
+                                                              mSized{&ServerImage::imageSize, &ServerImage::data}};
 };
 
 struct ClientResolution
@@ -68,10 +71,10 @@ struct ServerStream
 {
     static constexpr auto type = Type::ServerStream;
 
-    quint64 frameSize = 0;
+    qsizetype frameSize = 0;
     QByteArray data;
 
-    using mQSizeType = quint64 ServerStream::*;
+    using mQSizeType = qsizetype ServerStream::*;
     using mByteArray = QByteArray ServerStream::*;
     using mSized = std::pair<std::variant<mQSizeType>, mByteArray>;
     static constexpr std::array<std::variant<mQSizeType>, 1> members = {&ServerStream::frameSize};
@@ -248,13 +251,15 @@ class Parser
                 T &packet = std::get<T>(m_current);
                 auto sized = T::variableMembers[m_parsed - membersCount];
 
+                using sizingType = qsizetype;
+
                 const auto len = std::visit([&](auto &&ptr) { return packet.*ptr; }, sized.first);
-                if (m_array.size() < static_cast<qsizetype>(len)) {
+                if (m_array.size() < static_cast<sizingType>(len)) {
                     return false;
                 }
 
-                packet.*sized.second = m_array.first(static_cast<qsizetype>(len));
-                m_array.remove(0, static_cast<qsizetype>(len));
+                packet.*sized.second = m_array.first(static_cast<sizingType>(len));
+                m_array.remove(0, static_cast<sizingType>(len));
                 m_parsed++;
             }
         }
