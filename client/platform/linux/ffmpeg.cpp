@@ -135,6 +135,27 @@ int FfmpegDecoder::decode(const uint8_t *data, const size_t size)
         }
     }
 
+    bool isKeyFrame = false;
+    if (size >= 4) {
+        // Check for start code (0x00 0x00 0x00 0x01)
+        if (data[0] == 0x00 && data[1] == 0x00 && data[2] == 0x00 && data[3] == 0x01) {
+            uint8_t nalType = (data[4] >> 1) & 0x3F;
+            isKeyFrame = (nalType == 19 || nalType == 20 || nalType == 21);
+        }
+    }
+
+    if (m_needResync && isKeyFrame) {
+        avcodec_flush_buffers(m_dec);
+        m_needResync = false;
+        qDebug() << "Decoder synced to keyframe";
+    }
+
+    // If we're out of sync and this is not a keyframe, skip it
+    if (m_needResync && !isKeyFrame) {
+        qDebug() << "Skipping non-keyframe while out of sync";
+        return 0;
+    }
+
     AVPacket pkt{};
     av_init_packet(&pkt);
     pkt.data = const_cast<uint8_t *>(data);
@@ -142,6 +163,11 @@ int FfmpegDecoder::decode(const uint8_t *data, const size_t size)
 
     const int ret = decode_frame(&pkt);
     av_packet_unref(&pkt);
+
+    if (ret < 0) {
+        m_needResync = true;
+    }
+
     return ret;
 }
 

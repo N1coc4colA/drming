@@ -92,7 +92,7 @@ FfmpegDecoder::~FfmpegDecoder()
     release();
 }
 
-int FfmpegDecoder::init(int width, int height)
+int FfmpegDecoder::init(const int width, const int height)
 {
     if (m_initialized) {
         return 0;
@@ -104,6 +104,7 @@ int FfmpegDecoder::init(int width, int height)
 
     m_codec = AMediaCodec_createDecoderByType("video/hevc");
     if (!m_codec) {
+        [[unlikely]];
         qCritical() << "Failed to create MediaCodec decoder";
         return -1;
     }
@@ -131,12 +132,14 @@ int FfmpegDecoder::init(int width, int height)
 
     media_status_t status = AMediaCodec_configure(m_codec, m_format, nullptr, nullptr, 0);
     if (status != AMEDIA_OK) {
+        [[unlikely]];
         qCritical() << "Failed to configure MediaCodec:" << status;
         return -1;
     }
 
     status = AMediaCodec_start(m_codec);
     if (status != AMEDIA_OK) {
+        [[unlikely]];
         qCritical() << "Failed to start MediaCodec:" << status;
         return -1;
     }
@@ -188,6 +191,7 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
         qWarning() << "No resolution detected, using default 1920x1080";
         int ret = init(1920, 1080);
         if (ret < 0) {
+            [[unlikely]];
             return ret;
         }
     }
@@ -199,8 +203,18 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
         }
     }
 
+    const auto isKeyFrame = isKeyFrameH265(data, size);
+    if (isKeyFrame && m_needResync) {
+        AMediaCodec_flush(m_codec);
+        m_needResync = false;
+    }
+
+    if (m_needResync && !isKeyFrame) {
+        return 0;
+    }
+
     // Check if this is a keyframe with CSD data
-    if (isKeyFrameH265(data, size)) {
+    if (isKeyFrame) {
         extractCSDH265(data, size, m_vps, m_sps, m_pps);
         if (!m_vps.empty() && !m_sps.empty() && !m_pps.empty()) {
             m_csdReady = true;
@@ -210,25 +224,34 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
         }
     }
 
-    return decode_frame(data, size);
+    const auto ret = decode_frame(data, size);
+    if (ret < 0) {
+        [[unlikely]];
+        m_needResync = true;
+    }
+
+    return ret;
 }
 
 int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
 {
     ssize_t inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 10000);
     if (inputIndex < 0) {
+        [[unlikely]];
         qWarning() << "Failed to dequeue input buffer";
         return -1;
     }
 
-    size_t bufferSize;
+    size_t bufferSize = 0;
     uint8_t* inputBuffer = AMediaCodec_getInputBuffer(m_codec, inputIndex, &bufferSize);
     if (!inputBuffer) {
+        [[unlikely]];
         qWarning() << "Failed to get input buffer";
         return -1;
     }
 
     if (size > bufferSize) {
+        [[unlikely]];
         qWarning() << "Input data too large:" << size << ">" << bufferSize;
         return -1;
     }
@@ -243,17 +266,19 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
         size,
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
         flags);
+
     if (status != AMEDIA_OK) {
+        [[unlikely]];
         qWarning() << "Failed to queue input buffer:" << status;
         return -1;
     }
 
-    AMediaCodecBufferInfo info;
+    AMediaCodecBufferInfo info{};
     ssize_t outputIndex = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 10000);
 
     if (outputIndex >= 0) {
         if (info.size > 0) {
-            size_t outBufferSize;
+            size_t outBufferSize = 0;
             const uint8_t* outputBuffer = AMediaCodec_getOutputBuffer(m_codec, outputIndex, &outBufferSize);
 
             if (outputBuffer && info.size > 0) {
@@ -261,17 +286,27 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
                 if (m_pixelFormat == 0) {
                     AMediaFormat* outputFormat = AMediaCodec_getOutputFormat(m_codec);
                     if (outputFormat) {
-                        AMediaFormat_getInt32(outputFormat, "pixel-format", &m_pixelFormat);
-                        AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_STRIDE, &m_stride);
-                        AMediaFormat_getInt32(outputFormat, "slice-height", &m_sliceHeight);
+                        if (!AMediaFormat_getInt32(outputFormat, "color-format", &m_pixelFormat)) {
+                            [[unlikely]];
+                            qWarning() << "Failed to get property color-format";
+                        }
+                        if (!AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_STRIDE, &m_stride)) {
+                            [[unlikely]];
+                            qWarning() << "Failed to get property" << AMEDIAFORMAT_KEY_STRIDE;
+                        }
+                        if (!AMediaFormat_getInt32(outputFormat, "slice-height", &m_sliceHeight)) {
+                            [[unlikely]];
+                            qWarning() << "Failed to get property slice-height";
+                        }
 
                         qDebug() << "Pixel format:" << m_pixelFormat << "stride:" << m_stride << "slice-height:" << m_sliceHeight;
 
                         // Update width/height from output format if available
-                        int width, height;
+                        int width = 0, height = 0;
                         if (AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_WIDTH, &width)
                             && AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_HEIGHT, &height)) {
                             if (width != m_width || height != m_height) {
+                                [[likely]];
                                 m_width = width;
                                 m_height = height;
                                 qDebug() << "Resolution from output:" << m_width << "x" << m_height;
@@ -282,7 +317,8 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
                 }
 
                 if (m_width > 0 && m_height > 0) {
-                    QImage image = convertToQImage(outputBuffer + info.offset, info.size, m_width, m_height, m_stride, m_sliceHeight, m_pixelFormat);
+                    const QImage image
+                        = convertToQImage(outputBuffer + info.offset, info.size, m_width, m_height, m_stride, m_sliceHeight, m_pixelFormat);
 
                     if (!image.isNull() && m_frameCallback) {
                         m_frameCallback(image);
@@ -293,9 +329,11 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
 
         AMediaCodec_releaseOutputBuffer(m_codec, outputIndex, false);
     } else if (outputIndex == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
+        [[unlikely]];
+
         AMediaFormat* outputFormat = AMediaCodec_getOutputFormat(m_codec);
         if (outputFormat) {
-            int width, height;
+            int width = 0, height = 0;
             if (AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_WIDTH, &width)
                 && AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_HEIGHT, &height)) {
                 m_width = width;
@@ -317,7 +355,8 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
     return 0;
 }
 
-QImage FfmpegDecoder::convertToQImage(const uint8_t* data, size_t size, int width, int height, int stride, int sliceHeight, int pixelFormat)
+QImage FfmpegDecoder::convertToQImage(
+    const uint8_t* data, const size_t size, const int width, const int height, const int stride, const int sliceHeight, const int pixelFormat)
 {
     if (!data || width <= 0 || height <= 0) {
         return {};
@@ -325,6 +364,7 @@ QImage FfmpegDecoder::convertToQImage(const uint8_t* data, size_t size, int widt
 
     QImage image(width, height, QImage::Format_RGBA8888);
     if (image.isNull()) {
+        [[unlikely]];
         qWarning() << "Failed to allocate QImage";
         return {};
     }
@@ -341,9 +381,9 @@ QImage FfmpegDecoder::convertToQImage(const uint8_t* data, size_t size, int widt
     // OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka = 0x7fa30c04
 
     // For QCOM tiled format, we need to handle it differently
-    bool isQComTiled = (pixelFormat == 0x7fa30c04);
-    bool isYUV420P = (pixelFormat == 0x13 || pixelFormat == 0x7f000100);
-    bool isNV12 = (pixelFormat == 0x15 || pixelFormat == 0x7fa30c04);
+    const bool isQComTiled = (pixelFormat == 0x7fa30c04);
+    const bool isYUV420P = (pixelFormat == 0x13 || pixelFormat == 0x7f000100);
+    const bool isNV12 = (pixelFormat == 0x15 || pixelFormat == 0x7fa30c04);
 
     // For QCOM tiled format, the stride and slice-height are different
     if (isQComTiled) {
@@ -361,8 +401,8 @@ QImage FfmpegDecoder::convertToQImage(const uint8_t* data, size_t size, int widt
 
     if (isYUV420P) {
         // YUV420P: Y plane, then U plane, then V plane
-        size_t ySize = actualStride * actualSliceHeight;
-        size_t uvSize = (actualStride / 2) * (actualSliceHeight / 2);
+        const size_t ySize = actualStride * actualSliceHeight;
+        const size_t uvSize = (actualStride / 2) * (actualSliceHeight / 2);
         uPlane = data + ySize;
         vPlane = uPlane + uvSize;
     } else {
@@ -377,15 +417,15 @@ QImage FfmpegDecoder::convertToQImage(const uint8_t* data, size_t size, int widt
 
             if (isYUV420P) {
                 // YUV420P (planar)
-                int yIdx = y * actualStride + x;
-                int uvIdx = (y / 2) * (actualStride / 2) + (x / 2);
+                const int yIdx = y * actualStride + x;
+                const int uvIdx = (y / 2) * (actualStride / 2) + (x / 2);
                 Y = yPlane[yIdx] & 0xFF;
                 U = uPlane[uvIdx] & 0xFF;
                 V = vPlane[uvIdx] & 0xFF;
             } else {
                 // NV12 (semi-planar)
-                int yIdx = y * actualStride + x;
-                int uvIdx = (y / 2) * actualStride + (x / 2) * 2;
+                const int yIdx = y * actualStride + x;
+                const int uvIdx = (y / 2) * actualStride + (x / 2) * 2;
                 Y = yPlane[yIdx] & 0xFF;
                 U = uvPlane[uvIdx] & 0xFF;
                 V = uvPlane[uvIdx + 1] & 0xFF;

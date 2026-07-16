@@ -55,6 +55,8 @@ private:
     int m_stride = 0;
     int m_sliceHeight = 0;
     int m_pixelFormat = 0;
+
+    bool isDecoderAlive();
 };
 
 } // namespace Platform
