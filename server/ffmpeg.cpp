@@ -4,8 +4,6 @@
 
 #include <drm_fourcc.h>
 
-#include <iostream>
-
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/imgutils.h>
