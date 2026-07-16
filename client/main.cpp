@@ -3,14 +3,19 @@
 #include <QTimer>
 
 #include "application.h"
-#include "declarative/videoframeitem.h"
 #include "palette.h"
+
+#ifdef Q_OS_ANDROID
+#include "platform/android/videoframeitem.h"
+#else
+#include "platform/linux/videoframeitem.h"
+#endif
 
 int main(int argc, char *argv[])
 {
     Application app(argc, argv);
 
-    qmlRegisterType<VideoFrameItem>("VideoStream", 1, 0, "VideoFrame");
+    qmlRegisterType<Platform::VideoFrameItem>("VideoStream", 1, 0, "VideoFrame");
 
     QQmlApplicationEngine engine(&app);
     engine.rootContext()->setContextObject(&app);

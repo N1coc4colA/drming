@@ -1,11 +1,13 @@
-#ifndef VIDEOFRAMEITEM_H
-#define VIDEOFRAMEITEM_H
+#ifndef VIDEOFRAMEITEMPLATFORM_H
+#define VIDEOFRAMEITEMPLATFORM_H
 
 #include <QImage>
 #include <QMutex>
 #include <QQuickItem>
 
 class QSGSimpleTextureNode;
+
+namespace Platform {
 
 class VideoFrameItem : public QQuickItem
 {
@@ -39,4 +41,6 @@ private:
     bool m_imageDirty = false;
 };
 
-#endif // VIDEOFRAMEITEM_H
+} // namespace Platform
+
+#endif // VIDEOFRAMEITEMPLATFORM_H

@@ -43,9 +43,6 @@ set(PROJECT_SOURCES
     networkstatus.h networkstatus.cpp
     palette.h palette.cpp
 
-    declarative/videoframeitem.h
-    declarative/videoframeitem.cpp
-
     models/filesmodel.h
     models/filesmodel.cpp
     models/servicesmodel.h

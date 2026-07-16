@@ -2,6 +2,8 @@
 
 #include <QSGSimpleTextureNode>
 
+namespace Platform {
+
 QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
 {
     if (itemSize.isEmpty() || imgSize.isEmpty()) {
@@ -91,3 +93,5 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
 
     return node;
 }
+
+} // namespace Platform
