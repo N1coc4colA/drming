@@ -21,6 +21,7 @@ StandardPage {
             root.selectedService = service
             authDialog.hostIp = service.ip
             authDialog.hostPort = service.port
+            authDialog.protocolName = service.protocol
             authDialog.open()
         }
     }
@@ -29,7 +30,7 @@ StandardPage {
         id: authDialog
 
         onSubmitted: function() {
-            networkLink().connect(authDialog.hostIp, authDialog.hostPort, authDialog.clientName)
+            networkLink().connect(authDialog.hostIp, authDialog.hostPort, authDialog.clientName, authDialog.protocolName)
             root.displayStream()
         }
     }

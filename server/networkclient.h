@@ -22,6 +22,9 @@ public:
     [[nodiscard]] inline QHostAddress peerAddress() const { return m_socket->peerAddress(); }
     [[nodiscard]] inline quint16 peerPort() const { return m_socket->peerPort(); }
 
+    inline QAbstractSocket *socket() { return m_socket; }
+    inline const QAbstractSocket *socket() const { return m_socket; }
+
 Q_SIGNALS:
     void disconnected();
 

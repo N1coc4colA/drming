@@ -12,7 +12,7 @@ class ServicesModel : public QAbstractListModel
     Q_PROPERTY(int count READ count NOTIFY countChanged)
 
 public:
-    enum ServiceRoles { NameRole = Qt::UserRole + 1, HostRole, IpRole, PortRole, TypeRole };
+    enum ServiceRoles { NameRole = Qt::UserRole + 1, HostRole, IpRole, PortRole, TypeRole, ProtocolRole };
 
     explicit ServicesModel(QObject *parent = nullptr);
 

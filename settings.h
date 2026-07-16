@@ -21,8 +21,6 @@ static constexpr int dtlsChunkSize = 1024;
 static constexpr int frameMSecsInterval = 60;
 static constexpr int inactivityTimeout = 5000;
 
-static constexpr auto advertisementServiceType = "_drming._udp";
-
 static constexpr auto timeFormat = " HH:mm";
 
 }
