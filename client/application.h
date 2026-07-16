@@ -34,7 +34,7 @@ public:
     Q_INVOKABLE Mdns *mdnsManager() const { return Mdns::instance(); }
     Q_INVOKABLE NetworkState *networkState() const { return NetworkState::instance(); }
     Q_INVOKABLE FileProvider *fileProvider() const { return FileProvider::instance(); }
-    Q_INVOKABLE NetworkLink *networkLink() { return m_networkLink ? m_networkLink : m_networkLink = new NetworkLink(this); }
+    Q_INVOKABLE NetworkLink *networkLink() { return m_networkLink ? m_networkLink : m_networkLink = NetworkLink::createForPlatform(this); }
     Q_INVOKABLE ServicesModel *servicesModel() { return m_servicesModel ? m_servicesModel : m_servicesModel = new ServicesModel(this); }
 
 private:

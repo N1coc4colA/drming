@@ -7,22 +7,17 @@
 #include <QTimer>
 #include <QUdpSocket>
 
-#include "../parser.h"
-
-class FfmpegDecoder;
-
-class NetworkLink : public QObject, Packets::Parser<NetworkLink>
+class NetworkLink : public QObject
 {
     Q_OBJECT
 
-public:
+protected:
     explicit NetworkLink(QObject *parent = nullptr);
+
+public:
     ~NetworkLink() override;
 
-    void processPacket(const Packets::ServerImage &img);
-    void processPacket(const Packets::ClientResolution &res) { Q_UNUSED(res); }
-    void processPacket(const Packets::ServerBrightness &brightness);
-    void processPacket(const Packets::ServerStream &img);
+    static NetworkLink *createForPlatform(QObject *parent = nullptr);
 
 Q_SIGNALS:
     void error(const QString &explanation);
@@ -50,7 +45,6 @@ private:
     QSslSocket *m_sslSocket = nullptr;
     QUdpSocket *m_udpSocket = nullptr;
     QDtls *m_dtls = nullptr;
-    FfmpegDecoder *m_decoder = nullptr;
     QTimer m_inactivityTimer{};
     quint16 m_format = 0;
     quint32 m_width = 0;
@@ -64,6 +58,8 @@ private:
     void connectSsl(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, int port);
 
     void checkSSLState();
+
+    virtual void addData(QByteArray additional) = 0;
 };
 
 #endif // NETWORKLINK_H

@@ -10,12 +10,16 @@
 
 #include "../settings.h"
 
-#include "ffmpeg.h"
 #include "fileprovider.h"
+
+#ifdef Q_OS_ANDROID
+#include "platform/android/networklink.h"
+#else
+#include "platform/linux/networklink.h"
+#endif
 
 NetworkLink::NetworkLink(QObject *parent)
     : QObject(parent)
-    , Parser(*this)
     , m_sslSocket(new QSslSocket(this))
     , m_udpSocket(new QUdpSocket(this))
     , m_dtls(new QDtls(QSslSocket::SslClientMode, this))
@@ -52,6 +56,11 @@ NetworkLink::~NetworkLink()
     m_inactivityTimer.stop();
     m_udpSocket->close();
     m_sslSocket->close();
+}
+
+NetworkLink *NetworkLink::createForPlatform(QObject *parent)
+{
+    return new Platform::NetworkLink(parent);
 }
 
 void NetworkLink::close()
@@ -239,7 +248,7 @@ void NetworkLink::onDtlsDataAvailable()
         // Decrypt application datagram
         const QByteArray plain = m_dtls->decryptDatagram(m_udpSocket, dgram);
         if (!plain.isEmpty()) {
-            addData(plain);
+            addData(std::move(plain));
             continue;
         }
 
@@ -261,7 +270,7 @@ void NetworkLink::onSslDataAvailable()
 
     const QByteArray plain = m_sslSocket->readAll();
     if (!plain.isEmpty()) {
-        addData(plain);
+        addData(std::move(plain));
         return;
     }
 
@@ -282,36 +291,4 @@ void NetworkLink::onConnectionTimeout()
         Q_EMIT error(tr("Connection timed out."));
         close();
     }
-}
-
-void NetworkLink::processPacket(const Packets::ServerStream &img)
-{
-    if (!m_decoder) {
-        m_decoder = FfmpegDecoder::instance();
-        m_decoder->setFrameCallback([this](const QImage &image) {
-            if (!image.isNull()) {
-                [[likely]];
-
-                Q_EMIT imageReady(image);
-            }
-        });
-    }
-
-    m_decoder->decode(reinterpret_cast<const uint8_t *>(img.data.constData()), img.frameSize);
-}
-
-void NetworkLink::processPacket(const Packets::ServerImage &img)
-{
-    const auto converted = QImage::fromData(img.data, img.format);
-
-    if (!converted.isNull()) {
-        [[likely]];
-
-        Q_EMIT imageReady(converted);
-    }
-}
-
-void NetworkLink::processPacket(const Packets::ServerBrightness &brightness)
-{
-    Q_UNUSED(brightness);
 }

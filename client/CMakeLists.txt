@@ -37,7 +37,6 @@ set(PROJECT_SOURCES
     main.cpp
 
     application.h
-    ffmpeg.h ffmpeg.cpp
     fileprovider.h fileprovider.cpp
     mdns.h mdns.cpp
     networklink.h networklink.cpp

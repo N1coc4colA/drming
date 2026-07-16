@@ -59,7 +59,7 @@ void DecoderFramePool::dispose(AVFrame *frame)
 }
 
 FfmpegDecoder::FfmpegDecoder(QObject *parent)
-    : ::FfmpegDecoder(parent)
+    : QObject(parent)
 {
     av_log_set_level(AV_LOG_WARNING);
 }

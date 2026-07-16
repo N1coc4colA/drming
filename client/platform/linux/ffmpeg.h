@@ -2,13 +2,12 @@
 #define FFMPEGPLATFORM_H
 
 #include <QImage>
+#include <QObject>
 #include <QQueue>
 
 extern "C" {
 #include <libavutil/pixfmt.h>
 }
-
-#include "../../ffmpeg.h"
 
 struct AVCodec;
 struct AVCodecContext;
@@ -32,21 +31,34 @@ private:
     qsizetype m_allocated = 0;
 };
 
-class FfmpegDecoder : public ::FfmpegDecoder
+class FfmpegDecoder : public QObject
 {
+    Q_OBJECT
+
 public:
+    using FrameCallback = std::function<void(const QImage &image)>;
+
     explicit FfmpegDecoder(QObject *parent = nullptr);
     ~FfmpegDecoder();
+
+    int width() const { return m_width; }
+    int height() const { return m_height; }
+    bool isInitialized() const { return m_initialized; }
 
     int init();
     void release();
     int flush();
+    int decode(const uint8_t *data, size_t size);
 
-    int decode(const uint8_t *data, size_t size) override;
+    void setFrameCallback(FrameCallback callback) { m_frameCallback = callback; }
 
 private:
-    int decode_frame(AVPacket *pkt);
-    QImage frameToQImage(AVFrame *frame);
+    FrameCallback m_frameCallback = nullptr;
+
+    int m_width = 0;
+    int m_height = 0;
+    bool m_initialized = false;
+    bool m_needResync = false;
 
     const AVCodec *m_codec = nullptr;
     AVCodecContext *m_dec = nullptr;
@@ -57,6 +69,9 @@ private:
     AVPixelFormat m_dst_fmt = AV_PIX_FMT_RGB24;
 
     DecoderFramePool m_pool{};
+
+    int decode_frame(AVPacket *pkt);
+    QImage frameToQImage(AVFrame *frame);
 };
 
 } // namespace Platform

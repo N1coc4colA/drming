@@ -2,6 +2,7 @@
 #define FFMPEGPLATFORM_H
 
 #include <QImage>
+#include <QObject>
 
 #include <condition_variable>
 #include <mutex>
@@ -12,26 +13,36 @@ extern "C" {
 #include <media/NdkMediaFormat.h>
 }
 
-#include "../../ffmpeg.h"
-
 namespace Platform {
 
-class FfmpegDecoder : public ::FfmpegDecoder
+class FfmpegDecoder : public QObject
 {
     Q_OBJECT
 
 public:
+    using FrameCallback = std::function<void(const QImage& image)>;
+
     explicit FfmpegDecoder(QObject* parent = nullptr);
     ~FfmpegDecoder();
+
+    int width() const { return m_width; }
+    int height() const { return m_height; }
+    bool isInitialized() const { return m_initialized; }
 
     int init(int width = 0, int height = 0);
     void release();
     int flush();
-    int decode(const uint8_t* data, size_t size) override;
+    int decode(const uint8_t* data, size_t size);
+
+    void setFrameCallback(FrameCallback callback) { m_frameCallback = callback; }
 
 private:
-    int decode_frame(const uint8_t* data, size_t size);
-    QImage convertToQImage(const uint8_t* data, size_t size, int width, int height, int stride, int sliceHeight, int pixelFormat);
+    FrameCallback m_frameCallback = nullptr;
+
+    int m_width = 0;
+    int m_height = 0;
+    bool m_initialized = false;
+    bool m_needResync = false;
 
     AMediaCodec* m_codec = nullptr;
     AMediaFormat* m_format = nullptr;
@@ -48,15 +59,15 @@ private:
     std::condition_variable m_queueCond{};
 
     // Decoder state
-    bool m_initialized = false;
     bool m_resolutionDetected = false;
-    int m_width = 0;
-    int m_height = 0;
     int m_stride = 0;
     int m_sliceHeight = 0;
     int m_pixelFormat = 0;
 
     bool isDecoderAlive();
+
+    int decode_frame(const uint8_t* data, size_t size);
+    QImage convertToQImage(const uint8_t* data, size_t size, int width, int height, int stride, int sliceHeight, int pixelFormat);
 };
 
 } // namespace Platform

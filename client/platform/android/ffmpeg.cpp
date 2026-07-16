@@ -84,7 +84,7 @@ void extractCSDH265(const uint8_t* data, const size_t size, std::vector<uint8_t>
 }
 
 FfmpegDecoder::FfmpegDecoder(QObject* parent)
-    : ::FfmpegDecoder(parent)
+    : QObject(parent)
 {}
 
 FfmpegDecoder::~FfmpegDecoder()
