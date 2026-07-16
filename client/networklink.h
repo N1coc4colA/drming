@@ -23,11 +23,11 @@ Q_SIGNALS:
     void error(const QString &explanation);
     void opened();
     void closed();
-    void imageReady(QImage);
 
 public Q_SLOTS:
     void close();
     void connect(const QString &address, int port, const QString &clientName, const QString &protocolName);
+    virtual void setItem(QObject *item) = 0;
 
 private Q_SLOTS:
     void onConnected();

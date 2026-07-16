@@ -1,6 +1,7 @@
 #include "networklink.h"
 
 #include "ffmpeg.h"
+#include "videoframeitem.h"
 
 namespace Platform {
 
@@ -9,15 +10,29 @@ NetworkLink::NetworkLink(QObject *parent)
     , Parser(*this)
 {}
 
+void NetworkLink::setItem(QObject *item)
+{
+    m_item = qobject_cast<VideoFrameItem *>(item);
+
+    if (!m_item) {
+        qWarning() << "NetworkLink::setItem expects a VideoFrameItem object.";
+        return;
+    }
+}
+
 void NetworkLink::processPacket(const Packets::ServerStream &img)
 {
+    if (!m_item) {
+        return;
+    }
+
     if (!m_decoder) {
         m_decoder = new FfmpegDecoder(this);
         m_decoder->setFrameCallback([this](const QImage &image) {
             if (!image.isNull()) {
                 [[likely]];
 
-                Q_EMIT imageReady(image);
+                m_item->setImage(image);
             }
         });
     }
@@ -27,12 +42,16 @@ void NetworkLink::processPacket(const Packets::ServerStream &img)
 
 void NetworkLink::processPacket(const Packets::ServerImage &img)
 {
+    if (!m_item) {
+        return;
+    }
+
     const auto converted = QImage::fromData(img.data, img.format);
 
-    if (!converted.isNull()) {
+    if (!converted.isNull() && m_item) {
         [[likely]];
 
-        Q_EMIT imageReady(converted);
+        m_item->setImage(converted);
     }
 }
 

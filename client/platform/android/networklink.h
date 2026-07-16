@@ -7,9 +7,12 @@
 namespace Platform {
 
 class FfmpegDecoder;
+class VideoFrameItem;
 
 class NetworkLink : public ::NetworkLink, Packets::Parser<NetworkLink>
 {
+    Q_OBJECT
+
 public:
     explicit NetworkLink(QObject *parent);
 
@@ -18,8 +21,11 @@ public:
     void processPacket(const Packets::ServerBrightness &brightness);
     void processPacket(const Packets::ServerStream &img);
 
+    void setItem(QObject *item) override;
+
 private:
     FfmpegDecoder *m_decoder = nullptr;
+    VideoFrameItem *m_item = nullptr;
 
     inline void addData(QByteArray additional) override { Packets::Parser<NetworkLink>::addData(std::move(additional)); }
 };

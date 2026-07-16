@@ -20,12 +20,8 @@ EasyPage {
     content: VideoFrame {
         id: stream
 
-        Connections {
-            target: networkLink()
-
-            function onImageReady(image) {
-                stream.setImage(image);
-            }
+        Component.onCompleted: {
+            networkLink().setItem(stream)
         }
     }
 }
