@@ -52,9 +52,9 @@ public Q_SLOTS:
     void onServiceResolved(const QString &name, const QString &host, const QString &ip, int port, const QString &protocol);
 
 Q_SIGNALS:
-    void serviceFound(const QString &key, const ServiceInfo &info);
-    void serviceLost(const QString &key);
-    void serviceResolved(const QString &key, const ServiceInfo &info);
+    void serviceFound(const QString &key, const ServiceInfo &info, const QString &protocol);
+    void serviceLost(const QString &key, const QString &protocol);
+    void serviceResolved(const QString &key, const ServiceInfo &info, const QString &protocol);
     void countChanged(int count);
 
 protected:

@@ -35,7 +35,7 @@ void Mdns::onServiceFound(const QString &name, const QString &type, const QStrin
     const ServiceInfo info{name, type, "", "", protocol, -1};
     m_services[fullName] = info;
 
-    Q_EMIT serviceFound(fullName, info);
+    Q_EMIT serviceFound(fullName, info, protocol);
     Q_EMIT countChanged(count());
 }
 
@@ -55,11 +55,11 @@ void Mdns::onServiceLost(const QString &name, const QString &ip, const QString &
 
         for (const auto &key : keys) {
             m_services.remove(key);
-            Q_EMIT serviceLost(key);
+            Q_EMIT serviceLost(key, protocol);
         }
     }
 
-    Q_EMIT serviceLost(fullName);
+    Q_EMIT serviceLost(fullName, protocol);
     Q_EMIT countChanged(count());
 }
 
@@ -74,5 +74,5 @@ void Mdns::onServiceResolved(const QString &name, const QString &host, const QSt
     m_services[fullName].port = port;
     m_services[fullName].protocol = protocol;
 
-    Q_EMIT serviceResolved(fullName, m_services[fullName]);
+    Q_EMIT serviceResolved(fullName, m_services[fullName], protocol);
 }
