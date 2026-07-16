@@ -14,12 +14,16 @@
 
 #include <ctrack.hpp>
 
-#include "../settings.h"
-
 namespace Platform {
 
 class AvahiDiscoverer
 {
+    struct AvahiDiscovererArg
+    {
+        AvahiDiscoverer *discoverer;
+        QString protocol;
+    };
+
 public:
     explicit AvahiDiscoverer(Mdns &manager)
         : m_manager(manager)
@@ -59,29 +63,17 @@ public:
                 return;
             }
 
-            m_sb = avahi_service_browser_new(m_client,
-                                             AVAHI_IF_UNSPEC,
-                                             AVAHI_PROTO_UNSPEC,
-                                             Settings::advertisementServiceType,
-                                             nullptr,
-                                             static_cast<AvahiLookupFlags>(0),
-                                             reinterpret_cast<AvahiServiceBrowserCallback>(&AvahiDiscoverer::browse_callback),
-                                             this); // pass 'this', not m_client
-            if (!m_sb) {
-                qCritical() << "Failed to create service browser: " << avahi_strerror(avahi_client_errno(m_client));
-                avahi_client_free(m_client);
-                m_client = nullptr;
-                avahi_simple_poll_free(m_poll);
-                m_poll = nullptr;
-                m_running = false;
+            m_sbDtls = createBrowser(&dtlsArg, "_drming._udp");
+            m_sbSsl = createBrowser(&sslArg, "_drming._tcp");
 
-                return;
+            if (m_sbDtls && m_sbSsl) {
+                avahi_simple_poll_loop(m_poll);
             }
 
-            avahi_simple_poll_loop(m_poll);
-
-            avahi_service_browser_free(m_sb);
-            m_sb = nullptr;
+            avahi_service_browser_free(m_sbDtls);
+            avahi_service_browser_free(m_sbSsl);
+            m_sbDtls = nullptr;
+            m_sbSsl = nullptr;
             avahi_client_free(m_client);
             m_client = nullptr;
             avahi_simple_poll_free(m_poll);
@@ -105,13 +97,29 @@ public:
     ~AvahiDiscoverer() { stop(); }
 
 private:
+    AvahiDiscovererArg dtlsArg{this, "dtls"};
+    AvahiDiscovererArg sslArg{this, "ssl"};
+
     std::set<AvahiServiceResolver *> m_pendingResolvers{};
     std::thread m_thread{};
     Mdns &m_manager;
     AvahiSimplePoll *m_poll = nullptr;
     AvahiClient *m_client = nullptr;
-    AvahiServiceBrowser *m_sb = nullptr;
+    AvahiServiceBrowser *m_sbSsl = nullptr;
+    AvahiServiceBrowser *m_sbDtls = nullptr;
     std::atomic<bool> m_running = false;
+
+    AvahiServiceBrowser *createBrowser(AvahiDiscovererArg *serviceArg, const char *advertisedProtocol)
+    {
+        return avahi_service_browser_new(m_client,
+                                         AVAHI_IF_UNSPEC,
+                                         AVAHI_PROTO_UNSPEC,
+                                         advertisedProtocol,
+                                         nullptr,
+                                         static_cast<AvahiLookupFlags>(0),
+                                         reinterpret_cast<AvahiServiceBrowserCallback>(&AvahiDiscoverer::browse_callback),
+                                         serviceArg);
+    }
 
     static void resolve_callback(AvahiServiceResolver *r,
                                  const AvahiIfIndex interface,
@@ -125,7 +133,7 @@ private:
                                  const uint16_t port,
                                  const AvahiStringList *txt,
                                  const AvahiLookupResultFlags flags,
-                                 AvahiDiscoverer *c)
+                                 AvahiDiscovererArg *arg)
     {
         Q_UNUSED(interface);
         Q_UNUSED(protocol);
@@ -143,14 +151,14 @@ private:
         case AVAHI_RESOLVER_FOUND: {
             std::array<char, AVAHI_ADDRESS_STR_MAX> a{};
             avahi_address_snprint(a.data(), a.size(), address);
-            Q_EMIT c->m_manager.dispatchServiceResolved(name, host_name, QString(a.data()), port);
+            Q_EMIT arg->discoverer->m_manager.dispatchServiceResolved(name, host_name, QString(a.data()), port, arg->protocol);
             break;
         }
         default: {
             break;
         }
         }
-        c->m_pendingResolvers.erase(r);
+        arg->discoverer->m_pendingResolvers.erase(r);
         avahi_service_resolver_free(r);
     }
 
@@ -162,40 +170,40 @@ private:
                                 const char *type,
                                 const char *domain,
                                 const AvahiLookupResultFlags flags,
-                                AvahiDiscoverer *c)
+                                AvahiDiscovererArg *arg)
     {
         Q_UNUSED(flags);
         Q_UNUSED(b);
 
         switch (event) {
         case AVAHI_BROWSER_FAILURE: {
-            qCritical() << "(Browser) " << avahi_strerror(avahi_client_errno(c->m_client));
+            qCritical() << "(Browser) " << avahi_strerror(avahi_client_errno(arg->discoverer->m_client));
             return;
         }
         case AVAHI_BROWSER_NEW: {
-            Q_EMIT c->m_manager.dispatchServiceFound(name, type);
+            Q_EMIT arg->discoverer->m_manager.dispatchServiceFound(name, type, arg->protocol);
 
-            const auto resolver = avahi_service_resolver_new(c->m_client,
-                                                       interface,
-                                                       protocol,
-                                                       name,
-                                                       type,
-                                                       domain,
-                                                       AVAHI_PROTO_UNSPEC,
-                                                       static_cast<AvahiLookupFlags>(0),
-                                                       reinterpret_cast<AvahiServiceResolverCallback>(&AvahiDiscoverer::resolve_callback),
-                                                       c);
+            const auto resolver = avahi_service_resolver_new(arg->discoverer->m_client,
+                                                             interface,
+                                                             protocol,
+                                                             name,
+                                                             type,
+                                                             domain,
+                                                             AVAHI_PROTO_UNSPEC,
+                                                             static_cast<AvahiLookupFlags>(0),
+                                                             reinterpret_cast<AvahiServiceResolverCallback>(&AvahiDiscoverer::resolve_callback),
+                                                             arg);
 
             /* Resolve the newly discovered service */
             if (resolver) {
-                c->m_pendingResolvers.insert(resolver);
+                arg->discoverer->m_pendingResolvers.insert(resolver);
             } else {
-                qWarning() << "Failed to resolve service '" << name << "': " << avahi_strerror(avahi_client_errno(c->m_client));
+                qWarning() << "Failed to resolve service '" << name << "': " << avahi_strerror(avahi_client_errno(arg->discoverer->m_client));
             }
             break;
         }
         case AVAHI_BROWSER_REMOVE: {
-            Q_EMIT c->m_manager.dispatchServiceLost(name, domain);
+            Q_EMIT arg->discoverer->m_manager.dispatchServiceLost(name, domain, arg->protocol);
             break;
         }
         case AVAHI_BROWSER_ALL_FOR_NOW:

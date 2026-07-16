@@ -36,7 +36,7 @@ bool DisplayManager::registerClient(NetworkClient *client)
         }
 
         Parameters::instance.servedScreens++;
-        m_freeDisplays.enqueue(new Display(setup.virtualConnectorName(), this));
+        m_freeDisplays.enqueue(generateNewDisplay(setup.virtualConnectorName(), this));
     }
 
     const auto display = m_freeDisplays.dequeue();

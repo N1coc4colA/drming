@@ -10,6 +10,7 @@ EasyDialog {
     property string hostIp: ""
     property string hostPort: ""
     property string clientName: ""
+    property string protocolName: ""
     property bool isValid: false
 
     signal cancelled
@@ -22,6 +23,13 @@ EasyDialog {
 
         GridLayout {
             columns: 2
+
+            Label {
+                text: qsTr("Protocol:")
+            }
+            Label {
+                text: root.protocolName
+            }
 
             Label {
                 text: qsTr("Server IP:")

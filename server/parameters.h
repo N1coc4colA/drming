@@ -2,7 +2,21 @@
 #define PARAMETERS_H
 
 #include <QHostAddress>
-#include <QString>
+#include <QObject>
+
+namespace Opts {
+
+Q_NAMESPACE
+enum DisplayStreamType {
+    jpg,
+    png,
+    webp,
+    h265,
+};
+
+Q_ENUM_NS(DisplayStreamType);
+
+} // namespace Opts
 
 struct Parameters
 {
@@ -18,6 +32,8 @@ struct Parameters
     QString trustedCertsPath;
     QString serverCertPath;
     QString serverKeyPath;
+
+    Opts::DisplayStreamType streamFormat;
 
     static Parameters instance;
 };

@@ -17,7 +17,7 @@ public:
     static bool getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFrameBuffer &primary);
     static void releaseCursorFrameBuffer(CursorFrameBuffer &cursor);
 
-    static QImage compositeWithCursor(const QImage &primary, const CursorFrameBuffer &cursor, const DrmFormat::FormatDescriptor &fmtDesc);
+    static void compositeWithCursor(QImage &primary, const CursorFrameBuffer &cursor, const DrmFormat::FormatDescriptor &fmtDesc);
 
     static QImage imageFromFrameBuffer(
         const uint8_t *data, uint32_t width, uint32_t height, uint32_t stride, const DrmFormat::FormatDescriptor &fmtDesc);

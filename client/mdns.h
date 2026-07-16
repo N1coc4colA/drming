@@ -13,13 +13,14 @@ struct ServiceInfo
     QString type;
     QString host;
     QString ip;
+    QString protocol;
     int port;
 
-    [[nodiscard]] hash_type toHashable() const { return hash_type{name + type + host + ip + QString::number(port)}; }
+    [[nodiscard]] hash_type toHashable() const { return hash_type{name + type + host + ip + protocol + QString::number(port)}; }
 
     bool operator==(const ServiceInfo &other) const
     {
-        return name == other.name && type == other.type && host == other.host && ip == other.ip && port == other.port;
+        return name == other.name && type == other.type && host == other.host && ip == other.ip && protocol == other.protocol && port == other.port;
     }
 };
 
@@ -46,14 +47,14 @@ public:
     Q_INVOKABLE [[nodiscard]] int count() const { return static_cast<int>(m_services.count()); }
 
 public Q_SLOTS:
-    void onServiceFound(const QString &name, const QString &type);
-    void onServiceLost(const QString &name, const QString &ip);
-    void onServiceResolved(const QString &name, const QString &host, const QString &ip, int port);
+    void onServiceFound(const QString &name, const QString &type, const QString &protocol);
+    void onServiceLost(const QString &name, const QString &ip, const QString &protocol);
+    void onServiceResolved(const QString &name, const QString &host, const QString &ip, int port, const QString &protocol);
 
 Q_SIGNALS:
-    void serviceFound(const QString &key, const ServiceInfo &info);
-    void serviceLost(const QString &key);
-    void serviceResolved(const QString &key, const ServiceInfo &info);
+    void serviceFound(const QString &key, const ServiceInfo &info, const QString &protocol);
+    void serviceLost(const QString &key, const QString &protocol);
+    void serviceResolved(const QString &key, const ServiceInfo &info, const QString &protocol);
     void countChanged(int count);
 
 protected:

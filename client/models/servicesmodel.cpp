@@ -38,12 +38,18 @@ QVariant ServicesModel::data(const QModelIndex &index, const int role) const
     const ServiceInfo &s = m_services.at(index.row()).second;
 
     switch (role) {
-    case NameRole: return s.name;
-    case HostRole: return s.host;
+    case NameRole:
+        return s.name;
+    case HostRole:
+        return s.host;
     case IpRole:
         return s.ip;
-    case PortRole: return s.port;
-    case TypeRole: return s.type;
+    case PortRole:
+        return s.port;
+    case TypeRole:
+        return s.type;
+    case ProtocolRole:
+        return s.protocol;
     default:
         return {};
     }
@@ -51,7 +57,7 @@ QVariant ServicesModel::data(const QModelIndex &index, const int role) const
 
 QHash<int, QByteArray> ServicesModel::roleNames() const
 {
-    return {{NameRole, "name"}, {HostRole, "host"}, {IpRole, "ip"}, {PortRole, "port"}, {TypeRole, "type"}};
+    return {{NameRole, "name"}, {HostRole, "host"}, {IpRole, "ip"}, {PortRole, "port"}, {TypeRole, "type"}, {ProtocolRole, "protocol"}};
 }
 
 QVariantMap ServicesModel::get(const int index) const

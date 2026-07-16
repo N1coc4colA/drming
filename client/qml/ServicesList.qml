@@ -15,6 +15,7 @@ EasyListView {
         ip: "",
         type: "",
         port: 0,
+        protocol: "",
     })
 
     signal serviceSelected(var service)
@@ -48,7 +49,7 @@ EasyListView {
                     Label {
                         font.pixelSize: GlobalVars.fontSizeLarge
                         font.bold: true
-                        text: model.name
+                        text: "(" + model.protocol + ") " + model.name
                     }
 
                     Label {
@@ -79,6 +80,7 @@ EasyListView {
                     selectedService.ip = model.ip
                     selectedService.port = model.port
                     selectedService.type = model.type
+                    selectedService.protocol = model.protocol
 
                     root.serviceSelected(selectedService)
                 }

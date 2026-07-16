@@ -1,9 +1,11 @@
 #ifndef NETWORKCLIENT_H
 #define NETWORKCLIENT_H
 
-#include <QHostAddress>
+#include <QSslSocket>
+#include <QUdpSocket>
 
 class QUdpSocket;
+class QSslSocket;
 class QDtls;
 
 class NetworkClient : public QObject
@@ -11,24 +13,43 @@ class NetworkClient : public QObject
     Q_OBJECT
 
 public:
-    NetworkClient(QHostAddress addr, quint16 port, QDtls *dtls, QUdpSocket *socket, QObject *parent = nullptr);
+    NetworkClient(QAbstractSocket *socket, QObject *parent);
     ~NetworkClient() override = default;
 
-    qint64 write(const QByteArray &data);
+    virtual qint64 write(const QByteArray &data) = 0;
 
     [[nodiscard]] QAbstractSocket::SocketState state() const { return QAbstractSocket::ConnectedState; }
-    [[nodiscard]] QHostAddress peerAddress() const { return m_addr; }
-    [[nodiscard]] quint16 peerPort() const { return m_port; }
-    QDtls *dtls() { return m_dtls; }
+    [[nodiscard]] inline QHostAddress peerAddress() const { return m_socket->peerAddress(); }
+    [[nodiscard]] inline quint16 peerPort() const { return m_socket->peerPort(); }
+
+    inline QAbstractSocket *socket() { return m_socket; }
+    inline const QAbstractSocket *socket() const { return m_socket; }
 
 Q_SIGNALS:
     void disconnected();
 
+protected:
+    QAbstractSocket *m_socket = nullptr;
+};
+
+class NetworkClientDtls : public NetworkClient
+{
+public:
+    NetworkClientDtls(QDtls *dtls, QUdpSocket *socket, QObject *parent = nullptr);
+    QDtls *dtls() { return m_dtls; }
+
+    qint64 write(const QByteArray &data) override;
+
 private:
-    QHostAddress m_addr{};
-    quint16 m_port = 0;
     QDtls *m_dtls = nullptr;
-    QUdpSocket *m_socket = nullptr;
+};
+
+class NetworkClientSsl : public NetworkClient
+{
+public:
+    NetworkClientSsl(QSslSocket *socket, QObject *parent = nullptr);
+
+    qint64 write(const QByteArray &data) override;
 };
 
 #endif // NETWORKCLIENT_H

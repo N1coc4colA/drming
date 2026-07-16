@@ -3,31 +3,42 @@
 #include <QBuffer>
 #include <QDebug>
 #include <QDir>
+#include <QHostAddress>
 #include <QSslCertificate>
 #include <QSslConfiguration>
 #include <QtEndian>
-#include <QHostAddress>
 
 #include "../settings.h"
 
+#include "ffmpeg.h"
 #include "fileprovider.h"
 
 NetworkLink::NetworkLink(QObject *parent)
-    : QObject{parent}
+    : QObject(parent)
     , Parser(*this)
+    , m_sslSocket(new QSslSocket(this))
     , m_udpSocket(new QUdpSocket(this))
     , m_dtls(new QDtls(QSslSocket::SslClientMode, this))
 {
-    QAbstractSocket::connect(m_udpSocket, &QUdpSocket::connected, this, &NetworkLink::onConnected);
-    QAbstractSocket::connect(m_udpSocket, &QUdpSocket::disconnected, this, &NetworkLink::onDisconnected);
-    QAbstractSocket::connect(m_udpSocket, &QUdpSocket::readyRead, this, &NetworkLink::onDataAvailable);
-    QAbstractSocket::connect(m_udpSocket, &QUdpSocket::errorOccurred, this, &NetworkLink::onError);
+    QObject::connect(m_udpSocket, &QUdpSocket::connected, this, &NetworkLink::onConnected);
+    QObject::connect(m_udpSocket, &QUdpSocket::disconnected, this, &NetworkLink::onDtlsDisconnected);
+    QObject::connect(m_udpSocket, &QUdpSocket::readyRead, this, &NetworkLink::onDtlsDataAvailable);
+    QObject::connect(m_udpSocket, &QUdpSocket::errorOccurred, this, &NetworkLink::onError);
 
-    QAbstractSocket::connect(m_dtls, &QDtls::handshakeTimeout, this, [this] { qWarning() << "DTLS handshake timeout"; });
+    QObject::connect(m_sslSocket, &QSslSocket::connected, this, &NetworkLink::onConnected);
+    QObject::connect(m_sslSocket, &QSslSocket::disconnected, this, &NetworkLink::onSslDisconnected);
+    QObject::connect(m_sslSocket, &QSslSocket::readyRead, this, &NetworkLink::onSslDataAvailable);
+    QObject::connect(m_sslSocket, &QSslSocket::handshakeInterruptedOnError, this, &NetworkLink::onSslError);
+    QObject::connect(m_sslSocket, &QSslSocket::errorOccurred, this, &NetworkLink::onError);
+    QObject::connect(m_sslSocket, &QSslSocket::peerVerifyError, [](const QSslError &error) { qWarning() << "Peer verification error:" << error; });
+    QObject::connect(m_sslSocket, &QSslSocket::encrypted, []() { qInfo() << "SSL connection established"; });
+    QObject::connect(m_sslSocket, &QSslSocket::modeChanged, [](const QSslSocket::SslMode newMode) { qInfo() << "SSL mode changed:" << newMode; });
+
+    QObject::connect(m_dtls, &QDtls::handshakeTimeout, this, [this] { qWarning() << "DTLS handshake timeout"; });
 
     m_inactivityTimer.setInterval(Settings::inactivityTimeout);
     m_inactivityTimer.setSingleShot(true);
-    QAbstractSocket::connect(&m_inactivityTimer, &QTimer::timeout, this, &NetworkLink::onConnectionTimeout);
+    QObject::connect(&m_inactivityTimer, &QTimer::timeout, this, &NetworkLink::onConnectionTimeout);
 
     // No UDP-specific socket options to set here.
 }
@@ -37,12 +48,15 @@ NetworkLink::~NetworkLink()
     if (m_dtls && m_dtls->handshakeState() == QDtls::HandshakeComplete) {
         m_dtls->shutdown(m_udpSocket);
     }
+
+    m_inactivityTimer.stop();
     m_udpSocket->close();
+    m_sslSocket->close();
 }
 
 void NetworkLink::close()
 {
-    if (!m_udpSocket || m_udpSocket->state() == QAbstractSocket::UnconnectedState) {
+    if (!m_sslSocket && (!m_udpSocket || m_udpSocket->state() == QAbstractSocket::UnconnectedState)) {
         return;
     }
 
@@ -52,15 +66,16 @@ void NetworkLink::close()
 
     m_inactivityTimer.stop();
     m_udpSocket->close();
+    m_sslSocket->close();
 }
 
-void NetworkLink::connect(const QString &address, const int port, const QString &clientName)
+void NetworkLink::connect(const QString &address, const int port, const QString &clientName, const QString &protocolName)
 {
-    if (m_udpSocket->state() != QAbstractSocket::UnconnectedState) {
+    if (m_sslSocket->state() != QAbstractSocket::UnconnectedState || m_udpSocket->state() != QAbstractSocket::UnconnectedState) {
         return;
     }
 
-    qInfo() << "Connecting to (DTLS):" << address << port << "using client" << clientName;
+    qInfo() << "Connecting to:" << address << port << "using client" << clientName << "with protocol" << protocolName;
 
     // Use encrypted connection
     const auto clientData = FileProvider::instance()->clientData(clientName);
@@ -74,19 +89,35 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
     }
 
     // Disable all default CA verification — we do our own allowlist check
-    auto sslConf = QSslConfiguration::defaultDtlsConfiguration();
+    auto sslConf = protocolName == "dtls" ? QSslConfiguration::defaultDtlsConfiguration() : QSslConfiguration::defaultConfiguration();
     sslConf.setCaCertificates({});
     sslConf.setPeerVerifyMode(QSslSocket::VerifyNone); // Avoid chain validation
     sslConf.setLocalCertificate(clientData.first);
     sslConf.setPrivateKey(clientData.second);
 
-    m_dtls->setDtlsConfiguration(sslConf);
-    m_dtls->setMtuHint(1200);
-
     const QHostAddress hostAddress(address);
+
+    if (protocolName == "dtls") {
+        connectDtls(sslConf, hostAddress, port);
+    } else if (protocolName == "ssl") {
+        connectSsl(sslConf, hostAddress, port);
+    } else {
+        qWarning() << "Unknown protocol name requested to connect to server:" << protocolName;
+        Q_EMIT error(tr("The protocol is invalid: %1").arg(clientName));
+    }
+}
+
+void NetworkLink::connectDtls(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, const int port)
+{
+    m_protocol = "dtls";
+
+    m_dtls->setDtlsConfiguration(sslConf);
+    m_dtls->setMtuHint(Settings::dtlsChunkSize);
+
     m_dtls->setPeer(hostAddress, static_cast<quint16>(port));
 
     // Bind ephemeral local port
+    // [TODO] Should automatically switch between IPv4 & v6.
     if (!m_udpSocket->bind(QHostAddress::AnyIPv4, 0)) {
         qWarning() << "Failed to bind UDP socket:" << m_udpSocket->errorString();
         Q_EMIT error(m_udpSocket->errorString());
@@ -94,7 +125,7 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
     }
 
     // Connect the UDP socket to the remote peer so readDatagram() only yields packets from peer
-    m_udpSocket->connectToHost(address, static_cast<quint16>(port));
+    m_udpSocket->connectToHost(hostAddress, static_cast<quint16>(port));
 
     if (!m_dtls->doHandshake(m_udpSocket)) {
         Q_EMIT error(tr("Failed to start DTLS handshake: %1").arg(m_dtls->dtlsErrorString()));
@@ -104,29 +135,78 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
     qInfo() << "DTLS handshake started";
 }
 
+void NetworkLink::connectSsl(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, const int port)
+{
+    m_protocol = "ssl";
+
+    // Apply configuration before starting the handshake
+    m_sslSocket->setSslConfiguration(sslConf);
+
+    QObject::connect(m_sslSocket, &QSslSocket::encrypted, this, [this]() { qInfo() << "SSL handshake completed"; });
+    QObject::connect(m_sslSocket, qOverload<QAbstractSocket::SocketError>(&QSslSocket::errorOccurred), this, &NetworkLink::onError);
+
+    m_sslSocket->connectToHost(hostAddress.toString(), static_cast<quint16>(port));
+
+    if (!m_sslSocket->waitForConnected()) {
+        Q_EMIT error(tr("Failed to connect TCP socket: %1").arg(m_sslSocket->errorString()));
+        return;
+    }
+
+    // Starts the client-side SSL handshake after TCP connection is established.
+    m_sslSocket->startClientEncryption();
+
+    QTimer::singleShot(5000, this, &NetworkLink::checkSSLState);
+}
+
+void NetworkLink::checkSSLState()
+{
+    if (!m_sslSocket->isEncrypted()) {
+        const auto msg = tr("Failed to complete SSL handshake: %1, state: %2").arg(m_sslSocket->errorString()).arg(m_sslSocket->state());
+        qWarning() << "SSL HS errors:" << m_sslSocket->sslHandshakeErrors();
+        qWarning() << "SSL HS errors:" << m_sslSocket->sslHandshakeErrors();
+        qWarning() << "SSL HS errors:" << m_sslSocket->sslHandshakeErrors();
+        QTimer::singleShot(5000, this, &NetworkLink::checkSSLState);
+
+        //Q_EMIT error(msg);
+    }
+}
+
 void NetworkLink::onError(const QAbstractSocket::SocketError error)
 {
     qWarning() << "Connection error occurred: " << error;
-    if (m_udpSocket) {
+
+    if (m_protocol == "dtls" && m_udpSocket) {
         Q_EMIT NetworkLink::error(m_udpSocket->errorString());
+    } else if (m_protocol == "ssl" && m_sslSocket) {
+        Q_EMIT NetworkLink::error(m_sslSocket->errorString());
     } else {
         Q_EMIT NetworkLink::error(tr("A network error occurred."));
     }
 }
 
-void NetworkLink::onConnected()
+void NetworkLink::onSslError(const QSslError &error)
 {
-    qInfo() << "UDP socket connected";
+    qWarning() << "SSL Connection error occurred: " << error;
 }
 
-void NetworkLink::onDisconnected()
+void NetworkLink::onConnected()
+{
+    qInfo() << "Socket connected";
+}
+
+void NetworkLink::onDtlsDisconnected()
 {
     m_udpSocket->close();
     m_buffer.clear();
     m_inactivityTimer.stop();
 }
 
-void NetworkLink::onDataAvailable()
+void NetworkLink::onSslDisconnected()
+{
+    m_sslSocket->close();
+}
+
+void NetworkLink::onDtlsDataAvailable()
 {
     m_inactivityTimer.start();
 
@@ -175,17 +255,54 @@ void NetworkLink::onDataAvailable()
     }
 }
 
+void NetworkLink::onSslDataAvailable()
+{
+    m_inactivityTimer.start();
+
+    const QByteArray plain = m_sslSocket->readAll();
+    if (!plain.isEmpty()) {
+        addData(plain);
+        return;
+    }
+
+    // If the peer has closed the connection, QSslSocket will eventually
+    // emit disconnected(); treat that as the shutdown path.
+    if (m_sslSocket->state() == QAbstractSocket::UnconnectedState) {
+        qWarning() << "SSL shutdown received";
+        Q_EMIT closed();
+        return;
+    }
+
+    qWarning() << "Received empty SSL payload";
+}
+
 void NetworkLink::onConnectionTimeout()
 {
-    if (m_dtls && m_dtls->handshakeState() == QDtls::HandshakeComplete) {
+    if (m_sslSocket || (m_dtls && m_dtls->handshakeState() == QDtls::HandshakeComplete)) {
         Q_EMIT error(tr("Connection timed out."));
         close();
     }
 }
 
+void NetworkLink::processPacket(const Packets::ServerStream &img)
+{
+    if (!m_decoder) {
+        m_decoder = FfmpegDecoder::instance();
+        m_decoder->setFrameCallback([this](const QImage &image) {
+            if (!image.isNull()) {
+                [[likely]];
+
+                Q_EMIT imageReady(image);
+            }
+        });
+    }
+
+    m_decoder->decode(reinterpret_cast<const uint8_t *>(img.data.constData()), img.frameSize);
+}
+
 void NetworkLink::processPacket(const Packets::ServerImage &img)
 {
-    const auto converted = QImage::fromData(img.data, Settings::frameImageFormat);
+    const auto converted = QImage::fromData(img.data, img.format);
 
     if (!converted.isNull()) {
         [[likely]];

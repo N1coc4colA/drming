@@ -1,3 +1,6 @@
 [submodule "submodules/ctrack"]
 	path = submodules/ctrack
 	url = https://github.com/Compaile/ctrack.git
+[submodule "submodules/ffmpeg-kit-next"]
+	path = submodules/ffmpeg-kit-next
+	url = https://github.com/arthenica/ffmpeg-kit-next.git

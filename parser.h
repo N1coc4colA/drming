@@ -5,6 +5,7 @@
 #include <QDebug>
 
 #include <QFloat16>
+#include <iostream>
 #include <qtypes.h>
 
 #include <expected>
@@ -18,9 +19,10 @@ enum class Type : quint16 {
     ServerImage,
     ClientResolution,
     ServerBrightness,
+    ServerStream,
 
     MINIMUM = ServerImage,
-    MAXIMUM = ServerBrightness,
+    MAXIMUM = ServerStream,
 
     LOWER = ServerImage,
     UPPER = MAXIMUM
@@ -31,14 +33,17 @@ struct ServerImage
 {
     static constexpr auto type = Type::ServerImage;
 
+    qsizetype formatSize = 0;
     qsizetype imageSize = 0;
+    QByteArray format;
     QByteArray data;
 
     using mQSizeType = qsizetype ServerImage::*;
     using mByteArray = QByteArray ServerImage::*;
     using mSized = std::pair<std::variant<mQSizeType>, mByteArray>;
-    static constexpr std::array<std::variant<mQSizeType>, 1> members = {&ServerImage::imageSize};
-    static constexpr std::array<mSized, 1> variableMembers = {mSized{&ServerImage::imageSize, &ServerImage::data}};
+    static constexpr std::array<std::variant<mQSizeType>, 2> members = {&ServerImage::formatSize, &ServerImage::imageSize};
+    static constexpr std::array<mSized, 2> variableMembers = {mSized{&ServerImage::formatSize, &ServerImage::format},
+                                                              mSized{&ServerImage::imageSize, &ServerImage::data}};
 };
 
 struct ClientResolution
@@ -62,7 +67,21 @@ struct ServerBrightness
     static constexpr std::array<std::variant<mQFloat16>, 1> members = {&ServerBrightness::brightness};
 };
 
-using PacketVariant = std::variant<ServerImage, ClientResolution, ServerBrightness>;
+struct ServerStream
+{
+    static constexpr auto type = Type::ServerStream;
+
+    qsizetype frameSize = 0;
+    QByteArray data;
+
+    using mQSizeType = qsizetype ServerStream::*;
+    using mByteArray = QByteArray ServerStream::*;
+    using mSized = std::pair<std::variant<mQSizeType>, mByteArray>;
+    static constexpr std::array<std::variant<mQSizeType>, 1> members = {&ServerStream::frameSize};
+    static constexpr std::array<mSized, 1> variableMembers = {mSized{&ServerStream::frameSize, &ServerStream::data}};
+};
+
+using PacketVariant = std::variant<ServerImage, ClientResolution, ServerBrightness, ServerStream>;
 
 /* Types validators */
 template<typename T>
@@ -232,13 +251,15 @@ class Parser
                 T &packet = std::get<T>(m_current);
                 auto sized = T::variableMembers[m_parsed - membersCount];
 
+                using sizingType = qsizetype;
+
                 const auto len = std::visit([&](auto &&ptr) { return packet.*ptr; }, sized.first);
-                if (m_array.size() < static_cast<qsizetype>(len)) {
+                if (m_array.size() < static_cast<sizingType>(len)) {
                     return false;
                 }
 
-                packet.*sized.second = m_array.first(static_cast<qsizetype>(len));
-                m_array.remove(0, static_cast<qsizetype>(len));
+                packet.*sized.second = m_array.first(static_cast<sizingType>(len));
+                m_array.remove(0, static_cast<sizingType>(len));
                 m_parsed++;
             }
         }
@@ -302,6 +323,10 @@ public:
                 }
                 case Type::ServerBrightness: {
                     done = instanceParsing<ServerBrightness>();
+                    break;
+                }
+                case Type::ServerStream: {
+                    done = instanceParsing<ServerStream>();
                     break;
                 }
                 default: {

@@ -19,6 +19,11 @@ Q_SIGNALS:
 public Q_SLOTS:
     void setClient(NetworkClient *client);
 
+protected:
+    NetworkClient *m_client = nullptr;
+
+    void sendData(QByteArray output);
+
 private:
     DisplayReader m_reader;
 
@@ -26,13 +31,16 @@ private:
     std::optional<DrmFormat::FormatDescriptor> m_vkmsFrameDescriptor{};
 
     QTimer m_timer{};
-    NetworkClient *m_client = nullptr;
     bool primaryFailureNotice = false;
+
+    virtual void processImage(const QImage &img) = 0;
 
 private Q_SLOTS:
     void forward();
     void onConnected();
     void onDisconnected();
 };
+
+Display *generateNewDisplay(const QString &connectorName, QObject *parent = nullptr);
 
 #endif // DISPLAY_H
