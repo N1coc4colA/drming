@@ -134,6 +134,12 @@ drming_client
 )
 
 if (ANDROID)
+    target_compile_definitions(
+    drming_client
+        PUBLIC
+            USE_NAT_SURFACES
+    )
+
     target_link_libraries(
     drming_client
         PRIVATE
@@ -145,6 +151,9 @@ if (ANDROID)
             Qt6::Widgets
             ctrack
             mediandk
+            EGL
+            GLESv2
+            android
     )
 else()
     target_link_libraries(

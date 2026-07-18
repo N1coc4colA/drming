@@ -100,11 +100,58 @@ int FfmpegDecoder::init(const int width, const int height)
 
     m_width = width;
     m_height = height;
-    m_resolutionDetected = true;
+    m_resolutionDetected = true; // you need to add this member or just use width>0
 
+#ifdef USE_NAT_SURFACES
+    media_status_t status = AImageReader_new(width,
+                                             height,
+                                             AIMAGE_FORMAT_YUV_420_888, // most common
+                                             3,
+                                             &m_imageReader);
+    switch (status) {
+    case AMEDIA_OK: {
+        // Most likely case. We can continue normally.
+        break;
+    }
+    case AMEDIA_ERROR_INVALID_PARAMETER: {
+        qWarning() << "AImageReader_new failed:" << status;
+        // Fallback to CPU path (original code)
+        m_useImageReader = false;
+        goto fallback;
+    }
+    case AMEDIA_ERROR_UNKNOWN: {
+        qWarning() << "AImageReader_new failed with unknown error.";
+        // Fallback to CPU path (original code)
+        m_useImageReader = false;
+        goto fallback;
+    }
+    default: {
+        qWarning() << "AImageReader_new failed with unexpected error code:" << status;
+        // Fallback to CPU path (original code)
+        m_useImageReader = false;
+        goto fallback;
+    }
+    }
+
+    // 2. Get ANativeWindow from the reader
+    status = AImageReader_getWindow(m_imageReader, &m_window);
+    if (status != AMEDIA_OK) {
+        qWarning() << "AImageReader_getWindow failed:" << status;
+        AImageReader_delete(m_imageReader);
+        m_imageReader = nullptr;
+        m_useImageReader = false;
+        goto fallback;
+    }
+
+    // 3. Set up the image listener (callback from decoder thread)
+    AImageReader_ImageListener listener;
+    listener.context = this;
+    listener.onImageAvailable = FfmpegDecoder::onImageAvailable;
+    AImageReader_setImageListener(m_imageReader, &listener);
+
+    // 4. Create MediaCodec decoder
     m_codec = AMediaCodec_createDecoderByType("video/hevc");
     if (!m_codec) {
-        [[unlikely]];
         qCritical() << "Failed to create MediaCodec decoder";
         return -1;
     }
@@ -113,40 +160,118 @@ int FfmpegDecoder::init(const int width, const int height)
     AMediaFormat_setString(m_format, AMEDIAFORMAT_KEY_MIME, "video/hevc");
     AMediaFormat_setInt32(m_format, AMEDIAFORMAT_KEY_WIDTH, width);
     AMediaFormat_setInt32(m_format, AMEDIAFORMAT_KEY_HEIGHT, height);
-
-    // Low latency settings
     AMediaFormat_setInt32(m_format, AMEDIAFORMAT_KEY_PRIORITY, 0);
 
     // Set CSD if available
     if (m_csdReady) {
-        if (!m_vps.empty()) {
-            AMediaFormat_setBuffer(m_format, "csd-0", &m_vps[0], m_vps.size());
-        }
-        if (!m_sps.empty()) {
-            AMediaFormat_setBuffer(m_format, "csd-1", &m_sps[0], m_sps.size());
-        }
-        if (!m_pps.empty()) {
-            AMediaFormat_setBuffer(m_format, "csd-2", &m_pps[0], m_pps.size());
-        }
+        if (!m_vps.empty())
+            AMediaFormat_setBuffer(m_format, "csd-0", m_vps.data(), m_vps.size());
+        if (!m_sps.empty())
+            AMediaFormat_setBuffer(m_format, "csd-1", m_sps.data(), m_sps.size());
+        if (!m_pps.empty())
+            AMediaFormat_setBuffer(m_format, "csd-2", m_pps.data(), m_pps.size());
     }
 
-    media_status_t status = AMediaCodec_configure(m_codec, m_format, nullptr, nullptr, 0);
+    // 5. Configure MediaCodec with the ANativeWindow (surface)
+    status = AMediaCodec_configure(m_codec, m_format, m_window, nullptr, 0);
     if (status != AMEDIA_OK) {
-        [[unlikely]];
-        qCritical() << "Failed to configure MediaCodec:" << status;
-        return -1;
+        qCritical() << "AMediaCodec_configure with surface failed:" << status;
+        goto fallback;
     }
 
     status = AMediaCodec_start(m_codec);
     if (status != AMEDIA_OK) {
-        [[unlikely]];
-        qCritical() << "Failed to start MediaCodec:" << status;
-        return -1;
+        qCritical() << "AMediaCodec_start failed:" << status;
+        goto fallback;
     }
 
+    m_useImageReader = true;
+
     m_initialized = true;
-    qDebug() << "MediaCodec decoder initialized with resolution:" << width << "x" << height;
+    qDebug() << "MediaCodec decoder initialized with AImageReader (zero-copy)";
     return 0;
+
+fallback:
+    // Clean up any half‑created resources and use the old CPU path
+    if (m_codec) {
+        AMediaCodec_stop(m_codec);
+        AMediaCodec_delete(m_codec);
+        m_codec = nullptr;
+    }
+    if (m_format) {
+        AMediaFormat_delete(m_format);
+        m_format = nullptr;
+    }
+
+    if (m_imageReader) {
+        AImageReader_delete(m_imageReader);
+        m_imageReader = nullptr;
+    }
+    if (m_window) {
+        ANativeWindow_release(m_window);
+        m_window = nullptr;
+    }
+#endif
+
+    // Re‑init with the old CPU‑based method (existing code)
+    // (You can keep your original init code here, but we'll just copy the old logic)
+    // For brevity, I'll assume you have the original code; we'll call it here.
+    // Actually we can just re‑use the old code path by duplicating it.
+    // Since the original init is already there, I'll just call it via a helper.
+    // But to avoid duplication, we'll put the old code inside this function
+    // but under a separate block. I'll just call the old init logic manually.
+    // However, the old init was above, so we'll copy it here.
+    // But the simplest: just re‑run the old init code (without surface).
+    // Since we already have it, we'll just call a private method.
+    // For now, I'll just implement it inline:
+    {
+        // Old code: create decoder without surface
+        m_codec = AMediaCodec_createDecoderByType("video/hevc");
+        if (!m_codec) {
+            qCritical() << "Failed to create MediaCodec decoder (fallback)";
+            return -1;
+        }
+        m_format = AMediaFormat_new();
+        AMediaFormat_setString(m_format, AMEDIAFORMAT_KEY_MIME, "video/hevc");
+        AMediaFormat_setInt32(m_format, AMEDIAFORMAT_KEY_WIDTH, width);
+        AMediaFormat_setInt32(m_format, AMEDIAFORMAT_KEY_HEIGHT, height);
+        AMediaFormat_setInt32(m_format, AMEDIAFORMAT_KEY_PRIORITY, 0);
+        if (m_csdReady) {
+            if (!m_vps.empty()) {
+                AMediaFormat_setBuffer(m_format, "csd-0", m_vps.data(), m_vps.size());
+            }
+            if (!m_sps.empty()) {
+                AMediaFormat_setBuffer(m_format, "csd-1", m_sps.data(), m_sps.size());
+            }
+            if (!m_pps.empty()) {
+                AMediaFormat_setBuffer(m_format, "csd-2", m_pps.data(), m_pps.size());
+            }
+        }
+
+#ifdef USE_NAT_SURFACES
+        status = AMediaCodec_configure(m_codec, m_format, nullptr, nullptr, 0);
+#else
+        media_status_t status = AMediaCodec_configure(m_codec, m_format, nullptr, nullptr, 0);
+#endif
+
+        if (status != AMEDIA_OK) {
+            qCritical() << "Failed to configure MediaCodec (fallback):" << status;
+            return -1;
+        }
+        status = AMediaCodec_start(m_codec);
+        if (status != AMEDIA_OK) {
+            qCritical() << "Failed to start MediaCodec (fallback):" << status;
+            return -1;
+        }
+
+#ifdef USE_NAT_SURFACES
+        m_useImageReader = false;
+#endif
+
+        m_initialized = true;
+        qDebug() << "MediaCodec decoder initialized with CPU fallback";
+        return 0;
+    }
 }
 
 void FfmpegDecoder::release()
@@ -161,13 +286,38 @@ void FfmpegDecoder::release()
         m_format = nullptr;
     }
 
+#ifdef USE_NAT_SURFACES
+    if (m_imageReader) {
+        AImageReader_delete(m_imageReader);
+        m_imageReader = nullptr;
+    }
+    if (m_window) {
+        ANativeWindow_release(m_window);
+        m_window = nullptr;
+    }
+
+    // Destroy EGL image and texture
+    if (m_eglImage != EGL_NO_IMAGE_KHR) {
+        const auto display = eglGetCurrentDisplay();
+        if (display != EGL_NO_DISPLAY) {
+            eglDestroyImageKHR(display, m_eglImage);
+        }
+        m_eglImage = EGL_NO_IMAGE_KHR;
+    }
+    if (m_oesTextureId != 0) {
+        glDeleteTextures(1, &m_oesTextureId);
+        m_oesTextureId = 0;
+    }
+
+    m_useImageReader = false;
+
+#endif
+
     m_initialized = false;
+    m_width = m_height = 0;
     m_resolutionDetected = false;
     m_width = 0;
     m_height = 0;
-    m_stride = 0;
-    m_sliceHeight = 0;
-    m_pixelFormat = 0;
 
     std::lock_guard<std::mutex> lock(m_queueMutex);
     while (!m_frameQueue.empty()) {
@@ -186,27 +336,34 @@ int FfmpegDecoder::flush()
 
 int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
 {
+    const auto isKeyFrame = isKeyFrameH265(data, size);
+
     // If we don't have resolution, use a default
-    if (!m_resolutionDetected) {
+    if (!m_resolutionDetected || (m_needResync && isKeyFrame)) {
         qWarning() << "No resolution detected, using default 1920x1080";
         int ret = init(1920, 1080);
         if (ret < 0) {
             [[unlikely]];
+            qDebug() << "Failed to reinit (1).";
             return ret;
         }
+
+        m_needResync = false;
     }
 
     if (!m_initialized) {
-        int ret = init(m_width, m_height);
+        const int ret = init(m_width, m_height);
         if (ret < 0) {
+            qDebug() << "Failed to reinit (2).";
             return ret;
         }
     }
 
-    const auto isKeyFrame = isKeyFrameH265(data, size);
     if (isKeyFrame && m_needResync) {
+        // [TODO] Handle flush status
         AMediaCodec_flush(m_codec);
         m_needResync = false;
+        // Requires resend of key frame.
     }
 
     if (m_needResync && !isKeyFrame) {
@@ -228,6 +385,7 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
     if (ret < 0) {
         [[unlikely]];
         m_needResync = true;
+        qDebug() << "Resync required.";
     }
 
     return ret;
@@ -235,121 +393,155 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
 
 int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
 {
-    ssize_t inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 10000);
-    if (inputIndex < 0) {
-        [[unlikely]];
-        qWarning() << "Failed to dequeue input buffer";
+    // Always queue input buffer (works for both paths)
+    const auto inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 10000);
+    if (inputIndex >= 0) {
+        // Most likely case, we have a buffer, just continue.
+    } else if (inputIndex == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
+        qDebug() << "Dequeue input TAL";
+        // Just got to wait longer.
+        return 0;
+    } else {
+        qWarning() << "Failed to dequeue input buffer, unexpected error occurred:" << inputIndex;
         return -1;
     }
 
     size_t bufferSize = 0;
-    uint8_t* inputBuffer = AMediaCodec_getInputBuffer(m_codec, inputIndex, &bufferSize);
+    const auto inputBuffer = AMediaCodec_getInputBuffer(m_codec, inputIndex, &bufferSize);
     if (!inputBuffer) {
-        [[unlikely]];
-        qWarning() << "Failed to get input buffer";
+        qWarning() << "Failed to get input buffer: " << inputBuffer;
         return -1;
     }
-
     if (size > bufferSize) {
-        [[unlikely]];
+        // [TODO] handle buffer resizing.
         qWarning() << "Input data too large:" << size << ">" << bufferSize;
         return -1;
     }
-
     memcpy(inputBuffer, data, size);
 
     const uint32_t flags = isKeyFrameH265(data, size) ? AMEDIACODEC_BUFFER_FLAG_KEY_FRAME : 0;
-    const media_status_t status = AMediaCodec_queueInputBuffer(
+    const auto status = AMediaCodec_queueInputBuffer(
         m_codec,
         inputIndex,
         0,
         size,
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
         flags);
-
     if (status != AMEDIA_OK) {
-        [[unlikely]];
-        qWarning() << "Failed to queue input buffer:" << status;
+        qWarning() << "MC Failed to queue input buffer:" << status;
         return -1;
     }
 
+#ifdef USE_NAT_SURFACES
+    if (m_useImageReader) {
+        AMediaCodecBufferInfo info{};
+        for (;;) {
+            const auto outIdx = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 0);
+            if (outIdx >= 0) {
+                // render = true: hands the buffer to the ANativeWindow/AImageReader.
+                AMediaCodec_releaseOutputBuffer(m_codec, outIdx, true);
+                continue; // more than one frame may be ready
+            } else if (outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
+                break;
+            } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
+                qDebug() << "Format changed!";
+                continue;
+            } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
+                continue;
+            } else {
+                qWarning() << "Unexpected output result:" << outIdx;
+                break;
+            }
+        }
+        qDebug() << "Differed delivery";
+        return 0;
+    }
+#endif
+
+    qDebug() << "Direct delivery";
+
+    // CPU fallback: original output buffer processing
     AMediaCodecBufferInfo info{};
-    ssize_t outputIndex = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 10000);
-
+    const auto outputIndex = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 10000);
     if (outputIndex >= 0) {
-        if (info.size > 0) {
-            size_t outBufferSize = 0;
-            const uint8_t* outputBuffer = AMediaCodec_getOutputBuffer(m_codec, outputIndex, &outBufferSize);
+        // Most likely case.
 
-            if (outputBuffer && info.size > 0) {
-                // Detect format if not known
-                if (m_pixelFormat == 0) {
-                    AMediaFormat* outputFormat = AMediaCodec_getOutputFormat(m_codec);
-                    if (outputFormat) {
-                        if (!AMediaFormat_getInt32(outputFormat, "color-format", &m_pixelFormat)) {
-                            [[unlikely]];
-                            qWarning() << "Failed to get property color-format";
-                        }
-                        if (!AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_STRIDE, &m_stride)) {
-                            [[unlikely]];
-                            qWarning() << "Failed to get property" << AMEDIAFORMAT_KEY_STRIDE;
-                        }
-                        if (!AMediaFormat_getInt32(outputFormat, "slice-height", &m_sliceHeight)) {
-                            [[unlikely]];
-                            qWarning() << "Failed to get property slice-height";
-                        }
+        /*
+        At or before API level 35, the offset in the AMediaCodecBufferInfo struct was invalid and
+        should be ignored; however, at the same time the buffer size could only be obtained from
+        this struct. After API level 35, the offset returned in the struct is always set to 0, and
+        the buffer size can also be obtained from the AMediaCodec_getOutputBuffer() call.
+        */
 
-                        qDebug() << "Pixel format:" << m_pixelFormat << "stride:" << m_stride << "slice-height:" << m_sliceHeight;
+        size_t outBufferSize = 0;
+        const auto outputBuffer = AMediaCodec_getOutputBuffer(m_codec, outputIndex, &outBufferSize);
+        if (outputBuffer && outBufferSize > 0) {
+            qDebug() << "Fallen back to CPU.";
 
-                        // Update width/height from output format if available
-                        int width = 0, height = 0;
-                        if (AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_WIDTH, &width)
-                            && AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_HEIGHT, &height)) {
-                            if (width != m_width || height != m_height) {
-                                [[likely]];
-                                m_width = width;
-                                m_height = height;
-                                qDebug() << "Resolution from output:" << m_width << "x" << m_height;
-                            }
-                        }
-                        AMediaFormat_delete(outputFormat);
+            if (m_pixelFormat == 0) {
+                AMediaFormat* outputFormat = AMediaCodec_getOutputFormat(m_codec);
+                if (outputFormat) {
+                    if (!AMediaFormat_getInt32(outputFormat, "color-format", &m_pixelFormat)) {
+                        [[unlikely]];
+                        qWarning() << "Failed to get property color-format";
                     }
+                    if (!AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_STRIDE, &m_stride)) {
+                        [[unlikely]];
+                        qWarning() << "Failed to get property" << AMEDIAFORMAT_KEY_STRIDE;
+                    }
+                    if (!AMediaFormat_getInt32(outputFormat, "slice-height", &m_sliceHeight)) {
+                        [[unlikely]];
+                        qWarning() << "Failed to get property slice-height";
+                    }
+
+                    qDebug() << "Pixel format:" << m_pixelFormat << "stride:" << m_stride << "slice-height:" << m_sliceHeight;
+
+                    // Update width/height from output format if available
+                    int width = 0, height = 0;
+                    if (AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_WIDTH, &width)
+                        && AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_HEIGHT, &height)) {
+                        if (width != m_width || height != m_height) {
+                            [[likely]];
+                            m_width = width;
+                            m_height = height;
+                            qDebug() << "Resolution from output:" << m_width << "x" << m_height;
+                        }
+                    }
+                    AMediaFormat_delete(outputFormat);
                 }
+            }
 
-                if (m_width > 0 && m_height > 0) {
-                    const QImage image
-                        = convertToQImage(outputBuffer + info.offset, info.size, m_width, m_height, m_stride, m_sliceHeight, m_pixelFormat);
+            if (m_width > 0 && m_height > 0) {
+                const QImage image = convertToQImage(outputBuffer + info.offset, info.size, m_width, m_height, m_stride, m_sliceHeight, m_pixelFormat);
 
-                    if (!image.isNull() && m_frameCallback) {
-                        m_frameCallback(image);
-                    }
+                if (!image.isNull() && m_frameCallback) {
+                    m_frameCallback(image);
                 }
             }
         }
 
         AMediaCodec_releaseOutputBuffer(m_codec, outputIndex, false);
-    } else if (outputIndex == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
-        [[unlikely]];
-
-        AMediaFormat* outputFormat = AMediaCodec_getOutputFormat(m_codec);
-        if (outputFormat) {
-            int width = 0, height = 0;
-            if (AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_WIDTH, &width)
-                && AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_HEIGHT, &height)) {
-                m_width = width;
-                m_height = height;
-                m_resolutionDetected = true;
-                qDebug() << "Format changed - resolution:" << m_width << "x" << m_height;
-            }
-            AMediaFormat_getInt32(outputFormat, "pixel-format", &m_pixelFormat);
-            AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_STRIDE, &m_stride);
-            AMediaFormat_getInt32(outputFormat, "slice-height", &m_sliceHeight);
-
-            qDebug() << "Format changed - pixel-format:" << m_pixelFormat << "stride:" << m_stride << "slice-height:" << m_sliceHeight;
-
-            AMediaFormat_delete(outputFormat);
+    } else {
+        switch (outputIndex) {
+        case AMEDIACODEC_INFO_TRY_AGAIN_LATER: {
+            qDebug() << "Dequeue output TAL";
+            // Nothing much to do but wait.
+            break;
         }
-        return 0;
+        case AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED: {
+            qDebug() << "Format changed !";
+            // [TODO] Handle format change.
+            break;
+        }
+        case AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED: {
+            qDebug() << "Output buffers changed !";
+            // [TODO] Handle output buffers change.
+            break;
+        }
+        default:
+            qWarning() << "Unexpected output result:" << outputIndex;
+            return -1;
+        }
     }
 
     return 0;
@@ -371,8 +563,8 @@ QImage FfmpegDecoder::convertToQImage(
 
     uint8_t* dst = image.bits();
 
-    int actualStride = stride > 0 ? stride : width;
-    int actualSliceHeight = sliceHeight > 0 ? sliceHeight : height;
+    const int actualStride = stride > 0 ? stride : width;
+    const int actualSliceHeight = sliceHeight > 0 ? sliceHeight : height;
 
     // Common Android pixel formats
     // OMX_COLOR_FormatYUV420Planar = 0x13 (YUV420P)
@@ -450,5 +642,120 @@ QImage FfmpegDecoder::convertToQImage(
 
     return image;
 }
+
+#ifdef USE_NAT_SURFACES
+void FfmpegDecoder::onImageAvailable(void* context, AImageReader* reader)
+{
+    qDebug() << "Image became available";
+    auto self = static_cast<FfmpegDecoder*>(context);
+    // Just set a flag; the actual acquisition happens on the render thread
+    self->m_frameAvailable.store(true, std::memory_order_release);
+}
+
+bool FfmpegDecoder::consumeFrame()
+{
+    qDebug() << "Consuming";
+
+    if (!m_useImageReader || !m_imageReader) {
+        qDebug() << "Invalid consume:" << m_useImageReader << m_imageReader;
+        return false;
+    }
+
+    const bool hadFrame = m_frameAvailable.exchange(false, std::memory_order_acq_rel);
+    if (!hadFrame) {
+        qDebug() << "No new frame";
+        return false;
+    }
+
+    AImage* image = nullptr;
+    auto status = AImageReader_acquireNextImage(m_imageReader, &image);
+    switch (status) {
+    case AMEDIA_OK: {
+        // Most likely case, just continue.
+        break;
+    }
+    case AMEDIA_IMGREADER_NO_BUFFER_AVAILABLE: {
+        qDebug() << "No availble buffers";
+        return false;
+    }
+    case AMEDIA_IMGREADER_MAX_IMAGES_ACQUIRED: {
+        qWarning() << "MC IR Too many IMG acquired.";
+        break;
+    }
+    default: {
+        qWarning() << "AImageReader_acquireNextImage failed:" << status;
+        return false;
+    }
+    }
+
+    // Get the hardware buffer
+    AHardwareBuffer* hardwareBuffer = nullptr;
+    status = AImage_getHardwareBuffer(image, &hardwareBuffer);
+    if (status != AMEDIA_OK || !hardwareBuffer) {
+        qWarning() << "Failed to get AHardwareBuffer from image";
+        AImage_delete(image);
+        return false;
+    }
+
+    // Update the OpenGL texture using the hardware buffer
+    updateTextureFromHardwareBuffer(hardwareBuffer);
+
+    AHardwareBuffer_release(hardwareBuffer);
+    AImage_delete(image);
+    return true;
+}
+
+void FfmpegDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
+{
+    qDebug() << "Updating texture";
+
+    const auto display = eglGetCurrentDisplay();
+    if (display == EGL_NO_DISPLAY) {
+        qWarning() << "No current EGL display";
+        return;
+    }
+
+    // Get EGL client buffer from AHardwareBuffer
+    const auto clientBuffer = eglGetNativeClientBufferANDROID(buffer);
+    if (!clientBuffer) {
+        qWarning() << "eglGetNativeClientBufferANDROID failed";
+        return;
+    }
+
+    // Create EGLImage
+    constexpr EGLint attribs[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
+    const auto eglImage = eglCreateImageKHR(display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, attribs);
+    if (eglImage == EGL_NO_IMAGE_KHR) {
+        qWarning() << "eglCreateImageKHR failed";
+        return;
+    }
+
+    // Create/update the OES texture
+    if (m_oesTextureId == 0) {
+        qDebug() << "Setting OES tex ID";
+        glGenTextures(1, &m_oesTextureId);
+        glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_oesTextureId);
+        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    }
+
+    glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_oesTextureId);
+    glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, eglImage);
+
+    // Destroy old EGL image (if any)
+    if (m_eglImage != EGL_NO_IMAGE_KHR) {
+        eglDestroyImageKHR(display, m_eglImage);
+    }
+
+    m_eglImage = eglImage;
+
+    const auto err = glGetError();
+    if (err != GL_NO_ERROR) {
+        qWarning() << "OpenGL error after glEGLImageTargetTexture2DOES:" << err;
+    }
+}
+#endif
 
 } // namespace Platform
