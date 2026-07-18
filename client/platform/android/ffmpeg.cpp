@@ -700,7 +700,6 @@ bool FfmpegDecoder::consumeFrame()
     // Update the OpenGL texture using the hardware buffer
     updateTextureFromHardwareBuffer(hardwareBuffer);
 
-    AHardwareBuffer_release(hardwareBuffer);
     AImage_delete(image);
     return true;
 }
