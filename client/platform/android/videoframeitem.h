@@ -18,8 +18,10 @@ class VideoFrameItem : public QQuickItem
 public:
     explicit VideoFrameItem(QQuickItem* parent = nullptr);
 
+#ifdef USE_NAT_SURFACES
     // Set the decoder to use for zero‑copy texture rendering
     void setDecoder(FfmpegDecoder* decoder);
+#endif
 
     // Fallback: set QImage (still supported)
     Q_INVOKABLE void setImage(const QImage& image);

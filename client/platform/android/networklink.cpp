@@ -20,8 +20,7 @@ void NetworkLink::setItem(QObject *item)
     // Create decoder if needed
     if (!m_decoder) {
         m_decoder = new FfmpegDecoder(this);
-        // We no longer need a frame callback – the decoder renders to texture
-        // But keep it for fallback (if AImageReader fails)
+        // Used as fallback if AImageReader fails
         m_decoder->setFrameCallback([this](const QImage &image) {
             if (!image.isNull() && m_item) {
                 m_item->setImage(image);
@@ -29,32 +28,35 @@ void NetworkLink::setItem(QObject *item)
         });
     }
 
+#ifdef USE_NAT_SURFACES
     // Tell the item to use the decoder's OES texture
     m_item->setDecoder(m_decoder);
+#endif
 }
 
 void NetworkLink::processPacket(const Packets::ServerStream &img)
 {
     if (!m_item || !m_decoder) {
+        [[unlikely]];
+
         return;
     }
 
-    // Feed the packet to the decoder
     m_decoder->decode(reinterpret_cast<const uint8_t *>(img.data.constData()), img.frameSize);
-
-    // Trigger a repaint – the item will pull the frame in updatePaintNode
-    // If using the OES path, the item will call consumeFrame() there.
     m_item->update();
 }
 
 void NetworkLink::processPacket(const Packets::ServerImage &img)
 {
     if (!m_item) {
+        [[unlikely]];
+
         return;
     }
 
     const QImage converted = QImage::fromData(img.data, img.format);
     if (!converted.isNull()) {
+        // Will trigger repaint.
         m_item->setImage(converted);
     }
 }

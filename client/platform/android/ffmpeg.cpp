@@ -2,13 +2,16 @@
 
 #include <QDebug>
 
+#include "videoframeitem.h"
+
 namespace Platform {
 
 // Helper: Check if data is a keyframe (H.265)
 bool isKeyFrameH265(const uint8_t* data, const size_t size)
 {
-    if (size < 2)
+    if (size < 2) {
         return false;
+    }
 
     size_t pos = 0;
     while (pos < size - 4) {
@@ -213,24 +216,14 @@ fallback:
     }
 #endif
 
-    // Re‑init with the old CPU‑based method (existing code)
-    // (You can keep your original init code here, but we'll just copy the old logic)
-    // For brevity, I'll assume you have the original code; we'll call it here.
-    // Actually we can just re‑use the old code path by duplicating it.
-    // Since the original init is already there, I'll just call it via a helper.
-    // But to avoid duplication, we'll put the old code inside this function
-    // but under a separate block. I'll just call the old init logic manually.
-    // However, the old init was above, so we'll copy it here.
-    // But the simplest: just re‑run the old init code (without surface).
-    // Since we already have it, we'll just call a private method.
-    // For now, I'll just implement it inline:
     {
-        // Old code: create decoder without surface
+        // Create decoder without surface
         m_codec = AMediaCodec_createDecoderByType("video/hevc");
         if (!m_codec) {
             qCritical() << "Failed to create MediaCodec decoder (fallback)";
             return -1;
         }
+
         m_format = AMediaFormat_new();
         AMediaFormat_setString(m_format, AMEDIAFORMAT_KEY_MIME, "video/hevc");
         AMediaFormat_setInt32(m_format, AMEDIAFORMAT_KEY_WIDTH, width);
@@ -340,10 +333,13 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
 
     // If we don't have resolution, use a default
     if (!m_resolutionDetected || (m_needResync && isKeyFrame)) {
+        [[unlikely]];
+
         qWarning() << "No resolution detected, using default 1920x1080";
-        int ret = init(1920, 1080);
+        const auto ret = init(1920, 1080);
         if (ret < 0) {
             [[unlikely]];
+
             qDebug() << "Failed to reinit (1).";
             return ret;
         }
@@ -352,8 +348,12 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
     }
 
     if (!m_initialized) {
+        [[unlikely]];
+
         const int ret = init(m_width, m_height);
         if (ret < 0) {
+            [[unlikely]];
+
             qDebug() << "Failed to reinit (2).";
             return ret;
         }
@@ -384,6 +384,7 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
     const auto ret = decode_frame(data, size);
     if (ret < 0) {
         [[unlikely]];
+
         m_needResync = true;
         qDebug() << "Resync required.";
     }
@@ -397,6 +398,7 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
     const auto inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 10000);
     if (inputIndex >= 0) {
         // Most likely case, we have a buffer, just continue.
+        [[likely]];
     } else if (inputIndex == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
         qDebug() << "Dequeue input TAL";
         // Just got to wait longer.
@@ -409,10 +411,14 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
     size_t bufferSize = 0;
     const auto inputBuffer = AMediaCodec_getInputBuffer(m_codec, inputIndex, &bufferSize);
     if (!inputBuffer) {
+        [[unlikely]];
+
         qWarning() << "Failed to get input buffer: " << inputBuffer;
         return -1;
     }
     if (size > bufferSize) {
+        [[unlikely]];
+
         // [TODO] handle buffer resizing.
         qWarning() << "Input data too large:" << size << ">" << bufferSize;
         return -1;
@@ -428,6 +434,8 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
         flags);
     if (status != AMEDIA_OK) {
+        [[unlikely]];
+
         qWarning() << "MC Failed to queue input buffer:" << status;
         return -1;
     }
@@ -438,6 +446,8 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
         for (;;) {
             const auto outIdx = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 0);
             if (outIdx >= 0) {
+                [[likely]];
+
                 // render = true: hands the buffer to the ANativeWindow/AImageReader.
                 AMediaCodec_releaseOutputBuffer(m_codec, outIdx, true);
                 continue; // more than one frame may be ready
@@ -453,7 +463,7 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
                 break;
             }
         }
-        qDebug() << "Differed delivery";
+
         return 0;
     }
 #endif
@@ -464,7 +474,7 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
     AMediaCodecBufferInfo info{};
     const auto outputIndex = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 10000);
     if (outputIndex >= 0) {
-        // Most likely case.
+        [[likely]];
 
         /*
         At or before API level 35, the offset in the AMediaCodecBufferInfo struct was invalid and
@@ -479,18 +489,21 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
             qDebug() << "Fallen back to CPU.";
 
             if (m_pixelFormat == 0) {
-                AMediaFormat* outputFormat = AMediaCodec_getOutputFormat(m_codec);
+                auto outputFormat = AMediaCodec_getOutputFormat(m_codec);
                 if (outputFormat) {
                     if (!AMediaFormat_getInt32(outputFormat, "color-format", &m_pixelFormat)) {
                         [[unlikely]];
+
                         qWarning() << "Failed to get property color-format";
                     }
                     if (!AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_STRIDE, &m_stride)) {
                         [[unlikely]];
+
                         qWarning() << "Failed to get property" << AMEDIAFORMAT_KEY_STRIDE;
                     }
                     if (!AMediaFormat_getInt32(outputFormat, "slice-height", &m_sliceHeight)) {
                         [[unlikely]];
+
                         qWarning() << "Failed to get property slice-height";
                     }
 
@@ -500,19 +513,23 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
                     int width = 0, height = 0;
                     if (AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_WIDTH, &width)
                         && AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_HEIGHT, &height)) {
+                        [[likely]];
+
                         if (width != m_width || height != m_height) {
                             [[likely]];
+
                             m_width = width;
                             m_height = height;
                             qDebug() << "Resolution from output:" << m_width << "x" << m_height;
                         }
                     }
+
                     AMediaFormat_delete(outputFormat);
                 }
             }
 
             if (m_width > 0 && m_height > 0) {
-                const QImage image = convertToQImage(outputBuffer + info.offset, info.size, m_width, m_height, m_stride, m_sliceHeight, m_pixelFormat);
+                const auto image = convertToQImage(outputBuffer + info.offset, info.size, m_width, m_height, m_stride, m_sliceHeight, m_pixelFormat);
 
                 if (!image.isNull() && m_frameCallback) {
                     m_frameCallback(image);
@@ -551,12 +568,15 @@ QImage FfmpegDecoder::convertToQImage(
     const uint8_t* data, const size_t size, const int width, const int height, const int stride, const int sliceHeight, const int pixelFormat)
 {
     if (!data || width <= 0 || height <= 0) {
+        [[unlikely]];
+
         return {};
     }
 
     QImage image(width, height, QImage::Format_RGBA8888);
     if (image.isNull()) {
         [[unlikely]];
+
         qWarning() << "Failed to allocate QImage";
         return {};
     }
@@ -646,7 +666,6 @@ QImage FfmpegDecoder::convertToQImage(
 #ifdef USE_NAT_SURFACES
 void FfmpegDecoder::onImageAvailable(void* context, AImageReader* reader)
 {
-    qDebug() << "Image became available";
     auto self = static_cast<FfmpegDecoder*>(context);
     // Just set a flag; the actual acquisition happens on the render thread
     self->m_frameAvailable.store(true, std::memory_order_release);
@@ -654,15 +673,17 @@ void FfmpegDecoder::onImageAvailable(void* context, AImageReader* reader)
 
 bool FfmpegDecoder::consumeFrame()
 {
-    qDebug() << "Consuming";
-
     if (!m_useImageReader || !m_imageReader) {
+        [[unlikely]];
+
         qDebug() << "Invalid consume:" << m_useImageReader << m_imageReader;
         return false;
     }
 
     const bool hadFrame = m_frameAvailable.exchange(false, std::memory_order_acq_rel);
     if (!hadFrame) {
+        [[unlikely]];
+
         qDebug() << "No new frame";
         return false;
     }
@@ -672,6 +693,7 @@ bool FfmpegDecoder::consumeFrame()
     switch (status) {
     case AMEDIA_OK: {
         // Most likely case, just continue.
+        [[likely]];
         break;
     }
     case AMEDIA_IMGREADER_NO_BUFFER_AVAILABLE: {
@@ -692,6 +714,8 @@ bool FfmpegDecoder::consumeFrame()
     AHardwareBuffer* hardwareBuffer = nullptr;
     status = AImage_getHardwareBuffer(image, &hardwareBuffer);
     if (status != AMEDIA_OK || !hardwareBuffer) {
+        [[unlikely]];
+
         qWarning() << "Failed to get AHardwareBuffer from image";
         AImage_delete(image);
         return false;
@@ -706,17 +730,27 @@ bool FfmpegDecoder::consumeFrame()
 
 void FfmpegDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
 {
-    qDebug() << "Updating texture";
-
     const auto display = eglGetCurrentDisplay();
     if (display == EGL_NO_DISPLAY) {
+        [[unlikely]];
+
         qWarning() << "No current EGL display";
+        return;
+    }
+
+    const auto context = eglGetCurrentContext();
+    if (context == EGL_NO_CONTEXT) {
+        [[unlikely]];
+
+        qWarning() << "No current EGL context!";
         return;
     }
 
     // Get EGL client buffer from AHardwareBuffer
     const auto clientBuffer = eglGetNativeClientBufferANDROID(buffer);
     if (!clientBuffer) {
+        [[unlikely]];
+
         qWarning() << "eglGetNativeClientBufferANDROID failed";
         return;
     }
@@ -725,23 +759,40 @@ void FfmpegDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
     constexpr EGLint attribs[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     const auto eglImage = eglCreateImageKHR(display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, attribs);
     if (eglImage == EGL_NO_IMAGE_KHR) {
+        [[unlikely]];
+
         qWarning() << "eglCreateImageKHR failed";
         return;
     }
 
     // Create/update the OES texture
     if (m_oesTextureId == 0) {
-        qDebug() << "Setting OES tex ID";
+        [[unlikely]];
+
         glGenTextures(1, &m_oesTextureId);
         glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_oesTextureId);
         glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        const GLenum err = glGetError();
+        if (err != GL_NO_ERROR) {
+            [[unlikely]];
+
+            qWarning() << "glEGLImageTargetTexture2DOES failed:" << err;
+        }
     }
 
     glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_oesTextureId);
     glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, eglImage);
+
+    const GLenum bindErr = glGetError();
+    if (bindErr != GL_NO_ERROR) {
+        [[unlikely]];
+
+        qWarning() << "glEGLImageTargetTexture2DOES failed:" << bindErr;
+    }
 
     // Destroy old EGL image (if any)
     if (m_eglImage != EGL_NO_IMAGE_KHR) {
@@ -752,6 +803,8 @@ void FfmpegDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
 
     const auto err = glGetError();
     if (err != GL_NO_ERROR) {
+        [[unlikely]];
+
         qWarning() << "OpenGL error after glEGLImageTargetTexture2DOES:" << err;
     }
 }
