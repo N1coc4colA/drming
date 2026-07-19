@@ -424,15 +424,15 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     m_yuv->width = width;
     m_yuv->height = height;
 
-    ret = av_frame_get_buffer(m_yuv, 1);
-    if (ret < 0) {
-        return ret;
-    }
-
     m_yuv->color_primaries = m_enc->color_primaries;
     m_yuv->color_trc = m_enc->color_trc;
     m_yuv->colorspace = m_enc->colorspace;
     m_yuv->color_range = m_enc->color_range;
+
+    ret = av_frame_get_buffer(m_yuv, 1);
+    if (ret < 0) {
+        return ret;
+    }
 
     qDebug() << "Encoder initialized successfully with:" << chosen.displayName;
     return 0;
