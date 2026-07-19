@@ -1,5 +1,6 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickWindow>
 #include <QTimer>
 
 #include "application.h"
@@ -14,6 +15,10 @@
 int main(int argc, char *argv[])
 {
     Application app(argc, argv);
+
+#ifdef Q_OS_ANDROID
+    QQuickWindow::setSceneGraphBackend("opengl");
+#endif
 
     qmlRegisterType<Platform::VideoFrameItem>("VideoStream", 1, 0, "VideoFrame");
 

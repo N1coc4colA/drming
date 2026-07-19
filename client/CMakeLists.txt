@@ -145,6 +145,9 @@ if (ANDROID)
             Qt6::Widgets
             ctrack
             mediandk
+            EGL
+            GLESv2
+            android
     )
 else()
     target_link_libraries(

@@ -381,6 +381,11 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     m_enc->thread_count = 0;
     m_enc->thread_type = FF_THREAD_SLICE;
     m_enc->bit_rate = 5 * 1000 * 1000;
+    m_enc->color_primaries = AVCOL_PRI_BT709;
+    m_enc->color_trc = AVCOL_TRC_BT709;
+    m_enc->colorspace = AVCOL_SPC_BT709;
+    m_enc->color_range = AVCOL_RANGE_JPEG;
+
     av_opt_set_int(m_enc->priv_data, "rc_lookahead", 0, 0);
     av_opt_set_int(m_enc->priv_data, "lookahead_slices", 0, 0);
 
@@ -418,6 +423,11 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     m_yuv->format = m_dst_fmt;
     m_yuv->width = width;
     m_yuv->height = height;
+
+    m_yuv->color_primaries = m_enc->color_primaries;
+    m_yuv->color_trc = m_enc->color_trc;
+    m_yuv->colorspace = m_enc->colorspace;
+    m_yuv->color_range = m_enc->color_range;
 
     ret = av_frame_get_buffer(m_yuv, 1);
     if (ret < 0) {

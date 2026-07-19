@@ -164,19 +164,9 @@ void NetworkLink::connectSsl(const QSslConfiguration &sslConf, const QHostAddres
     // Starts the client-side SSL handshake after TCP connection is established.
     m_sslSocket->startClientEncryption();
 
-    QTimer::singleShot(5000, this, &NetworkLink::checkSSLState);
-}
-
-void NetworkLink::checkSSLState()
-{
-    if (!m_sslSocket->isEncrypted()) {
-        const auto msg = tr("Failed to complete SSL handshake: %1, state: %2").arg(m_sslSocket->errorString()).arg(m_sslSocket->state());
-        qWarning() << "SSL HS errors:" << m_sslSocket->sslHandshakeErrors();
-        qWarning() << "SSL HS errors:" << m_sslSocket->sslHandshakeErrors();
-        qWarning() << "SSL HS errors:" << m_sslSocket->sslHandshakeErrors();
-        QTimer::singleShot(5000, this, &NetworkLink::checkSSLState);
-
-        //Q_EMIT error(msg);
+    if (!m_sslSocket->waitForEncrypted()) {
+        Q_EMIT error(tr("Failed to connect TCP socket: %1").arg(m_sslSocket->errorString()));
+        return;
     }
 }
 
