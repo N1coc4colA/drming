@@ -57,8 +57,6 @@ private:
     void connectDtls(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, int port);
     void connectSsl(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, int port);
 
-    void checkSSLState();
-
     virtual void addData(QByteArray additional) = 0;
 };
 
