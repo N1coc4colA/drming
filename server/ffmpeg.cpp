@@ -458,10 +458,9 @@ int Encoder::encode(AVFrame *frame)
     }
 
     while (1) {
-        AVPacket pkt;
-        av_init_packet(&pkt);
+        auto pkt = av_packet_alloc();
 
-        ret = avcodec_receive_packet(m_enc, &pkt); // Can this be used from separate thread ?
+        ret = avcodec_receive_packet(m_enc, pkt); // Can this be used from separate thread ?
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
             [[unlikely]];
 
@@ -476,10 +475,10 @@ int Encoder::encode(AVFrame *frame)
         if (m_callback) {
             [[likely]];
 
-            m_callback(pkt.data, pkt.size, pkt.pts);
+            m_callback(pkt->data, pkt->size, pkt->pts);
         }
 
-        av_packet_unref(&pkt);
+        av_packet_free(&pkt);
     }
 
     return 0;
