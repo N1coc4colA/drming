@@ -481,10 +481,9 @@ int Encoder::flush()
     }
 
     while (1) {
-        AVPacket pkt;
-        av_init_packet(&pkt);
+        auto pkt = av_packet_alloc();
 
-        ret = avcodec_receive_packet(m_enc, &pkt);
+        ret = avcodec_receive_packet(m_enc, pkt);
         if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN)) {
             [[unlikely]];
 
@@ -499,10 +498,10 @@ int Encoder::flush()
         if (m_callback) {
             [[likely]];
 
-            m_callback(pkt.data, pkt.size, pkt.pts);
+            m_callback(pkt->data, pkt->size, pkt->pts);
         }
 
-        av_packet_unref(&pkt);
+        av_packet_free(&pkt);
     }
 
     return 0;
