@@ -1,25 +1,37 @@
 import QtQuick
-import QtQuick.Layouts
 
 Item {
     id: root
 
-    ColumnLayout {
+    property bool overlayHeaderBar: false
+    property bool headerBarVisible: true
+    property Component overlay
+
+    Loader {
+        id: contentLoader
+
         anchors.fill: parent
-        spacing: 0
+        anchors.topMargin: root.overlayHeaderBar ? 0 : headerBarComponent.implicitHeight
+    }
 
-        HeaderBar {
-            id: headerBarComponent
+    Loader {
+        id: overlayLoader
 
-            Layout.fillWidth: true
-        }
+        anchors.fill: parent
+        active: root.overlay !== null
+        sourceComponent: root.overlay
+        z: 1
+    }
 
-        Loader {
-            id: contentLoader
+    HeaderBar {
+        id: headerBarComponent
 
-            Layout.fillHeight: true
-            Layout.fillWidth: true
-        }
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        z: 2
+
+        visible: root.overlayHeaderBar ? root.headerBarVisible : true
     }
 
     property alias content: contentLoader.sourceComponent

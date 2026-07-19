@@ -1,8 +1,9 @@
 import QtQuick
 import QtQuick.Layouts
 
-Item {
+Rectangle {
     id: root
+    color: palette.window
 
     implicitHeight: loadedItem ? loadedItem.implicitHeight + 2*GlobalVars.standardSpacing : 0
     implicitWidth:  loadedItem ? loadedItem.implicitWidth  : 0

@@ -28,7 +28,7 @@ Item {
 
         header: Item {
             id: topSpacer
-            height: GlobalVars.doubleOutterSpacing * 2
+            height: GlobalVars.doubleOutterSpacing / 2
             width: listView.width
         }
 
@@ -43,7 +43,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: GlobalVars.doubleOutterSpacing + listView.spacing
+        height: GlobalVars.doubleOutterSpacing / 4 + listView.spacing
 
         gradient: Gradient {
             GradientStop { position: 0.0; color: palette.window }
