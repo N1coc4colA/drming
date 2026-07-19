@@ -5,21 +5,27 @@
 #include "videoframeitem.h"
 
 namespace Platform {
-
 // Helper: Check if data is a keyframe (H.265)
 bool isKeyFrameH265(const uint8_t* data, const size_t size)
 {
-    if (size < 2) {
+    if (size < 6) {
+        [[unlikely]];
         return false;
     }
 
     size_t pos = 0;
     while (pos < size - 4) {
-        if (data[pos] == 0x00 && data[pos + 1] == 0x00) {
+        const auto* zero = static_cast<const uint8_t*>(memchr(data + pos, 0x00, size - pos - 3));
+        if (!zero)
+            return false;
+        pos = zero - data;
+
+        if (data[pos + 1] == 0x00) {
             if (data[pos + 2] == 0x01) {
                 pos += 3;
                 break;
-            } else if (data[pos + 2] == 0x00 && data[pos + 3] == 0x01) {
+            }
+            if (data[pos + 2] == 0x00 && pos + 3 < size && data[pos + 3] == 0x01) {
                 pos += 4;
                 break;
             }
@@ -38,6 +44,11 @@ bool isKeyFrameH265(const uint8_t* data, const size_t size)
 // Helper: Extract VPS, SPS, PPS from keyframe
 void extractCSDH265(const uint8_t* data, const size_t size, std::vector<uint8_t>& vps, std::vector<uint8_t>& sps, std::vector<uint8_t>& pps)
 {
+    if (size < 6) {
+        [[unlikely]];
+        return;
+    }
+
     size_t pos = 0;
     while (pos < size - 4) {
         while (pos < size - 4) {
@@ -209,14 +220,9 @@ void FfmpegDecoder::release()
         m_window = nullptr;
     }
 
-    // Destroy EGL image and texture
-    if (m_eglImage != EGL_NO_IMAGE_KHR) {
-        const auto display = eglGetCurrentDisplay();
-        if (display != EGL_NO_DISPLAY) {
-            eglDestroyImageKHR(display, m_eglImage);
-        }
-        m_eglImage = EGL_NO_IMAGE_KHR;
-    }
+    // Destroy all cached EGL images and release our buffer references
+    destroyEglImageCache();
+
     if (m_oesTextureId != 0) {
         glDeleteTextures(1, &m_oesTextureId);
         m_oesTextureId = 0;
@@ -227,11 +233,24 @@ void FfmpegDecoder::release()
     m_resolutionDetected = false;
     m_width = 0;
     m_height = 0;
+}
 
-    std::lock_guard<std::mutex> lock(m_queueMutex);
-    while (!m_frameQueue.empty()) {
-        m_frameQueue.pop();
+void FfmpegDecoder::destroyEglImageCache()
+{
+    if (m_eglImageCache.empty()) {
+        return;
     }
+
+    const auto display = eglGetCurrentDisplay();
+    for (auto& [buffer, entry] : m_eglImageCache) {
+        if (display != EGL_NO_DISPLAY && entry.image != EGL_NO_IMAGE_KHR) {
+            eglDestroyImageKHR(display, entry.image);
+        }
+        if (entry.bufferRef) {
+            AHardwareBuffer_release(entry.bufferRef);
+        }
+    }
+    m_eglImageCache.clear();
 }
 
 int FfmpegDecoder::flush()
@@ -287,8 +306,7 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
         return 0;
     }
 
-    // Check if this is a keyframe with CSD data
-    if (isKeyFrame) {
+    if (isKeyFrame && !m_csdReady) {
         extractCSDH265(data, size, m_vps, m_sps, m_pps);
         if (!m_vps.empty() && !m_sps.empty() && !m_pps.empty()) {
             m_csdReady = true;
@@ -298,7 +316,7 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
         }
     }
 
-    const auto ret = decode_frame(data, size);
+    const auto ret = decode_frame(data, size, isKeyFrame);
     if (ret < 0) {
         [[unlikely]];
 
@@ -309,7 +327,7 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
     return ret;
 }
 
-int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
+int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size, const bool isKeyFrame)
 {
     // Always queue input buffer (works for both paths)
     const auto inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 10000);
@@ -342,7 +360,7 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
     }
     memcpy(inputBuffer, data, size);
 
-    const uint32_t flags = isKeyFrameH265(data, size) ? AMEDIACODEC_BUFFER_FLAG_KEY_FRAME : 0;
+    const uint32_t flags = isKeyFrame ? AMEDIACODEC_BUFFER_FLAG_KEY_FRAME : 0;
     const auto status = AMediaCodec_queueInputBuffer(
         m_codec,
         inputIndex,
@@ -455,14 +473,6 @@ void FfmpegDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
         return;
     }
 
-    const auto context = eglGetCurrentContext();
-    if (context == EGL_NO_CONTEXT) {
-        [[unlikely]];
-
-        qWarning() << "No current EGL context!";
-        return;
-    }
-
     // Get EGL client buffer from AHardwareBuffer
     const auto clientBuffer = eglGetNativeClientBufferANDROID(buffer);
     if (!clientBuffer) {
@@ -472,14 +482,38 @@ void FfmpegDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
         return;
     }
 
-    // Create EGLImage
-    constexpr EGLint attribs[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
-    const auto eglImage = eglCreateImageKHR(display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, attribs);
-    if (eglImage == EGL_NO_IMAGE_KHR) {
-        [[unlikely]];
+    EGLImageKHR eglImage = EGL_NO_IMAGE_KHR;
 
-        qWarning() << "eglCreateImageKHR failed";
-        return;
+    // Create EGLImage if needed, otherwise reuse the cached one for this buffer.
+    auto it = m_eglImageCache.find(buffer);
+    if (it != m_eglImageCache.end()) {
+        eglImage = it->second.image;
+    } else {
+        constexpr EGLint attribs[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
+        eglImage = eglCreateImageKHR(display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, attribs);
+        if (eglImage == EGL_NO_IMAGE_KHR) {
+            [[unlikely]];
+
+            qWarning() << "eglCreateImageKHR failed";
+            return;
+        }
+
+        // The pool is fixed-size (AImageReader's maxImages). If we somehow
+        // exceed it, evict one entry rather than growing unbounded.
+        if (m_eglImageCache.size() >= kMaxCachedImages) {
+            [[unlikely]];
+
+            auto victim = m_eglImageCache.begin();
+            eglDestroyImageKHR(display, victim->second.image);
+            AHardwareBuffer_release(victim->second.bufferRef);
+            m_eglImageCache.erase(victim);
+        }
+
+        // Pin our own reference so this buffer's address can't be reused by
+        // the system for a different allocation while we hold it cached
+        // (AImage_delete() in consumeFrame() only drops AImageReader's ref).
+        AHardwareBuffer_acquire(buffer);
+        m_eglImageCache.insert({buffer, CachedImage{eglImage, buffer}});
     }
 
     // Create/update the OES texture
@@ -492,37 +526,9 @@ void FfmpegDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
         glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-        const GLenum err = glGetError();
-        if (err != GL_NO_ERROR) {
-            [[unlikely]];
-
-            qWarning() << "glEGLImageTargetTexture2DOES failed:" << err;
-        }
     }
 
     glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_oesTextureId);
     glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, eglImage);
-
-    const GLenum bindErr = glGetError();
-    if (bindErr != GL_NO_ERROR) {
-        [[unlikely]];
-
-        qWarning() << "glEGLImageTargetTexture2DOES failed:" << bindErr;
-    }
-
-    // Destroy old EGL image (if any)
-    if (m_eglImage != EGL_NO_IMAGE_KHR) {
-        eglDestroyImageKHR(display, m_eglImage);
-    }
-
-    m_eglImage = eglImage;
-
-    const auto err = glGetError();
-    if (err != GL_NO_ERROR) {
-        [[unlikely]];
-
-        qWarning() << "OpenGL error after glEGLImageTargetTexture2DOES:" << err;
-    }
 }
 } // namespace Platform

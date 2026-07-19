@@ -3,7 +3,6 @@
 #include <QDebug>
 
 namespace Platform {
-
 namespace {
 constexpr auto kVertexShader = R"(
     attribute highp vec4 aPosition;
@@ -45,7 +44,6 @@ GLuint compileShader(const GLenum type, const char* src)
 
     return shader;
 }
-
 } // namespace
 
 void OESRenderNode::ensureProgram()
@@ -105,19 +103,32 @@ void OESRenderNode::render(const RenderState* state)
     const float x0 = m_rect.left(), y0 = m_rect.top();
     const float x1 = m_rect.right(), y1 = m_rect.bottom();
     const GLfloat verts[] = {
-        x0, y0,   x1, y0,   x0, y1,   x1, y1,
+        x0,
+        y0,
+        x1,
+        y0,
+        x0,
+        y1,
+        x1,
+        y1,
     };
     // MirrorVertically-equivalent: flip V so the OES source (bottom-left origin) displays right-side up.
     const GLfloat texCoords[] = {
-        0.0f, 0.0f,  1.0f, 0.0f,  0.0f, 1.0f,  1.0f, 1.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        1.0f,
+        1.0f,
     };
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_texId);
-    glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // Filtering/wrap params are per-texture-object state, set once when the
+    // texture is created in FfmpegDecoder::updateTextureFromHardwareBuffer.
+    // No need to re-set them on every render call.
     glUniform1i(m_texUniform, 0);
     glUniformMatrix4fv(m_mvpUniform, 1, GL_FALSE, mvp.constData());
 
@@ -132,5 +143,4 @@ void OESRenderNode::render(const RenderState* state)
     glDisableVertexAttribArray(m_texAttr);
     glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
 }
-
 } // namespace Platform
