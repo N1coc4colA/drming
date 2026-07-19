@@ -11,8 +11,6 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-#include "parameters.h"
-
 namespace Ffmpeg {
 QString avError(const int err)
 {
@@ -20,68 +18,6 @@ QString avError(const int err)
     av_strerror(err, errbuf, sizeof(errbuf));
 
     return errbuf;
-}
-
-// Update the setup functions with correct pixel formats
-
-AVPixelFormat setupNVENC(AVCodecContext *ctx)
-{
-    if (ctx) {
-        av_opt_set(ctx->priv_data, "preset", "p1", 0);
-        av_opt_set(ctx->priv_data, "tune", "ll", 0);
-        av_opt_set_int(ctx->priv_data, "qp", -1, 0);
-        av_opt_set(ctx->priv_data, "rc", "cbr", 0);
-        av_opt_set_int(ctx->priv_data, "b_ref_mode", 0, 0);
-        av_opt_set_int(ctx->priv_data, "lookahead", 0, 0);
-        av_opt_set_int(ctx->priv_data, "no_scenecut", 1, 0);
-        av_opt_set(ctx->priv_data, "global_header", "1", 0);
-    }
-    return AV_PIX_FMT_NV12;
-}
-
-AVPixelFormat setupAMF(AVCodecContext *ctx)
-{
-    if (ctx) {
-        av_opt_set(ctx->priv_data, "quality", "speed", 0);
-        av_opt_set(ctx->priv_data, "usage", "ultralowlatency", 0);
-        av_opt_set_int(ctx->priv_data, "qp_i", 28, 0);
-        av_opt_set_int(ctx->priv_data, "qp_p", 28, 0);
-        av_opt_set_int(ctx->priv_data, "qp_b", 30, 0);
-        av_opt_set_int(ctx->priv_data, "b", ctx->bit_rate, 0);
-        av_opt_set_int(ctx->priv_data, "maxrate", ctx->bit_rate * 1.5, 0);
-        av_opt_set(ctx->priv_data, "global_header", "1", 0);
-    }
-    return AV_PIX_FMT_NV12; // AMF supports NV12
-}
-
-AVPixelFormat setupQSV(AVCodecContext *ctx)
-{
-    if (ctx) {
-        // QSV doesn't support "ultrafast" - use "veryfast" or remove it
-        // av_opt_set(ctx->priv_data, "preset", "veryfast", 0);
-        av_opt_set(ctx->priv_data, "low_power", "1", 0);
-        av_opt_set_int(ctx->priv_data, "global_quality", 25, 0);
-        av_opt_set(ctx->priv_data, "look_ahead", "0", 0);
-        av_opt_set(ctx->priv_data, "global_header", "1", 0);
-        // Set GOP size as string
-        char gop_str[16];
-        snprintf(gop_str, sizeof(gop_str), "%d", ctx->gop_size);
-        av_opt_set(ctx->priv_data, "gop_size", gop_str, 0);
-    }
-    return AV_PIX_FMT_NV12; // QSV requires NV12
-}
-
-AVPixelFormat setupVAAPI(AVCodecContext *ctx)
-{
-    if (ctx) {
-        // VA-API requires special handling - we'll skip it for now
-        // since it needs hardware frames context
-        av_opt_set(ctx->priv_data, "compression_level", "1", 0);
-        av_opt_set_int(ctx->priv_data, "global_quality", 25, 0);
-        av_opt_set_int(ctx->priv_data, "qp", 28, 0);
-        av_opt_set(ctx->priv_data, "global_header", "1", 0);
-    }
-    return AV_PIX_FMT_VAAPI; // VA-API requires VAAPI pixel format
 }
 
 AVPixelFormat setupLibX265(AVCodecContext *ctx)
@@ -301,11 +237,7 @@ int Encoder::init(const int width, const int height, const QImage::Format format
         AVPixelFormat (*setupFunc)(AVCodecContext *);
     };
 
-    const EncoderCandidate candidates[] = {{"hevc_nvenc", "NVENC", setupNVENC},
-                                           {"hevc_amf", "AMF", setupAMF},
-                                           //{"hevc_qsv", "QSV", setupQSV},
-                                           //{"hevc_vaapi", "VA-API", setupVAAPI},
-                                           {"libx265", "libx265 (software)", setupLibX265}};
+    const EncoderCandidate candidates[] = {{"libx265", "libx265 (software)", setupLibX265}};
 
     const AVCodec *found_codec = nullptr;
     EncoderCandidate chosen{};
