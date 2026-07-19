@@ -105,7 +105,6 @@ int FfmpegDecoder::init(const int width, const int height)
     m_height = height;
     m_resolutionDetected = true; // you need to add this member or just use width>0
 
-#ifdef USE_NAT_SURFACES
     media_status_t status = AImageReader_new(width,
                                              height,
                                              AIMAGE_FORMAT_YUV_420_888, // most common
@@ -118,21 +117,15 @@ int FfmpegDecoder::init(const int width, const int height)
     }
     case AMEDIA_ERROR_INVALID_PARAMETER: {
         qWarning() << "AImageReader_new failed:" << status;
-        // Fallback to CPU path (original code)
-        m_useImageReader = false;
-        goto fallback;
+        return -1;
     }
     case AMEDIA_ERROR_UNKNOWN: {
         qWarning() << "AImageReader_new failed with unknown error.";
-        // Fallback to CPU path (original code)
-        m_useImageReader = false;
-        goto fallback;
+        return -1;
     }
     default: {
         qWarning() << "AImageReader_new failed with unexpected error code:" << status;
-        // Fallback to CPU path (original code)
-        m_useImageReader = false;
-        goto fallback;
+        return -1;
     }
     }
 
@@ -142,8 +135,7 @@ int FfmpegDecoder::init(const int width, const int height)
         qWarning() << "AImageReader_getWindow failed:" << status;
         AImageReader_delete(m_imageReader);
         m_imageReader = nullptr;
-        m_useImageReader = false;
-        goto fallback;
+        return -1;
     }
 
     // 3. Set up the image listener (callback from decoder thread)
@@ -167,104 +159,33 @@ int FfmpegDecoder::init(const int width, const int height)
 
     // Set CSD if available
     if (m_csdReady) {
-        if (!m_vps.empty())
+        if (!m_vps.empty()) {
             AMediaFormat_setBuffer(m_format, "csd-0", m_vps.data(), m_vps.size());
-        if (!m_sps.empty())
+        }
+        if (!m_sps.empty()) {
             AMediaFormat_setBuffer(m_format, "csd-1", m_sps.data(), m_sps.size());
-        if (!m_pps.empty())
+        }
+        if (!m_pps.empty()) {
             AMediaFormat_setBuffer(m_format, "csd-2", m_pps.data(), m_pps.size());
+        }
     }
 
     // 5. Configure MediaCodec with the ANativeWindow (surface)
     status = AMediaCodec_configure(m_codec, m_format, m_window, nullptr, 0);
     if (status != AMEDIA_OK) {
         qCritical() << "AMediaCodec_configure with surface failed:" << status;
-        goto fallback;
+        return -1;
     }
 
     status = AMediaCodec_start(m_codec);
     if (status != AMEDIA_OK) {
         qCritical() << "AMediaCodec_start failed:" << status;
-        goto fallback;
+        return -1;
     }
-
-    m_useImageReader = true;
 
     m_initialized = true;
     qDebug() << "MediaCodec decoder initialized with AImageReader (zero-copy)";
     return 0;
-
-fallback:
-    // Clean up any half‑created resources and use the old CPU path
-    if (m_codec) {
-        AMediaCodec_stop(m_codec);
-        AMediaCodec_delete(m_codec);
-        m_codec = nullptr;
-    }
-    if (m_format) {
-        AMediaFormat_delete(m_format);
-        m_format = nullptr;
-    }
-
-    if (m_imageReader) {
-        AImageReader_delete(m_imageReader);
-        m_imageReader = nullptr;
-    }
-    if (m_window) {
-        ANativeWindow_release(m_window);
-        m_window = nullptr;
-    }
-#endif
-
-    {
-        // Create decoder without surface
-        m_codec = AMediaCodec_createDecoderByType("video/hevc");
-        if (!m_codec) {
-            qCritical() << "Failed to create MediaCodec decoder (fallback)";
-            return -1;
-        }
-
-        m_format = AMediaFormat_new();
-        AMediaFormat_setString(m_format, AMEDIAFORMAT_KEY_MIME, "video/hevc");
-        AMediaFormat_setInt32(m_format, AMEDIAFORMAT_KEY_WIDTH, width);
-        AMediaFormat_setInt32(m_format, AMEDIAFORMAT_KEY_HEIGHT, height);
-        AMediaFormat_setInt32(m_format, AMEDIAFORMAT_KEY_PRIORITY, 0);
-        if (m_csdReady) {
-            if (!m_vps.empty()) {
-                AMediaFormat_setBuffer(m_format, "csd-0", m_vps.data(), m_vps.size());
-            }
-            if (!m_sps.empty()) {
-                AMediaFormat_setBuffer(m_format, "csd-1", m_sps.data(), m_sps.size());
-            }
-            if (!m_pps.empty()) {
-                AMediaFormat_setBuffer(m_format, "csd-2", m_pps.data(), m_pps.size());
-            }
-        }
-
-#ifdef USE_NAT_SURFACES
-        status = AMediaCodec_configure(m_codec, m_format, nullptr, nullptr, 0);
-#else
-        media_status_t status = AMediaCodec_configure(m_codec, m_format, nullptr, nullptr, 0);
-#endif
-
-        if (status != AMEDIA_OK) {
-            qCritical() << "Failed to configure MediaCodec (fallback):" << status;
-            return -1;
-        }
-        status = AMediaCodec_start(m_codec);
-        if (status != AMEDIA_OK) {
-            qCritical() << "Failed to start MediaCodec (fallback):" << status;
-            return -1;
-        }
-
-#ifdef USE_NAT_SURFACES
-        m_useImageReader = false;
-#endif
-
-        m_initialized = true;
-        qDebug() << "MediaCodec decoder initialized with CPU fallback";
-        return 0;
-    }
 }
 
 void FfmpegDecoder::release()
@@ -279,7 +200,6 @@ void FfmpegDecoder::release()
         m_format = nullptr;
     }
 
-#ifdef USE_NAT_SURFACES
     if (m_imageReader) {
         AImageReader_delete(m_imageReader);
         m_imageReader = nullptr;
@@ -302,10 +222,6 @@ void FfmpegDecoder::release()
         m_oesTextureId = 0;
     }
 
-    m_useImageReader = false;
-
-#endif
-
     m_initialized = false;
     m_width = m_height = 0;
     m_resolutionDetected = false;
@@ -324,6 +240,7 @@ int FfmpegDecoder::flush()
         AMediaCodec_flush(m_codec);
         return 0;
     }
+
     return -1;
 }
 
@@ -440,230 +357,31 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size)
         return -1;
     }
 
-#ifdef USE_NAT_SURFACES
-    if (m_useImageReader) {
-        AMediaCodecBufferInfo info{};
-        for (;;) {
-            const auto outIdx = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 0);
-            if (outIdx >= 0) {
-                [[likely]];
-
-                // render = true: hands the buffer to the ANativeWindow/AImageReader.
-                AMediaCodec_releaseOutputBuffer(m_codec, outIdx, true);
-                continue; // more than one frame may be ready
-            } else if (outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
-                break;
-            } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
-                qDebug() << "Format changed!";
-                continue;
-            } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
-                continue;
-            } else {
-                qWarning() << "Unexpected output result:" << outIdx;
-                break;
-            }
-        }
-
-        return 0;
-    }
-#endif
-
-    qDebug() << "Direct delivery";
-
-    // CPU fallback: original output buffer processing
     AMediaCodecBufferInfo info{};
-    const auto outputIndex = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 10000);
-    if (outputIndex >= 0) {
-        [[likely]];
+    for (;;) {
+        const auto outIdx = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 0);
+        if (outIdx >= 0) {
+            [[likely]];
 
-        /*
-        At or before API level 35, the offset in the AMediaCodecBufferInfo struct was invalid and
-        should be ignored; however, at the same time the buffer size could only be obtained from
-        this struct. After API level 35, the offset returned in the struct is always set to 0, and
-        the buffer size can also be obtained from the AMediaCodec_getOutputBuffer() call.
-        */
-
-        size_t outBufferSize = 0;
-        const auto outputBuffer = AMediaCodec_getOutputBuffer(m_codec, outputIndex, &outBufferSize);
-        if (outputBuffer && outBufferSize > 0) {
-            qDebug() << "Fallen back to CPU.";
-
-            if (m_pixelFormat == 0) {
-                auto outputFormat = AMediaCodec_getOutputFormat(m_codec);
-                if (outputFormat) {
-                    if (!AMediaFormat_getInt32(outputFormat, "color-format", &m_pixelFormat)) {
-                        [[unlikely]];
-
-                        qWarning() << "Failed to get property color-format";
-                    }
-                    if (!AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_STRIDE, &m_stride)) {
-                        [[unlikely]];
-
-                        qWarning() << "Failed to get property" << AMEDIAFORMAT_KEY_STRIDE;
-                    }
-                    if (!AMediaFormat_getInt32(outputFormat, "slice-height", &m_sliceHeight)) {
-                        [[unlikely]];
-
-                        qWarning() << "Failed to get property slice-height";
-                    }
-
-                    qDebug() << "Pixel format:" << m_pixelFormat << "stride:" << m_stride << "slice-height:" << m_sliceHeight;
-
-                    // Update width/height from output format if available
-                    int width = 0, height = 0;
-                    if (AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_WIDTH, &width)
-                        && AMediaFormat_getInt32(outputFormat, AMEDIAFORMAT_KEY_HEIGHT, &height)) {
-                        [[likely]];
-
-                        if (width != m_width || height != m_height) {
-                            [[likely]];
-
-                            m_width = width;
-                            m_height = height;
-                            qDebug() << "Resolution from output:" << m_width << "x" << m_height;
-                        }
-                    }
-
-                    AMediaFormat_delete(outputFormat);
-                }
-            }
-
-            if (m_width > 0 && m_height > 0) {
-                const auto image = convertToQImage(outputBuffer + info.offset, info.size, m_width, m_height, m_stride, m_sliceHeight, m_pixelFormat);
-
-                if (!image.isNull() && m_frameCallback) {
-                    m_frameCallback(image);
-                }
-            }
-        }
-
-        AMediaCodec_releaseOutputBuffer(m_codec, outputIndex, false);
-    } else {
-        switch (outputIndex) {
-        case AMEDIACODEC_INFO_TRY_AGAIN_LATER: {
-            qDebug() << "Dequeue output TAL";
-            // Nothing much to do but wait.
+            // render = true: hands the buffer to the ANativeWindow/AImageReader.
+            AMediaCodec_releaseOutputBuffer(m_codec, outIdx, true);
+            continue; // more than one frame may be ready
+        } else if (outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
             break;
-        }
-        case AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED: {
-            qDebug() << "Format changed !";
-            // [TODO] Handle format change.
+        } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
+            qDebug() << "Format changed!";
+            continue;
+        } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
+            continue;
+        } else {
+            qWarning() << "Unexpected output result:" << outIdx;
             break;
-        }
-        case AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED: {
-            qDebug() << "Output buffers changed !";
-            // [TODO] Handle output buffers change.
-            break;
-        }
-        default:
-            qWarning() << "Unexpected output result:" << outputIndex;
-            return -1;
         }
     }
 
     return 0;
 }
 
-QImage FfmpegDecoder::convertToQImage(
-    const uint8_t* data, const size_t size, const int width, const int height, const int stride, const int sliceHeight, const int pixelFormat)
-{
-    if (!data || width <= 0 || height <= 0) {
-        [[unlikely]];
-
-        return {};
-    }
-
-    QImage image(width, height, QImage::Format_RGBA8888);
-    if (image.isNull()) {
-        [[unlikely]];
-
-        qWarning() << "Failed to allocate QImage";
-        return {};
-    }
-
-    uint8_t* dst = image.bits();
-
-    const int actualStride = stride > 0 ? stride : width;
-    const int actualSliceHeight = sliceHeight > 0 ? sliceHeight : height;
-
-    // Common Android pixel formats
-    // OMX_COLOR_FormatYUV420Planar = 0x13 (YUV420P)
-    // OMX_COLOR_FormatYUV420SemiPlanar = 0x15 (NV12)
-    // OMX_COLOR_FormatYUV420PackedPlanar = 0x7f000100
-    // OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka = 0x7fa30c04
-
-    // For QCOM tiled format, we need to handle it differently
-    const bool isQComTiled = (pixelFormat == 0x7fa30c04);
-    const bool isYUV420P = (pixelFormat == 0x13 || pixelFormat == 0x7f000100);
-    const bool isNV12 = (pixelFormat == 0x15 || pixelFormat == 0x7fa30c04);
-
-    // For QCOM tiled format, the stride and slice-height are different
-    if (isQComTiled) {
-        // QCOM tiled format uses 64x32 tiles
-        // The actual stride is aligned to 128 bytes for Y and 256 bytes for UV
-        // For simplicity, we'll try to handle it as NV12 with special tiling
-        // In practice, you might need to detile the data first
-        qDebug() << "QCOM tiled format detected - attempting to handle as NV12";
-    }
-
-    const uint8_t* yPlane = data;
-    const uint8_t* uPlane = nullptr;
-    const uint8_t* vPlane = nullptr;
-    const uint8_t* uvPlane = nullptr;
-
-    if (isYUV420P) {
-        // YUV420P: Y plane, then U plane, then V plane
-        const size_t ySize = actualStride * actualSliceHeight;
-        const size_t uvSize = (actualStride / 2) * (actualSliceHeight / 2);
-        uPlane = data + ySize;
-        vPlane = uPlane + uvSize;
-    } else {
-        // NV12: Y plane, then interleaved UV plane
-        uvPlane = data + (actualStride * actualSliceHeight);
-    }
-
-    // Convert to RGBA
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            int Y, U, V;
-
-            if (isYUV420P) {
-                // YUV420P (planar)
-                const int yIdx = y * actualStride + x;
-                const int uvIdx = (y / 2) * (actualStride / 2) + (x / 2);
-                Y = yPlane[yIdx] & 0xFF;
-                U = uPlane[uvIdx] & 0xFF;
-                V = vPlane[uvIdx] & 0xFF;
-            } else {
-                // NV12 (semi-planar)
-                const int yIdx = y * actualStride + x;
-                const int uvIdx = (y / 2) * actualStride + (x / 2) * 2;
-                Y = yPlane[yIdx] & 0xFF;
-                U = uvPlane[uvIdx] & 0xFF;
-                V = uvPlane[uvIdx + 1] & 0xFF;
-            }
-
-            // BT.601 YUV to RGB conversion
-            int R = static_cast<int>(Y + 1.402f * (V - 128));
-            int G = static_cast<int>(Y - 0.344f * (U - 128) - 0.714f * (V - 128));
-            int B = static_cast<int>(Y + 1.772f * (U - 128));
-
-            R = qBound(0, R, 255);
-            G = qBound(0, G, 255);
-            B = qBound(0, B, 255);
-
-            const int pixelIdx = (y * width + x) * 4;
-            dst[pixelIdx + 0] = R;
-            dst[pixelIdx + 1] = G;
-            dst[pixelIdx + 2] = B;
-            dst[pixelIdx + 3] = 255; // Fully opaque
-        }
-    }
-
-    return image;
-}
-
-#ifdef USE_NAT_SURFACES
 void FfmpegDecoder::onImageAvailable(void* context, AImageReader* reader)
 {
     auto self = static_cast<FfmpegDecoder*>(context);
@@ -673,10 +391,10 @@ void FfmpegDecoder::onImageAvailable(void* context, AImageReader* reader)
 
 bool FfmpegDecoder::consumeFrame()
 {
-    if (!m_useImageReader || !m_imageReader) {
+    if (!m_imageReader) {
         [[unlikely]];
 
-        qDebug() << "Invalid consume:" << m_useImageReader << m_imageReader;
+        qDebug() << "Invalid consume.";
         return false;
     }
 
@@ -684,7 +402,6 @@ bool FfmpegDecoder::consumeFrame()
     if (!hadFrame) {
         [[unlikely]];
 
-        qDebug() << "No new frame";
         return false;
     }
 
@@ -808,6 +525,4 @@ void FfmpegDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
         qWarning() << "OpenGL error after glEGLImageTargetTexture2DOES:" << err;
     }
 }
-#endif
-
 } // namespace Platform

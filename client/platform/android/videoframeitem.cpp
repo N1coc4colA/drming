@@ -5,13 +5,15 @@
 #include <QSGSimpleTextureNode>
 
 #include "ffmpeg.h"
-#include "platform/android/oesrendernode.h"
+#include "oesrendernode.h"
 
 namespace Platform {
 
 QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
 {
     if (itemSize.isEmpty() || imgSize.isEmpty()) {
+        [[unlikely]];
+
         return {};
     }
 
@@ -29,13 +31,21 @@ VideoFrameItem::VideoFrameItem(QQuickItem* parent)
     setFlag(ItemHasContents, true);
 }
 
-#ifdef USE_NAT_SURFACES
 void VideoFrameItem::setDecoder(FfmpegDecoder* decoder)
 {
     m_decoder = decoder;
-    update();
+
+    if (decoder) {
+        if (m_textureMode != TextureMode::OES) {
+            [[unlikely]];
+
+            m_previousTextureMode = m_textureMode;
+            m_textureMode = TextureMode::OES;
+        }
+
+        update();
+    }
 }
-#endif
 
 void VideoFrameItem::setImage(const QImage& image)
 {
@@ -45,6 +55,14 @@ void VideoFrameItem::setImage(const QImage& image)
         m_imageSize = m_currentImage.size();
         m_imageDirty = true;
     }
+
+    if (m_textureMode != TextureMode::Simple) {
+        [[unlikely]];
+
+        m_previousTextureMode = m_textureMode;
+        m_textureMode = TextureMode::Simple;
+    }
+
     update();
 }
 
@@ -61,38 +79,56 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
 {
     Q_UNUSED(data);
 
-#ifdef USE_NAT_SURFACES
-    if (m_decoder) {
-        auto node = static_cast<QSGNode*>(oldNode);
-        if (!node) {
-            [[unlikely]];
-
-            node = new QSGNode();
-        }
-
-        m_decoder->consumeFrame();
-        const auto texId = m_decoder->oesTextureId();
-        if (texId != 0) {
-            [[unlikely]];
-
-            auto oesNode = node->childCount() ? static_cast<OESRenderNode*>(node->firstChild()) : nullptr;
-            if (!oesNode) {
+    switch (m_textureMode) {
+    case TextureMode::OES: {
+        if (m_decoder) {
+            auto node = static_cast<QSGNode*>(oldNode);
+            if (m_textureMode != m_previousTextureMode && node) {
                 [[unlikely]];
 
-                oesNode = new OESRenderNode();
-                node->removeAllChildNodes();
-                node->appendChildNode(oesNode);
+                delete node;
+                node = nullptr;
             }
 
-            oesNode->setTextureId(texId);
-            oesNode->setRect(fitKeepAspect(QSizeF(width(), height()), m_decoder->textureSize()));
-            oesNode->markDirty(QSGNode::DirtyMaterial);
+            if (!node) {
+                [[unlikely]];
+
+                node = new QSGNode();
+            }
+
+            m_decoder->consumeFrame();
+            const auto texId = m_decoder->oesTextureId();
+            if (texId != 0) {
+                [[unlikely]];
+
+                auto oesNode = node->childCount() ? static_cast<OESRenderNode*>(node->firstChild()) : nullptr;
+                if (!oesNode) {
+                    [[unlikely]];
+
+                    oesNode = new OESRenderNode();
+                    node->removeAllChildNodes();
+                    node->appendChildNode(oesNode);
+                }
+
+                oesNode->setTextureId(texId);
+                oesNode->setRect(fitKeepAspect(QSizeF(width(), height()), m_decoder->textureSize()));
+                oesNode->markDirty(QSGNode::DirtyMaterial);
+            }
+
+            return node;
         }
 
-        return node;
-    } else {
-#endif
+        break;
+    }
+    case TextureMode::Simple: {
         auto node = static_cast<QSGSimpleTextureNode*>(oldNode);
+        if (m_textureMode != m_previousTextureMode && node) {
+            [[unlikely]];
+
+            delete node;
+            node = nullptr;
+        }
+
         if (!node) {
             [[unlikely]];
 
@@ -141,10 +177,14 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
         m_imageSize = currentSize;
 
         return node;
-
-#ifdef USE_NAT_SURFACES
     }
-#endif
+    default: {
+        [[unlikely]];
+        break;
+    }
+    }
+
+    return oldNode;
 }
 
 } // namespace Platform

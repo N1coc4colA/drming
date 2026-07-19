@@ -84,11 +84,6 @@ void OESRenderNode::ensureProgram()
     m_mvpUniform = glGetUniformLocation(m_program, "uMvp");
 }
 
-QSGRenderNode::StateFlags OESRenderNode::changedStates() const
-{
-    return BlendState | DepthState | StencilState | ScissorState;
-}
-
 void OESRenderNode::render(const RenderState* state)
 {
     if (m_texId == 0) {

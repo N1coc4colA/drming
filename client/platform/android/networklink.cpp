@@ -20,18 +20,10 @@ void NetworkLink::setItem(QObject *item)
     // Create decoder if needed
     if (!m_decoder) {
         m_decoder = new FfmpegDecoder(this);
-        // Used as fallback if AImageReader fails
-        m_decoder->setFrameCallback([this](const QImage &image) {
-            if (!image.isNull() && m_item) {
-                m_item->setImage(image);
-            }
-        });
     }
 
-#ifdef USE_NAT_SURFACES
     // Tell the item to use the decoder's OES texture
     m_item->setDecoder(m_decoder);
-#endif
 }
 
 void NetworkLink::processPacket(const Packets::ServerStream &img)

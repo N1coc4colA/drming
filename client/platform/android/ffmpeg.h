@@ -55,14 +55,9 @@ public:
     int flush();
     int decode(const uint8_t* data, size_t size);
 
-    // Fallback QImage callback (only used if AImageReader fails)
-    void setFrameCallback(FrameCallback callback) { m_frameCallback = callback; }
-
-#ifdef USE_NAT_SURFACES
     // Texture‑based rendering (called from render thread)
     bool consumeFrame(); // returns true if new frame was consumed
     GLuint oesTextureId() const { return m_oesTextureId; }
-#endif
 
     QSize textureSize() const { return QSize(m_width, m_height); }
 
@@ -87,30 +82,24 @@ private:
     std::mutex m_queueMutex;
     std::condition_variable m_queueCond;
 
-#ifdef USE_NAT_SURFACES
     // AImageReader & zero‑copy pipeline
     AImageReader* m_imageReader = nullptr;
     ANativeWindow* m_window = nullptr;
     std::atomic<bool> m_frameAvailable{false};
     GLuint m_oesTextureId = 0; // OES texture handle
     EGLImageKHR m_eglImage = EGL_NO_IMAGE_KHR;
-    bool m_useImageReader = false;
     std::mutex m_frameMutex;
-#endif
 
     bool m_resolutionDetected = false;
 
     // Helper functions
     int decode_frame(const uint8_t* data, size_t size);
-    QImage convertToQImage(const uint8_t* data, size_t size, int width, int height, int stride, int sliceHeight, int pixelFormat);
 
-#ifdef USE_NAT_SURFACES
     // Called from AImageReader callback (decoder thread)
     static void onImageAvailable(void* context, AImageReader* reader);
 
     // Called from render thread to update the texture
     void updateTextureFromHardwareBuffer(AHardwareBuffer* buffer);
-#endif
 
     // Fallback QImage callback (if AImageReader not available)
     FrameCallback m_frameCallback = nullptr;

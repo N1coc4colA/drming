@@ -12,11 +12,11 @@ namespace Platform {
 class OESRenderNode : public QSGRenderNode
 {
 public:
-    void setTextureId(GLuint texId) { m_texId = texId; }
+    void setTextureId(const GLuint texId) { m_texId = texId; }
     void setRect(const QRectF &rect) { m_rect = rect; }
 
     void render(const RenderState *state) override;
-    StateFlags changedStates() const override;
+    inline QSGRenderNode::StateFlags changedStates() const override { return BlendState | DepthState | StencilState | ScissorState; }
     RenderingFlags flags() const override { return BoundedRectRendering; }
     QRectF rect() const override { return m_rect; }
 
