@@ -14,7 +14,6 @@ extern "C" {
 #include "parameters.h"
 
 namespace Ffmpeg {
-
 QString avError(const int err)
 {
     char errbuf[AV_ERROR_MAX_STRING_SIZE];
@@ -415,6 +414,24 @@ int Encoder::init(const int width, const int height, const QImage::Format format
         return AVERROR(EINVAL);
     }
 
+    // sws_getContext() defaults to BT.601, limited range (16-235) output
+    // regardless of what we set on m_enc above. That default has nothing to
+    // do with what gets written into the SPS/VUI — it's the actual sample
+    // values swscale produces. If we leave this unset, the bitstream will
+    // *claim* full-range BT.709 (per m_enc->colorspace/color_range) while the
+    // real pixel data is limited-range BT.601, and a spec-compliant decoder
+    // will render it without expanding the range back out — i.e. flat,
+    // washed-out colors. Keep this in sync with m_enc's color settings above.
+    const int *coeffs = sws_getCoefficients(SWS_CS_ITU709);
+    sws_setColorspaceDetails(m_sws,
+                             coeffs,
+                             1, // src: unused for RGB input, kept consistent
+                             coeffs,
+                             1, // dst: 1 = full range, matches AVCOL_RANGE_JPEG above
+                             0,
+                             1 << 16,
+                             1 << 16);
+
     m_yuv = av_frame_alloc();
     if (!m_yuv) {
         return AVERROR(ENOMEM);
@@ -584,5 +601,4 @@ void Encoder::push_image(const uint8_t *data, const int width, const int height,
     av_frame_unref(frame);
     m_pool.dispose(frame);
 }
-
 } // namespace Ffmpeg
