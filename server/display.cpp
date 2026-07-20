@@ -173,7 +173,14 @@ private:
 
     void h265dataForward(const uint8_t *data, const size_t size, const int64_t pts)
     {
-        Packets::ServerStream stm{.data = QByteArray("\x00\x00\x00\x01").append(reinterpret_cast<const char *>(data), static_cast<qsizetype>(size))};
+        Q_UNUSED(pts);
+
+        QByteArray payload;
+        payload.reserve(static_cast<qsizetype>(size) + 4);
+        payload.append("\x00\x00\x00\x01", 4);
+        payload.append(reinterpret_cast<const char *>(data), static_cast<qsizetype>(size));
+
+        Packets::ServerStream stm{.data = std::move(payload)};
         sendData(std::move(Packets::Writer::generate(stm)));
     }
 
@@ -196,4 +203,7 @@ Display *generateNewDisplay(const QString &connectorName, QObject *parent)
         return new DisplayImage(connectorName, "WEBP", parent);
     }
     }
+
+    // [TODO] Generate an error message.
+    return nullptr;
 }

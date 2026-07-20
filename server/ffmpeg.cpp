@@ -6,7 +6,6 @@
 
 extern "C" {
 #include <libavcodec/avcodec.h>
-#include <libavutil/imgutils.h>
 #include <libavutil/opt.h>
 #include <libswscale/swscale.h>
 }
@@ -56,48 +55,6 @@ AVPixelFormat setupLibX265(AVCodecContext *ctx)
                    0);
     }
     return AV_PIX_FMT_YUV420P;
-}
-
-FramePool::~FramePool()
-{
-    clear();
-}
-
-void FramePool::clear()
-{
-    if (m_queue.length() < m_allocated) {
-        [[unlikely]];
-
-        // [TODO] Generate an error message here.
-        exit(1);
-    }
-
-    for (auto &ptr : m_queue) {
-        av_frame_free(&ptr);
-    }
-}
-
-AVFrame *FramePool::request(const int w, const int h, const AVPixelFormat fmt)
-{
-    if (m_queue.isEmpty()) {
-        [[unlikely]];
-
-        auto frame = av_frame_alloc();
-        frame->format = fmt;
-        frame->width = w;
-        frame->height = h;
-        frame->pts = 0; // [NOTE] For ow, we leave it that way.
-
-        m_allocated++;
-        return frame;
-    }
-
-    return m_queue.dequeue();
-}
-
-void FramePool::dispose(AVFrame *frame)
-{
-    m_queue.enqueue(frame);
 }
 
 AVPixelFormat Encoder::formatFromFcc(const uint32_t format)
@@ -412,9 +369,13 @@ int Encoder::flush()
         return ret;
     }
 
-    while (1) {
-        auto pkt = av_packet_alloc();
+    auto pkt = av_packet_alloc();
+    if (!pkt) {
+        return AVERROR(ENOMEM);
+    }
 
+    int status = 0;
+    while (1) {
         ret = avcodec_receive_packet(m_enc, pkt);
         if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN)) {
             [[unlikely]];
@@ -424,7 +385,8 @@ int Encoder::flush()
         if (ret < 0) {
             [[unlikely]];
 
-            return ret;
+            status = ret;
+            break;
         }
 
         if (m_callback) {
@@ -433,10 +395,11 @@ int Encoder::flush()
             m_callback(pkt->data, pkt->size, pkt->pts);
         }
 
-        av_packet_free(&pkt);
+        av_packet_unref(pkt);
     }
 
-    return 0;
+    av_packet_free(&pkt);
+    return status;
 }
 
 int Encoder::encode(AVFrame *frame)
@@ -457,10 +420,14 @@ int Encoder::encode(AVFrame *frame)
         return ret;
     }
 
-    while (1) {
-        auto pkt = av_packet_alloc();
+    auto pkt = av_packet_alloc();
+    if (!pkt) {
+        return AVERROR(ENOMEM);
+    }
 
-        ret = avcodec_receive_packet(m_enc, pkt); // Can this be used from separate thread ?
+    int status = 0;
+    while (1) {
+        ret = avcodec_receive_packet(m_enc, pkt);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
             [[unlikely]];
 
@@ -469,7 +436,8 @@ int Encoder::encode(AVFrame *frame)
         if (ret < 0) {
             [[unlikely]];
 
-            return ret;
+            status = ret;
+            break;
         }
 
         if (m_callback) {
@@ -478,10 +446,11 @@ int Encoder::encode(AVFrame *frame)
             m_callback(pkt->data, pkt->size, pkt->pts);
         }
 
-        av_packet_free(&pkt);
+        av_packet_unref(pkt);
     }
 
-    return 0;
+    av_packet_free(&pkt);
+    return status;
 }
 
 void Encoder::push_image(const uint8_t *data, const int width, const int height, const QImage::Format format, const uint32_t stride)
@@ -503,32 +472,18 @@ void Encoder::push_image(const uint8_t *data, const int width, const int height,
         }
     }
 
-    auto frame = m_pool.request(width, height, m_src_fmt);
-    if (!frame) {
-        qWarning() << "Failed to allocate source frame";
-        return;
-    }
+    AVFrame frame{};
+    frame.width = width;
+    frame.height = height;
+    frame.format = m_src_fmt;
+    frame.data[0] = const_cast<uint8_t *>(data);
+    frame.linesize[0] = static_cast<int>(stride);
+    frame.pts = m_pts++;
 
-    frame->width = width;
-    frame->height = height;
-    frame->format = m_src_fmt;
-
-    if (av_image_fill_arrays(frame->data, frame->linesize, data, m_src_fmt, width, height, 1) < 0) {
-        qWarning() << "Failed to map source image into frame";
-        av_frame_unref(frame);
-        m_pool.dispose(frame);
-        return;
-    }
-
-    frame->pts = m_pts++;
-
-    if (encode(frame) < 0) {
+    if (encode(&frame) < 0) {
         [[unlikely]];
 
         qWarning() << "Failed to encode frame";
     }
-
-    av_frame_unref(frame);
-    m_pool.dispose(frame);
 }
 } // namespace Ffmpeg

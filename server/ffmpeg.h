@@ -2,7 +2,6 @@
 #define FFMPEG_H
 
 #include <QImage>
-#include <QQueue>
 
 extern "C" {
 #include <libavutil/pixfmt.h>
@@ -16,21 +15,6 @@ struct AVFrame;
 namespace Ffmpeg {
 
 QString avError(int err);
-
-class FramePool
-{
-public:
-    ~FramePool();
-
-    AVFrame *request(int w, int h, AVPixelFormat fmt);
-    void dispose(AVFrame *frame);
-
-    void clear();
-
-private:
-    QQueue<AVFrame *> m_queue{};
-    qsizetype m_allocated = 0;
-};
 
 class Encoder
 {
@@ -64,8 +48,6 @@ private:
     int m_fps = 0;
 
     int64_t m_pts = 0;
-
-    FramePool m_pool{};
 
     QImage::Format m_format = QImage::Format_Invalid;
     uint32_t m_stride = 0;
