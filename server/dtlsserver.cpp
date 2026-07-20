@@ -26,9 +26,7 @@ bool DtlsServer::listen(const QHostAddress &address, const quint16 port)
         return false;
     }
 
-    if (!m_socket.bind(address, port)) {
-        [[unlikely]];
-
+    if (!m_socket.bind(address, port)) [[unlikely]] {
         qCritical() << "Failed to bind UDP socket:" << m_socket.errorString();
         return false;
     }
@@ -85,15 +83,11 @@ void DtlsServer::onDatagramReceived()
         // Create or look up a QDtls association for this peer
         QDtls *dtls = m_dtlsMap.value(k, nullptr);
 
-        if (!dtls) {
-            [[unlikely]];
-
+        if (!dtls) [[unlikely]] {
             // Create new server-side DTLS object
             dtls = new QDtls(QSslSocket::SslServerMode, this);
             QSslConfiguration conf = QSslConfiguration::defaultDtlsConfiguration();
-            if (loadServerCertsConfig(conf, "dtls")) {
-                [[likely]];
-
+            if (loadServerCertsConfig(conf, "dtls")) [[likely]] {
                 dtls->setDtlsConfiguration(conf);
             }
 
@@ -109,9 +103,7 @@ void DtlsServer::onDatagramReceived()
                 continue;
             }
 
-            if (dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) {
-                [[unlikely]];
-
+            if (dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) [[unlikely]] {
                 qInfo() << "DTLS client closed:" << sender.toString() << senderPort;
 
                 auto client = std::ranges::find_if(m_clients, [&](const NetworkClient *c) {
@@ -136,9 +128,7 @@ void DtlsServer::onDatagramReceived()
         }
 
         // Continue or start handshake
-        if (!dtls->doHandshake(&m_socket, dgram)) {
-            [[unlikely]];
-
+        if (!dtls->doHandshake(&m_socket, dgram)) [[unlikely]] {
             if (dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) {
                 qInfo() << "DTLS handshake aborted by peer:" << sender.toString() << senderPort;
             } else {

@@ -377,21 +377,15 @@ int Encoder::flush()
     int status = 0;
     while (1) {
         ret = avcodec_receive_packet(m_enc, pkt);
-        if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN)) {
-            [[unlikely]];
-
+        if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN)) [[unlikely]] {
             break;
         }
-        if (ret < 0) {
-            [[unlikely]];
-
+        if (ret < 0) [[unlikely]] {
             status = ret;
             break;
         }
 
-        if (m_callback) {
-            [[likely]];
-
+        if (m_callback) [[likely]] {
             m_callback(pkt->data, pkt->size, pkt->pts);
         }
 
@@ -414,9 +408,7 @@ int Encoder::encode(AVFrame *frame)
     m_yuv->pts = frame->pts;
 
     ret = avcodec_send_frame(m_enc, m_yuv);
-    if (ret < 0) {
-        [[unlikely]];
-
+    if (ret < 0) [[unlikely]] {
         return ret;
     }
 
@@ -428,21 +420,15 @@ int Encoder::encode(AVFrame *frame)
     int status = 0;
     while (1) {
         ret = avcodec_receive_packet(m_enc, pkt);
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-            [[unlikely]];
-
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) [[unlikely]] {
             break;
         }
-        if (ret < 0) {
-            [[unlikely]];
-
+        if (ret < 0) [[unlikely]] {
             status = ret;
             break;
         }
 
-        if (m_callback) {
-            [[likely]];
-
+        if (m_callback) [[likely]] {
             m_callback(pkt->data, pkt->size, pkt->pts);
         }
 
@@ -455,18 +441,12 @@ int Encoder::encode(AVFrame *frame)
 
 void Encoder::push_image(const uint8_t *data, const int width, const int height, const QImage::Format format, const uint32_t stride)
 {
-    if (m_width != width || m_height != height || m_format != format || m_stride != stride) {
-        [[unlikely]];
-
-        if (flush() < 0) {
-            [[unlikely]];
-
+    if (m_width != width || m_height != height || m_format != format || m_stride != stride) [[unlikely]] {
+        if (flush() < 0) [[unlikely]] {
             qWarning() << "Failed to flush encoder";
             return;
         }
-        if (init(width, height, format, stride) < 0) {
-            [[unlikely]];
-
+        if (init(width, height, format, stride) < 0) [[unlikely]] {
             qWarning() << "Failed to reinitialize encoder";
             return;
         }
@@ -480,9 +460,7 @@ void Encoder::push_image(const uint8_t *data, const int width, const int height,
     frame.linesize[0] = static_cast<int>(stride);
     frame.pts = m_pts++;
 
-    if (encode(&frame) < 0) {
-        [[unlikely]];
-
+    if (encode(&frame) < 0) [[unlikely]] {
         qWarning() << "Failed to encode frame";
     }
 }

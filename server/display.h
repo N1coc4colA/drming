@@ -20,18 +20,18 @@ public Q_SLOTS:
     void setClient(NetworkClient *client);
 
 protected:
-    NetworkClient *m_client = nullptr;
-
     void sendData(QByteArray output);
 
 private:
+    NetworkClient *m_client = nullptr;
+    bool primaryFailureNotice = false;
+
     DisplayReader m_reader;
 
     std::optional<DrmFormat::FormatDescriptor> m_cursorFrameDescriptor{};
     std::optional<DrmFormat::FormatDescriptor> m_vkmsFrameDescriptor{};
 
     QTimer m_timer{};
-    bool primaryFailureNotice = false;
 
     virtual void processImage(const QImage &img) = 0;
 

@@ -6,12 +6,12 @@
 
 struct VkmsFrameBuffer
 {
-    uint32_t fb_id = 0;
-    uint32_t crtc_id = 0;
     int fd = -1;
     int buffer_fd = -1;
     void *data = nullptr;
     std::size_t size = 0;
+    uint32_t fb_id = 0;
+    uint32_t crtc_id = 0;
     uint32_t width = 0;
     uint32_t height = 0;
     uint32_t stride = 0;

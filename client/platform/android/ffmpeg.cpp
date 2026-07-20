@@ -252,14 +252,10 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
     const bool isKeyFrame = needNalScan ? isKeyFrameH265(data, size) : false;
 
     // If we don't have resolution, use a default
-    if (!m_resolutionDetected || (m_needResync && isKeyFrame)) {
-        [[unlikely]];
-
+    if (!m_resolutionDetected || (m_needResync && isKeyFrame)) [[unlikely]] {
         qWarning() << "No resolution detected, using default 1920x1080";
         const auto ret = init(1920, 1080);
-        if (ret < 0) {
-            [[unlikely]];
-
+        if (ret < 0) [[unlikely]] {
             qDebug() << "Failed to reinit (1).";
             return ret;
         }
@@ -267,13 +263,9 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
         m_needResync = false;
     }
 
-    if (!m_initialized) {
-        [[unlikely]];
-
+    if (!m_initialized) [[unlikely]] {
         const int ret = init(m_width, m_height);
         if (ret < 0) {
-            [[unlikely]];
-
             qDebug() << "Failed to reinit (2).";
             return ret;
         }
@@ -298,9 +290,7 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
     }
 
     const auto ret = decode_frame(data, size, isKeyFrame);
-    if (ret < 0) {
-        [[unlikely]];
-
+    if (ret < 0) [[unlikely]] {
         m_needResync = true;
         qDebug() << "Resync required.";
     }
@@ -312,9 +302,9 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size, const bo
 {
     // Always queue input buffer (works for both paths)
     const auto inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 10000);
-    if (inputIndex >= 0) {
+    if (inputIndex >= 0) [[likely]] {
         // Most likely case, we have a buffer, just continue.
-        [[likely]];
+
     } else if (inputIndex == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
         qDebug() << "Dequeue input TAL";
         // Just got to wait longer.
@@ -327,14 +317,10 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size, const bo
     size_t bufferSize = 0;
     const auto inputBuffer = AMediaCodec_getInputBuffer(m_codec, inputIndex, &bufferSize);
     if (!inputBuffer) {
-        [[unlikely]];
-
         qWarning() << "Failed to get input buffer: " << inputBuffer;
         return -1;
     }
-    if (size > bufferSize) {
-        [[unlikely]];
-
+    if (size > bufferSize) [[unlikely]] {
         // [TODO] handle buffer resizing.
         qWarning() << "Input data too large:" << size << ">" << bufferSize;
         return -1;
@@ -349,9 +335,7 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size, const bo
         size,
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
         flags);
-    if (status != AMEDIA_OK) {
-        [[unlikely]];
-
+    if (status != AMEDIA_OK) [[unlikely]] {
         qWarning() << "MC Failed to queue input buffer:" << status;
         return -1;
     }
@@ -359,9 +343,7 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size, const bo
     AMediaCodecBufferInfo info{};
     for (;;) {
         const auto outIdx = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 0);
-        if (outIdx >= 0) {
-            [[likely]];
-
+        if (outIdx >= 0) [[likely]] {
             // render = true: hands the buffer to the ANativeWindow/AImageReader.
             AMediaCodec_releaseOutputBuffer(m_codec, outIdx, true);
             continue; // more than one frame may be ready
@@ -391,27 +373,25 @@ void FfmpegDecoder::onImageAvailable(void* context, AImageReader* reader)
 bool FfmpegDecoder::consumeFrame()
 {
     if (!m_imageReader) {
-        [[unlikely]];
-
         qDebug() << "Invalid consume.";
         return false;
     }
 
     const bool hadFrame = m_frameAvailable.exchange(false, std::memory_order_acq_rel);
     if (!hadFrame) {
-        [[unlikely]];
-
         return false;
     }
 
     AImage* image = nullptr;
     auto status = AImageReader_acquireNextImage(m_imageReader, &image);
     switch (status) {
-    case AMEDIA_OK: {
-        // Most likely case, just continue.
-        [[likely]];
-        break;
-    }
+    case AMEDIA_OK:
+        [[likely]]
+        {
+            // Most likely case, just continue.
+
+            break;
+        }
     case AMEDIA_IMGREADER_NO_BUFFER_AVAILABLE: {
         qDebug() << "No availble buffers";
         return false;
@@ -429,9 +409,7 @@ bool FfmpegDecoder::consumeFrame()
     // Get the hardware buffer
     AHardwareBuffer* hardwareBuffer = nullptr;
     status = AImage_getHardwareBuffer(image, &hardwareBuffer);
-    if (status != AMEDIA_OK || !hardwareBuffer) {
-        [[unlikely]];
-
+    if (status != AMEDIA_OK || !hardwareBuffer) [[unlikely]] {
         qWarning() << "Failed to get AHardwareBuffer from image";
         AImage_delete(image);
         return false;
@@ -447,18 +425,14 @@ bool FfmpegDecoder::consumeFrame()
 void FfmpegDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
 {
     const auto display = eglGetCurrentDisplay();
-    if (display == EGL_NO_DISPLAY) {
-        [[unlikely]];
-
+    if (display == EGL_NO_DISPLAY) [[unlikely]] {
         qWarning() << "No current EGL display";
         return;
     }
 
     // Get EGL client buffer from AHardwareBuffer
     const auto clientBuffer = eglGetNativeClientBufferANDROID(buffer);
-    if (!clientBuffer) {
-        [[unlikely]];
-
+    if (!clientBuffer) [[unlikely]] {
         qWarning() << "eglGetNativeClientBufferANDROID failed";
         return;
     }
@@ -467,23 +441,19 @@ void FfmpegDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
 
     // Create EGLImage if needed, otherwise reuse the cached one for this buffer.
     auto it = m_eglImageCache.find(buffer);
-    if (it != m_eglImageCache.end()) {
+    if (it != m_eglImageCache.end()) [[likely]] {
         eglImage = it->second.image;
     } else {
         constexpr EGLint attribs[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
         eglImage = eglCreateImageKHR(display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, attribs);
-        if (eglImage == EGL_NO_IMAGE_KHR) {
-            [[unlikely]];
-
+        if (eglImage == EGL_NO_IMAGE_KHR) [[unlikely]] {
             qWarning() << "eglCreateImageKHR failed";
             return;
         }
 
         // The pool is fixed-size (AImageReader's maxImages). If we somehow
         // exceed it, evict one entry rather than growing unbounded.
-        if (m_eglImageCache.size() >= kMaxCachedImages) {
-            [[unlikely]];
-
+        if (m_eglImageCache.size() >= kMaxCachedImages) [[unlikely]] {
             auto victim = m_eglImageCache.begin();
             eglDestroyImageKHR(display, victim->second.image);
             AHardwareBuffer_release(victim->second.bufferRef);
@@ -498,9 +468,7 @@ void FfmpegDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
     }
 
     // Create/update the OES texture
-    if (m_oesTextureId == 0) {
-        [[unlikely]];
-
+    if (m_oesTextureId == 0) [[unlikely]] {
         glGenTextures(1, &m_oesTextureId);
         glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_oesTextureId);
         glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);

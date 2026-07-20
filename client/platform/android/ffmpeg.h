@@ -58,20 +58,22 @@ private:
     // Decoder state
     AMediaCodec* m_codec = nullptr;
     AMediaFormat* m_format = nullptr;
-    bool m_initialized = false;
-    bool m_needResync = false;
     int m_width = 0;
     int m_height = 0;
+    GLuint m_oesTextureId = 0; // OES texture handle
+
+    bool m_initialized = false;
+    bool m_needResync = false;
+    bool m_resolutionDetected = false;
+    bool m_csdReady = false;
+    std::atomic<bool> m_frameAvailable{false};
 
     // CSD (VPS/SPS/PPS)
     std::vector<uint8_t> m_vps, m_sps, m_pps;
-    bool m_csdReady = false;
 
     // AImageReader & zero‑copy pipeline
     AImageReader* m_imageReader = nullptr;
     ANativeWindow* m_window = nullptr;
-    std::atomic<bool> m_frameAvailable{false};
-    GLuint m_oesTextureId = 0; // OES texture handle
 
     // EGLImage cache: AImageReader has a fixed pool of buffers (maxImages below),
     // so we cache one EGLImageKHR per AHardwareBuffer identity instead of
@@ -87,8 +89,6 @@ private:
     };
     std::unordered_map<AHardwareBuffer*, CachedImage> m_eglImageCache;
     void destroyEglImageCache();
-
-    bool m_resolutionDetected = false;
 
     // Helper functions
     int decode_frame(const uint8_t* data, size_t size, bool isKeyFrame);

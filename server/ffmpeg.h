@@ -41,14 +41,14 @@ private:
     AVCodecContext *m_enc = nullptr;
     struct SwsContext *m_sws = nullptr;
     AVFrame *m_yuv = nullptr;
+
     int m_width = 0;
     int m_height = 0;
-    enum AVPixelFormat m_src_fmt = AV_PIX_FMT_NONE;
-    enum AVPixelFormat m_dst_fmt = AV_PIX_FMT_NV12; //AV_PIX_FMT_YUV420P;
     int m_fps = 0;
-
     int64_t m_pts = 0;
 
+    enum AVPixelFormat m_src_fmt = AV_PIX_FMT_NONE;
+    enum AVPixelFormat m_dst_fmt = AV_PIX_FMT_NV12; //AV_PIX_FMT_YUV420P;
     QImage::Format m_format = QImage::Format_Invalid;
     uint32_t m_stride = 0;
 };

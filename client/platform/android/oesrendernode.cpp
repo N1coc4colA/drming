@@ -33,10 +33,8 @@ GLuint compileShader(const GLenum type, const char* src)
 
     GLint ok = 0;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
-    if (!ok) {
+    if (!ok) [[unlikely]] {
         // Should never happen, but just in case.
-        [[unlikely]];
-
         char log[512];
         glGetShaderInfoLog(shader, sizeof(log), nullptr, log);
         qWarning() << "OES shader compile failed:" << log;
@@ -48,8 +46,7 @@ GLuint compileShader(const GLenum type, const char* src)
 
 void OESRenderNode::ensureProgram()
 {
-    if (m_program) {
-        [[likely]];
+    if (m_program) [[likely]] {
         return;
     }
 
@@ -65,9 +62,8 @@ void OESRenderNode::ensureProgram()
 
     GLint ok = 0;
     glGetProgramiv(m_program, GL_LINK_STATUS, &ok);
-    if (!ok) {
+    if (!ok) [[unlikely]] {
         // No error should ever happen here, but just in case.
-        [[unlikely]];
         char log[512];
         glGetProgramInfoLog(m_program, sizeof(log), nullptr, log);
         qWarning() << "OES program link failed:" << log;
@@ -84,8 +80,7 @@ void OESRenderNode::ensureProgram()
 
 void OESRenderNode::render(const RenderState* state)
 {
-    if (m_texId == 0) {
-        [[unlikely]];
+    if (m_texId == 0) [[unlikely]] {
         return;
     }
 

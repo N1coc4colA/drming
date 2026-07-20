@@ -31,9 +31,7 @@ void Display::setClient(NetworkClient *client)
 void Display::forward()
 {
     VkmsFrameBuffer fb{};
-    if (!m_reader.getVkmsFrameBuffer(fb)) {
-        [[unlikely]];
-
+    if (!m_reader.getVkmsFrameBuffer(fb)) [[unlikely]] {
         if (!primaryFailureNotice) {
             primaryFailureNotice = true;
             qCritical() << "Failed to get primary";
@@ -47,14 +45,10 @@ void Display::forward()
     CursorFrameBuffer cursorFb{};
     const auto hasCursor = DisplayReader::getCursorFrameBuffer(cursorFb, fb);
 
-    if (!m_vkmsFrameDescriptor.has_value()) {
-        [[unlikely]];
-
+    if (!m_vkmsFrameDescriptor.has_value()) [[unlikely]] {
         m_vkmsFrameDescriptor = DrmFormat::resolve(fb.format);
 
-        if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) {
-            [[unlikely]];
-
+        if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
             char a, b, c, d;
             Drm::split_fourcc(fb.format, a, b, c, d);
 
@@ -67,23 +61,16 @@ void Display::forward()
         }
     }
 
-    if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) {
-        [[unlikely]];
+    if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
         return;
     }
 
     auto result = DisplayReader::imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, m_vkmsFrameDescriptor.value());
-    if (hasCursor) {
-        [[likely]];
-
-        if (!m_cursorFrameDescriptor.has_value()) {
-            [[unlikely]];
-
+    if (hasCursor) [[likely]] {
+        if (!m_cursorFrameDescriptor.has_value()) [[unlikely]] {
             m_cursorFrameDescriptor = DrmFormat::resolve(cursorFb.format);
 
-            if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) {
-                [[unlikely]];
-
+            if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
                 char a, b, c, d;
                 Drm::split_fourcc(cursorFb.format, a, b, c, d);
 
@@ -97,9 +84,7 @@ void Display::forward()
             }
         }
 
-        if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) {
-            [[unlikely]];
-
+        if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
             return;
         }
 
@@ -124,9 +109,7 @@ void Display::onDisconnected()
 
 void Display::sendData(QByteArray output)
 {
-    if (m_client && m_client->state() == QAbstractSocket::ConnectedState) {
-        [[likely]];
-
+    if (m_client && m_client->state() == QAbstractSocket::ConnectedState) [[likely]] {
         m_client->write(output);
     }
 }

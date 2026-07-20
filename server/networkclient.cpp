@@ -20,9 +20,7 @@ NetworkClientSsl::NetworkClientSsl(QSslSocket *socket, QObject *parent)
 
 qint64 NetworkClientDtls::write(const QByteArray &data)
 {
-    if (!m_dtls || !m_socket) {
-        [[unlikely]];
-
+    if (!m_dtls || !m_socket) [[unlikely]] {
         return -1;
     }
 
@@ -31,9 +29,7 @@ qint64 NetworkClientDtls::write(const QByteArray &data)
     while (offset < data.size()) {
         const auto chunk = data.mid(offset, chunkSize);
 
-        if (m_dtls->writeDatagramEncrypted(qobject_cast<QUdpSocket *>(m_socket), chunk) < 0) {
-            [[unlikely]];
-
+        if (m_dtls->writeDatagramEncrypted(qobject_cast<QUdpSocket *>(m_socket), chunk) < 0) [[unlikely]] {
             const auto err = m_dtls->dtlsError();
             if (err != QDtlsError::NoError && err != QDtlsError::UnderlyingSocketError) {
                 qWarning() << "DTLS Error" << static_cast<int>(err) << ":" << m_dtls->dtlsErrorString();
@@ -50,9 +46,7 @@ qint64 NetworkClientDtls::write(const QByteArray &data)
 
 qint64 NetworkClientSsl::write(const QByteArray &data)
 {
-    if (!m_socket) {
-        [[unlikely]];
-
+    if (!m_socket) [[unlikely]] {
         return -1;
     }
 

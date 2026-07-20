@@ -126,7 +126,7 @@ QString drmDeviceForConnector(const QString &connectorName)
     for (const QFileInfo &cardInfo : cards) {
         const QByteArray cardPathBytes = QFile::encodeName(cardInfo.absoluteFilePath());
         const int fd = open(cardPathBytes.constData(), O_RDONLY | O_CLOEXEC);
-        if (fd < 0) {
+        if (fd < 0) [[unlikely]] {
             continue;
         }
 
@@ -161,9 +161,7 @@ QString drmDeviceForConnector(const QString &connectorName)
 
 bool mapFramebuffer(VkmsFrameBuffer &fb, const uint32_t handle)
 {
-    if (handle == 0 || fb.fd < 0 || fb.size == 0) {
-        [[unlikely]];
-
+    if (handle == 0 || fb.fd < 0 || fb.size == 0) [[unlikely]] {
         return false;
     }
 
@@ -197,9 +195,7 @@ bool mapFramebuffer(VkmsFrameBuffer &fb, const uint32_t handle)
 
 bool mapCursorFramebuffer(CursorFrameBuffer &cursor, const int drmFd, const uint32_t handle)
 {
-    if (handle == 0 || drmFd < 0 || cursor.size == 0) {
-        [[unlikely]];
-
+    if (handle == 0 || drmFd < 0 || cursor.size == 0) [[unlikely]] {
         return false;
     }
 
@@ -246,17 +242,13 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb) const
     fb = {};
 
     const QString drmDevicePath = drmDeviceForConnector(m_connectorName);
-    if (drmDevicePath.isEmpty()) {
-        [[unlikely]];
-
+    if (drmDevicePath.isEmpty()) [[unlikely]] {
         return false;
     }
 
     const QByteArray drmPathBytes = QFile::encodeName(drmDevicePath);
     fb.fd = open(drmPathBytes.constData(), O_RDWR | O_CLOEXEC);
-    if (fb.fd < 0) {
-        [[unlikely]];
-
+    if (fb.fd < 0) [[unlikely]] {
         return false;
     }
 
@@ -267,8 +259,6 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb) const
 
     const DrmResourcesPtr resources(drmModeGetResources(fb.fd));
     if (!resources) {
-        [[unlikely]];
-
         goto err;
     }
 
@@ -292,16 +282,14 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb) const
     }
 
     if (!connector) {
-        [[unlikely]];
-
         goto err;
     }
 
-    if (connector->encoder_id) {
+    if (connector->encoder_id) [[unlikely]] {
         encoder.reset(drmModeGetEncoder(fb.fd, connector->encoder_id));
     }
 
-    if (!encoder) {
+    if (!encoder) [[unlikely]] {
         for (int i = 0; i < connector->count_encoders; ++i) {
             encoder.reset(drmModeGetEncoder(fb.fd, connector->encoders[i]));
             if (encoder) {
@@ -310,23 +298,17 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb) const
         }
     }
 
-    if (!encoder || !encoder->crtc_id) {
-        [[unlikely]];
-
+    if (!encoder || !encoder->crtc_id) [[unlikely]] {
         goto err;
     }
 
     crtc.reset(drmModeGetCrtc(fb.fd, encoder->crtc_id));
-    if (!crtc || !crtc->buffer_id) {
-        [[unlikely]];
-
+    if (!crtc || !crtc->buffer_id) [[unlikely]] {
         goto err;
     }
 
     mfb.reset(drmModeGetFB2(fb.fd, crtc->buffer_id));
-    if (!mfb) {
-        [[unlikely]];
-
+    if (!mfb) [[unlikely]] {
         goto err;
     }
 
@@ -339,9 +321,7 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb) const
     fb.bpp = fb.format == DRM_FORMAT_RGB565 ? 16 : 32;
     fb.size = static_cast<std::size_t>(fb.stride) * fb.height;
 
-    if (!mapFramebuffer(fb, mfb->handles[0])) {
-        [[unlikely]];
-
+    if (!mapFramebuffer(fb, mfb->handles[0])) [[unlikely]] {
         goto err;
     }
 
@@ -354,21 +334,15 @@ err:
 
 void DisplayReader::releaseVkmsFrameBuffer(VkmsFrameBuffer &fb)
 {
-    if (fb.data && fb.size > 0) {
-        [[likely]];
-
+    if (fb.data && fb.size > 0) [[likely]] {
         munmap(fb.data, fb.size);
         fb.data = nullptr;
     }
-    if (fb.buffer_fd >= 0) {
-        [[likely]];
-
+    if (fb.buffer_fd >= 0) [[likely]] {
         close(fb.buffer_fd);
         fb.buffer_fd = -1;
     }
-    if (fb.fd >= 0) {
-        [[likely]];
-
+    if (fb.fd >= 0) [[likely]] {
         close(fb.fd);
         fb.fd = -1;
     }
@@ -382,7 +356,7 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
 
     cursor = {};
 
-    if (primary.fd < 0 || primary.crtc_id == 0) {
+    if (primary.fd < 0 || primary.crtc_id == 0) [[unlikely]] {
         qWarning() << "Invalid primary";
         return false;
     }
@@ -393,7 +367,7 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
     drmSetClientCap(primary.fd, DRM_CLIENT_CAP_ATOMIC, 1);
 
     const DrmPlaneResPtr planeRes(drmModeGetPlaneResources(primary.fd));
-    if (!planeRes) {
+    if (!planeRes) [[unlikely]] {
         qWarning() << "Invalid plane res\n";
         return false;
     }
@@ -468,15 +442,11 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
 
 void DisplayReader::releaseCursorFrameBuffer(CursorFrameBuffer &cursor)
 {
-    if (cursor.data && cursor.size > 0) {
-        [[likely]];
-
+    if (cursor.data && cursor.size > 0) [[likely]] {
         munmap(cursor.data, cursor.size);
         cursor.data = nullptr;
     }
-    if (cursor.buffer_fd >= 0) {
-        [[likely]];
-
+    if (cursor.buffer_fd >= 0) [[likely]] {
         close(cursor.buffer_fd);
         cursor.buffer_fd = -1;
     }
@@ -487,16 +457,12 @@ void DisplayReader::releaseCursorFrameBuffer(CursorFrameBuffer &cursor)
 
 void DisplayReader::compositeWithCursor(QImage &primary, const CursorFrameBuffer &cursor, const DrmFormat::FormatDescriptor &fmtDesc)
 {
-    if (!cursor.data || cursor.width == 0 || cursor.height == 0 || cursor.stride == 0) {
-        [[unlikely]];
-
+    if (!cursor.data || cursor.width == 0 || cursor.height == 0 || cursor.stride == 0) [[unlikely]] {
         return;
     }
 
     const QImage cursorImg = imageFromFrameBuffer(static_cast<const uint8_t *>(cursor.data), cursor.width, cursor.height, cursor.stride, fmtDesc);
-    if (cursorImg.isNull()) {
-        [[unlikely]];
-
+    if (cursorImg.isNull()) [[unlikely]] {
         return;
     }
 
@@ -511,7 +477,7 @@ QImage DisplayReader::imageFromFrameBuffer(
 {
     QImage output(data, static_cast<int>(width), static_cast<int>(height), static_cast<int>(stride), fmtDesc.qtFormat);
 
-    if (fmtDesc.convert) {
+    if (fmtDesc.convert) [[likely]] {
         fmtDesc.convert(output);
     }
 

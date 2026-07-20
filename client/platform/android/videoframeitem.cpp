@@ -11,9 +11,7 @@ namespace Platform {
 
 QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
 {
-    if (itemSize.isEmpty() || imgSize.isEmpty()) {
-        [[unlikely]];
-
+    if (itemSize.isEmpty() || imgSize.isEmpty()) [[unlikely]] {
         return {};
     }
 
@@ -35,10 +33,8 @@ void VideoFrameItem::setDecoder(FfmpegDecoder* decoder)
 {
     m_decoder = decoder;
 
-    if (decoder) {
-        if (m_textureMode != TextureMode::OES) {
-            [[unlikely]];
-
+    if (decoder) [[unlikely]] {
+        if (m_textureMode != TextureMode::OES) [[unlikely]] {
             m_previousTextureMode = m_textureMode;
             m_textureMode = TextureMode::OES;
         }
@@ -56,9 +52,7 @@ void VideoFrameItem::setImage(const QImage& image)
         m_imageDirty = true;
     }
 
-    if (m_textureMode != TextureMode::Simple) {
-        [[unlikely]];
-
+    if (m_textureMode != TextureMode::Simple) [[unlikely]] {
         m_previousTextureMode = m_textureMode;
         m_textureMode = TextureMode::Simple;
     }
@@ -81,30 +75,22 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
 
     switch (m_textureMode) {
     case TextureMode::OES: {
-        if (m_decoder) {
+        if (m_decoder) [[unlikely]] {
             auto node = static_cast<QSGNode*>(oldNode);
-            if (m_textureMode != m_previousTextureMode && node) {
-                [[unlikely]];
-
+            if (m_textureMode != m_previousTextureMode && node) [[unlikely]] {
                 delete node;
                 node = nullptr;
             }
 
-            if (!node) {
-                [[unlikely]];
-
+            if (!node) [[unlikely]] {
                 node = new QSGNode();
             }
 
             m_decoder->consumeFrame();
             const auto texId = m_decoder->oesTextureId();
-            if (texId != 0) {
-                [[unlikely]];
-
+            if (texId != 0) [[unlikely]] {
                 auto oesNode = node->childCount() ? static_cast<OESRenderNode*>(node->firstChild()) : nullptr;
-                if (!oesNode) {
-                    [[unlikely]];
-
+                if (!oesNode) [[unlikely]] {
                     oesNode = new OESRenderNode();
                     node->removeAllChildNodes();
                     node->appendChildNode(oesNode);
@@ -122,16 +108,12 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
     }
     case TextureMode::Simple: {
         auto node = static_cast<QSGSimpleTextureNode*>(oldNode);
-        if (m_textureMode != m_previousTextureMode && node) {
-            [[unlikely]];
-
+        if (m_textureMode != m_previousTextureMode && node) [[unlikely]] {
             delete node;
             node = nullptr;
         }
 
-        if (!node) {
-            [[unlikely]];
-
+        if (!node) [[unlikely]] {
             node = new QSGSimpleTextureNode();
             node->setFiltering(QSGTexture::Linear);
         }
@@ -150,12 +132,8 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
             }
         }
 
-        if (dirty && !localImage.isNull()) {
-            [[likely]];
-
-            if (auto fallbackTex = window()->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque)) {
-                [[likely]];
-
+        if (dirty && !localImage.isNull()) [[likely]] {
+            if (auto fallbackTex = window()->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque)) [[likely]] {
                 fallbackTex->setFiltering(QSGTexture::Linear);
                 node->setTexture(fallbackTex);
                 node->setOwnsTexture(true);
@@ -179,7 +157,6 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
         return node;
     }
     default: {
-        [[unlikely]];
         break;
     }
     }

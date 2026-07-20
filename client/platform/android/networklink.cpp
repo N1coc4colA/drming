@@ -28,9 +28,7 @@ void NetworkLink::setItem(QObject *item)
 
 void NetworkLink::processPacket(const Packets::ServerStream &img)
 {
-    if (!m_item || !m_decoder) {
-        [[unlikely]];
-
+    if (!m_item || !m_decoder) [[unlikely]] {
         return;
     }
 
@@ -40,14 +38,12 @@ void NetworkLink::processPacket(const Packets::ServerStream &img)
 
 void NetworkLink::processPacket(const Packets::ServerImage &img)
 {
-    if (!m_item) {
-        [[unlikely]];
-
+    if (!m_item) [[unlikely]] {
         return;
     }
 
     const QImage converted = QImage::fromData(img.data, img.format);
-    if (!converted.isNull()) {
+    if (!converted.isNull()) [[unlikely]] {
         // Will trigger repaint.
         m_item->setImage(converted);
     }

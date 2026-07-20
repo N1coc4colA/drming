@@ -14,9 +14,7 @@ bool Server::loadServerCertsConfig(QSslConfiguration &outConfig, const QString &
 {
     const auto serverCert = openCertificate(Parameters::instance.serverCertPath);
     const auto serverKey = openKey(Parameters::instance.serverKeyPath);
-    if (serverKey.isNull() || serverCert.isNull()) {
-        [[unlikely]];
-
+    if (serverKey.isNull() || serverCert.isNull()) [[unlikely]] {
         return false;
     }
 
