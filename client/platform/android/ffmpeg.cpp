@@ -5,97 +5,80 @@
 #include "videoframeitem.h"
 
 namespace Platform {
-// Helper: Check if data is a keyframe (H.265)
-bool isKeyFrameH265(const uint8_t* data, const size_t size)
+namespace {
+bool nextAnnexBNal(const uint8_t *data, const size_t size, size_t &cursor, size_t &nalStart, size_t &nalSize)
 {
-    if (size < 6) {
-        [[unlikely]];
-        return false;
-    }
+    while (cursor + 3 < size) {
+        if (data[cursor] == 0x00 && data[cursor + 1] == 0x00) {
+            const size_t startCodeSize = data[cursor + 2] == 0x01 ? 3 : (cursor + 3 < size && data[cursor + 2] == 0x00 && data[cursor + 3] == 0x01 ? 4 : 0);
+            if (startCodeSize != 0) {
+                nalStart = cursor + startCodeSize;
+                if (nalStart >= size) {
+                    return false;
+                }
 
-    size_t pos = 0;
-    while (pos < size - 4) {
-        const auto* zero = static_cast<const uint8_t*>(memchr(data + pos, 0x00, size - pos - 3));
-        if (!zero)
-            return false;
-        pos = zero - data;
+                size_t next = nalStart;
+                bool foundNext = false;
+                while (next + 3 < size) {
+                    if (data[next] == 0x00 && data[next + 1] == 0x00 &&
+                        (data[next + 2] == 0x01 || (next + 3 < size && data[next + 2] == 0x00 && data[next + 3] == 0x01))) {
+                        foundNext = true;
+                        break;
+                    }
+                    ++next;
+                }
 
-        if (data[pos + 1] == 0x00) {
-            if (data[pos + 2] == 0x01) {
-                pos += 3;
-                break;
-            }
-            if (data[pos + 2] == 0x00 && pos + 3 < size && data[pos + 3] == 0x01) {
-                pos += 4;
-                break;
+                if (!foundNext) {
+                    next = size;
+                }
+
+                nalSize = next - nalStart;
+                cursor = next;
+                return true;
             }
         }
-        pos++;
+
+        ++cursor;
     }
 
-    if (pos >= size) {
-        return false;
-    }
-
-    const uint8_t nalType = (data[pos] >> 1) & 0x3F;
-    return (nalType == 19 || nalType == 20 || nalType == 21);
+    return false;
 }
 
-// Helper: Extract VPS, SPS, PPS from keyframe
-void extractCSDH265(const uint8_t* data, const size_t size, std::vector<uint8_t>& vps, std::vector<uint8_t>& sps, std::vector<uint8_t>& pps)
+bool isKeyFrameH265(const uint8_t *data, const size_t size)
 {
-    if (size < 6) {
-        [[unlikely]];
-        return;
+    size_t cursor = 0;
+    size_t nalStart = 0;
+    size_t nalSize = 0;
+
+    while (nextAnnexBNal(data, size, cursor, nalStart, nalSize)) {
+        const uint8_t nalType = (data[nalStart] >> 1) & 0x3F;
+        if (nalType == 19 || nalType == 20 || nalType == 21) {
+            return true;
+        }
     }
 
-    size_t pos = 0;
-    while (pos < size - 4) {
-        while (pos < size - 4) {
-            if (data[pos] == 0x00 && data[pos + 1] == 0x00) {
-                if (data[pos + 2] == 0x01 || (data[pos + 2] == 0x00 && data[pos + 3] == 0x01)) {
-                    break;
-                }
-            }
-            pos++;
+    return false;
+}
+
+void extractCSDH265(const uint8_t *data, const size_t size, std::vector<uint8_t> &vps, std::vector<uint8_t> &sps, std::vector<uint8_t> &pps)
+{
+    size_t cursor = 0;
+    size_t nalStart = 0;
+    size_t nalSize = 0;
+
+    while (nextAnnexBNal(data, size, cursor, nalStart, nalSize)) {
+        const uint8_t nalType = (data[nalStart] >> 1) & 0x3F;
+
+        if (nalType == 32) {
+            vps.assign(data + nalStart, data + nalStart + nalSize);
+        } else if (nalType == 33) {
+            sps.assign(data + nalStart, data + nalStart + nalSize);
+        } else if (nalType == 34) {
+            pps.assign(data + nalStart, data + nalStart + nalSize);
         }
-
-        if (pos >= size - 4)
-            break;
-
-        const size_t nalStart = pos;
-        if (data[pos + 2] == 0x01) {
-            pos += 3;
-        } else {
-            pos += 4;
-        }
-
-        size_t nalEnd = pos;
-        while (nalEnd < size - 4) {
-            if (data[nalEnd] == 0x00 && data[nalEnd + 1] == 0x00) {
-                if (data[nalEnd + 2] == 0x01 || (data[nalEnd + 2] == 0x00 && data[nalEnd + 3] == 0x01)) {
-                    break;
-                }
-            }
-            nalEnd++;
-        }
-
-        size_t nalSize = nalEnd - nalStart;
-        if (nalSize > 0) {
-            const uint8_t nalType = (data[nalStart] >> 1) & 0x3F;
-
-            if (nalType == 32) { // VPS
-                vps.assign(data + nalStart, data + nalStart + nalSize);
-            } else if (nalType == 33) { // SPS
-                sps.assign(data + nalStart, data + nalStart + nalSize);
-            } else if (nalType == 34) { // PPS
-                pps.assign(data + nalStart, data + nalStart + nalSize);
-            }
-        }
-
-        pos = nalEnd;
     }
 }
+} // namespace
 
 FfmpegDecoder::FfmpegDecoder(QObject* parent)
     : QObject(parent)
@@ -114,7 +97,7 @@ int FfmpegDecoder::init(const int width, const int height)
 
     m_width = width;
     m_height = height;
-    m_resolutionDetected = true; // you need to add this member or just use width>0
+    m_resolutionDetected = width > 0 && height > 0;
 
     media_status_t status = AImageReader_new(width,
                                              height,
@@ -265,7 +248,8 @@ int FfmpegDecoder::flush()
 
 int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
 {
-    const auto isKeyFrame = isKeyFrameH265(data, size);
+    const bool needNalScan = m_needResync || !m_csdReady;
+    const bool isKeyFrame = needNalScan ? isKeyFrameH265(data, size) : false;
 
     // If we don't have resolution, use a default
     if (!m_resolutionDetected || (m_needResync && isKeyFrame)) {
@@ -310,9 +294,6 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
         extractCSDH265(data, size, m_vps, m_sps, m_pps);
         if (!m_vps.empty() && !m_sps.empty() && !m_pps.empty()) {
             m_csdReady = true;
-            // Reinitialize with CSD for better decoding
-            release();
-            return init(m_width, m_height);
         }
     }
 
