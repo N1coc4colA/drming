@@ -1,6 +1,7 @@
 #ifndef DISPLAYMANAGER_H
 #define DISPLAYMANAGER_H
 
+#include <QMap>
 #include <QObject>
 #include <QQueue>
 #include <QSet>
@@ -18,7 +19,7 @@ public:
 
 private:
     QQueue<Display *> m_freeDisplays{};
-    QSet<Display *> m_usedDisplays{};
+    QMap<QByteArray, Display *> m_usedDisplays{};
 };
 
 #endif // DISPLAYMANAGER_H

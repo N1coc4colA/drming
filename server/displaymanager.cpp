@@ -40,8 +40,14 @@ bool DisplayManager::registerClient(NetworkClient *client)
     }
 
     const auto display = m_freeDisplays.dequeue();
-    m_usedDisplays.insert(display);
-    display->setClient(client);
+
+    const auto digest = client->digest();
+    if (m_usedDisplays.contains(digest)) {
+    } else {
+        m_usedDisplays.insert(digest, display);
+    }
+
+    display->addClient(client);
 
     connect(display, &Display::nowFree, this, [this](Display *disp) { m_freeDisplays.enqueue(disp); });
 

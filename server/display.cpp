@@ -18,11 +18,13 @@ Display::Display(const QString &connectorName, QObject *parent)
     m_timer.setInterval(Settings::frameMSecsInterval);
 }
 
-void Display::setClient(NetworkClient *client)
+void Display::addClient(NetworkClient *client)
 {
-    m_client = client;
-    if (m_client) {
-        connect(m_client, &NetworkClient::disconnected, this, &Display::onDisconnected);
+    assert(!m_clients.contains(client));
+
+    m_clients.insert(client);
+    if (client) {
+        connect(client, &NetworkClient::disconnected, this, &Display::onDisconnected);
     }
 
     onConnected();
@@ -54,9 +56,7 @@ void Display::forward()
 
             qWarning() << "Image format for frame is invalid:" << fb.format << ";" << a << b << c << d;
 
-            if (m_client) {
-                m_client->disconnect();
-            }
+            disconnectAllClients();
             return;
         }
     }
@@ -76,10 +76,7 @@ void Display::forward()
 
                 qWarning() << "Image format for frame is invalid:" << cursorFb.format << ";" << a << b << c << d;
 
-                if (m_client) {
-                    // [TODO] Generate error on failure
-                    m_client->disconnect();
-                }
+                disconnectAllClients();
                 return;
             }
         }
@@ -102,15 +99,31 @@ void Display::onConnected()
 
 void Display::onDisconnected()
 {
-    m_timer.stop();
-    m_client = nullptr;
-    Q_EMIT nowFree(this);
+    if (auto client = qobject_cast<NetworkClient *>(sender())) {
+        m_clients.remove(client);
+    }
+
+    if (m_clients.isEmpty()) {
+        m_timer.stop();
+        Q_EMIT nowFree(this);
+    }
 }
 
 void Display::sendData(QByteArray output)
 {
-    if (m_client && m_client->state() == QAbstractSocket::ConnectedState) [[likely]] {
-        m_client->write(output);
+    for (const auto &client : m_clients) {
+        if (client->state() == QAbstractSocket::ConnectedState) [[likely]] {
+            client->write(output);
+        }
+    }
+}
+
+void Display::disconnectAllClients()
+{
+    if (!m_clients.isEmpty()) {
+        for (const auto &client : m_clients) {
+            client->disconnect();
+        }
     }
 }
 

@@ -21,6 +21,7 @@ public:
     [[nodiscard]] QAbstractSocket::SocketState state() const { return QAbstractSocket::ConnectedState; }
     [[nodiscard]] inline QHostAddress peerAddress() const { return m_socket->peerAddress(); }
     [[nodiscard]] inline quint16 peerPort() const { return m_socket->peerPort(); }
+    [[nodiscard]] virtual QByteArray digest() const = 0;
 
     inline QAbstractSocket *socket() { return m_socket; }
     inline const QAbstractSocket *socket() const { return m_socket; }
@@ -39,6 +40,7 @@ public:
     QDtls *dtls() { return m_dtls; }
 
     qint64 write(const QByteArray &data) override;
+    QByteArray digest() const override;
 
 private:
     QDtls *m_dtls = nullptr;
@@ -50,6 +52,7 @@ public:
     NetworkClientSsl(QSslSocket *socket, QObject *parent = nullptr);
 
     qint64 write(const QByteArray &data) override;
+    QByteArray digest() const override;
 };
 
 #endif // NETWORKCLIENT_H

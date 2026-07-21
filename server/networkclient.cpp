@@ -1,6 +1,7 @@
 #include "networkclient.h"
 
 #include <QDtls>
+#include <QSslConfiguration>
 
 #include "../settings.h"
 
@@ -56,4 +57,14 @@ qint64 NetworkClientSsl::write(const QByteArray &data)
     m_socket->waitForBytesWritten();
 
     return ret;
+}
+
+QByteArray NetworkClientDtls::digest() const
+{
+    return m_dtls->dtlsConfiguration().peerCertificate().digest();
+}
+
+QByteArray NetworkClientSsl::digest() const
+{
+    return qobject_cast<QSslSocket *>(m_socket)->peerCertificate().digest();
 }

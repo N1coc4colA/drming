@@ -17,13 +17,13 @@ Q_SIGNALS:
     void nowFree(Display *);
 
 public Q_SLOTS:
-    void setClient(NetworkClient *client);
+    void addClient(NetworkClient *client);
 
 protected:
     void sendData(QByteArray output);
 
 private:
-    NetworkClient *m_client = nullptr;
+    QSet<NetworkClient *> m_clients{};
     bool primaryFailureNotice = false;
 
     DisplayReader m_reader;
@@ -39,6 +39,7 @@ private Q_SLOTS:
     void forward();
     void onConnected();
     void onDisconnected();
+    void disconnectAllClients();
 };
 
 Display *generateNewDisplay(const QString &connectorName, QObject *parent = nullptr);
