@@ -1,13 +1,14 @@
 #include "dtlsserver.h"
 
+#include <QDebug>
+#include <QDtls>
+#include <QHostAddress>
+#include <QMap>
 #include <QSslCertificate>
 #include <QSslConfiguration>
 #include <QSslError>
-#include <QMap>
-#include <QHostAddress>
-#include <QDebug>
-#include <QDtls>
-#include <algorithm>
+
+#include "../settings.h"
 
 // Map key helper (string form address:port)
 static QString keyFor(const QHostAddress &a, const quint16 p) { return QStringLiteral("%1:%2").arg(a.toString()).arg(p); }
@@ -26,7 +27,7 @@ bool DtlsServer::listen(const QHostAddress &address, const quint16 port)
         return false;
     }
 
-    if (!m_socket.bind(address, port)) [[unlikely]] {
+    if (!m_socket.bind(address, port, QUdpSocket::ShareAddress)) [[unlikely]] {
         qCritical() << "Failed to bind UDP socket:" << m_socket.errorString();
         return false;
     }
@@ -70,90 +71,59 @@ void DtlsServer::onDatagramReceived()
     while (m_socket.hasPendingDatagrams()) {
         QByteArray dgram(m_socket.pendingDatagramSize(), Qt::Uninitialized);
         QHostAddress sender;
-        quint16 senderPort = 0;
-        const qint64 read = m_socket.readDatagram(dgram.data(), dgram.size(), &sender, &senderPort);
-        if (read <= 0) {
+        quint16 senderPort;
+        m_socket.readDatagram(dgram.data(), dgram.size(), &sender, &senderPort);
+
+        // Check if we already have a dedicated socket for this peer
+        if (m_peerSockets.find({sender, senderPort}) != m_peerSockets.end()) {
+            qWarning() << "Received packets on main DTLS socket, which should not happen.";
             continue;
         }
 
-        dgram.resize(read);
-
-        const auto k = keyFor(sender, senderPort);
-
-        // Create or look up a QDtls association for this peer
-        QDtls *dtls = m_dtlsMap.value(k, nullptr);
-
-        if (!dtls) [[unlikely]] {
-            // Create new server-side DTLS object
+        // Otherwise, it's a new handshake or a stale packet
+        const auto key = keyFor(sender, senderPort);
+        QDtls *dtls = m_dtlsMap.value(key, nullptr);
+        if (!dtls) {
             dtls = new QDtls(QSslSocket::SslServerMode, this);
-            QSslConfiguration conf = QSslConfiguration::defaultDtlsConfiguration();
+            auto conf = QSslConfiguration::defaultDtlsConfiguration();
             if (loadServerCertsConfig(conf, "dtls")) [[likely]] {
                 dtls->setDtlsConfiguration(conf);
             }
 
-            dtls->setMtuHint(1200);
+            dtls->setMtuHint(Settings::dtlsChunkSize);
             dtls->setPeer(sender, senderPort);
-            m_dtlsMap.insert(k, dtls);
+            m_dtlsMap.insert(key, dtls);
         }
 
-        if (dtls->handshakeState() == QDtls::HandshakeComplete) {
-            const QByteArray plain = dtls->decryptDatagram(&m_socket, dgram);
-            if (!plain.isEmpty()) {
-                // Server currently does not consume client application data.
-                continue;
-            }
-
-            if (dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) [[unlikely]] {
-                qInfo() << "DTLS client closed:" << sender.toString() << senderPort;
-
-                auto client = std::ranges::find_if(m_clients, [&](const NetworkClient *c) {
-                    return c && c->peerAddress() == sender && c->peerPort() == senderPort;
-                });
-                if (client != m_clients.end()) {
-                    Q_EMIT (*client)->disconnected();
-                    (*client)->deleteLater();
-                    m_clients.erase(client);
-                }
-
-                m_dtlsMap.remove(k);
-                delete dtls;
-
-                if (m_clients.isEmpty()) {
-                    Q_EMIT noClient();
-                }
-            } else {
-                qWarning() << "Unexpected DTLS datagram from" << sender.toString() << senderPort;
-            }
-            continue;
-        }
-
-        // Continue or start handshake
-        if (!dtls->doHandshake(&m_socket, dgram)) [[unlikely]] {
-            if (dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) {
-                qInfo() << "DTLS handshake aborted by peer:" << sender.toString() << senderPort;
-            } else {
-                qWarning() << "DTLS handshake error from" << sender.toString() << senderPort << ":" << dtls->dtlsErrorString();
-            }
-
-            m_dtlsMap.remove(k);
+        // Process handshake
+        if (!dtls->doHandshake(&m_socket, dgram)) {
+            // [TODO] Generate handshake error message.
+            m_dtlsMap.remove(key);
             delete dtls;
             continue;
         }
 
-        if (dtls->isConnectionEncrypted()) {
-            bool alreadyRegistered = false;
-            for (const auto c : m_clients) {
-                if (c && c->peerAddress() == sender && c->peerPort() == senderPort) {
-                    alreadyRegistered = true;
-                    break;
-                }
-            }
-
-            if (!alreadyRegistered) {
-                auto *wrapper = new NetworkClientDtls(dtls, &m_socket, this);
-                m_clients.append(wrapper);
-                Q_EMIT clientConnected(wrapper);
-            }
+        if (!dtls->isConnectionEncrypted()) {
+            // [TODO] Generate an error message.
+            continue;
         }
+
+        // Handshake finished – create a dedicated socket for this peer
+        auto dedicated = new QUdpSocket(this);
+        if (!dedicated->bind(m_socket.localAddress(), m_socket.localPort(), QUdpSocket::ShareAddress)) {
+            // [TODO] Properly handle error.
+            qWarning() << "Failed to bind dedicated UDP socket";
+            delete dedicated;
+            return;
+        }
+        dedicated->connectToHost(sender, senderPort);
+
+        // Create a NetworkClientDtls that holds the QDtls and the dedicated socket
+        auto wrapper = new NetworkClientDtls(dtls, dedicated, this);
+
+        // Remove from m_dtlsMap and add to m_clients
+        m_dtlsMap.remove(keyFor(sender, senderPort));
+        m_clients.append(wrapper);
+        Q_EMIT clientConnected(wrapper);
     }
 }

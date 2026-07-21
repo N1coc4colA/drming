@@ -25,6 +25,7 @@ private Q_SLOTS:
 
 private:
     QUdpSocket m_socket{};
+    QSet<QPair<QHostAddress, quint16>> m_peerSockets{};
     QMap<QString, QDtls *> m_dtlsMap{};
 };
 
