@@ -214,7 +214,7 @@ class Parser
                 [&](auto ptr) -> bool {
                     using MemberType = std::decay_t<decltype(std::declval<T>().*ptr)>;
                     if (m_array.size() < static_cast<qsizetype>(sizeof(MemberType))) {
-                        return false;
+                        return true;
                     }
 
                     const auto value = read<MemberType>();
@@ -252,6 +252,19 @@ class Parser
                 using sizingType = qsizetype;
 
                 const auto len = std::visit([&](auto &&ptr) { return packet.*ptr; }, sized.first);
+
+                // Also consider invalid signed data, giving a negative value instead of positive one.
+                if (len < 0) {
+                    if (!m_array.isEmpty()) {
+                        m_array.remove(0, 1);
+                    }
+
+                    m_state = Type::None;
+                    m_parsed = 0;
+
+                    return true;
+                }
+
                 if (m_array.size() < static_cast<sizingType>(len)) {
                     return false;
                 }
