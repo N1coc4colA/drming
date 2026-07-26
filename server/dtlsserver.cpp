@@ -15,8 +15,9 @@ static QString keyFor(const QHostAddress &a, const quint16 p) { return QStringLi
 
 DtlsServer::DtlsServer(QObject *parent)
     : Server(parent)
+    , m_socket(new QUdpSocket(this))
 {
-    connect(&m_socket, &QUdpSocket::readyRead, this, &DtlsServer::onDatagramReceived);
+    connect(m_socket, &QUdpSocket::readyRead, this, &DtlsServer::onDatagramReceived);
 }
 
 bool DtlsServer::listen(const QHostAddress &address, const quint16 port)
@@ -27,8 +28,11 @@ bool DtlsServer::listen(const QHostAddress &address, const quint16 port)
         return false;
     }
 
-    if (!m_socket.bind(address, port, QUdpSocket::ShareAddress)) [[unlikely]] {
-        qCritical() << "Failed to bind UDP socket:" << m_socket.errorString();
+    m_address = address;
+    m_port = port;
+
+    if (!m_socket->bind(m_address, m_port, QAbstractSocket::ShareAddress)) [[unlikely]] {
+        qCritical() << "Failed to bind UDP socket:" << m_socket->errorString();
         return false;
     }
 
@@ -52,7 +56,7 @@ void DtlsServer::close()
     }
     m_dtlsMap.clear();
 
-    m_socket.close();
+    m_socket->close();
 }
 
 void DtlsServer::broadcast(const QByteArray &data)
@@ -68,11 +72,16 @@ void DtlsServer::broadcast(const QByteArray &data)
 
 void DtlsServer::onDatagramReceived()
 {
-    while (m_socket.hasPendingDatagrams()) {
-        QByteArray dgram(m_socket.pendingDatagramSize(), Qt::Uninitialized);
+    while (m_socket->hasPendingDatagrams()) {
+        QByteArray dgram(m_socket->pendingDatagramSize(), Qt::Uninitialized);
         QHostAddress sender;
         quint16 senderPort;
-        m_socket.readDatagram(dgram.data(), dgram.size(), &sender, &senderPort);
+
+        const auto read = m_socket->readDatagram(dgram.data(), dgram.size(), &sender, &senderPort);
+        if (read <= 0) {
+            continue;
+        }
+        dgram.resize(read);
 
         // Check if we already have a dedicated socket for this peer
         if (m_peerSockets.find({sender, senderPort}) != m_peerSockets.end()) {
@@ -82,7 +91,7 @@ void DtlsServer::onDatagramReceived()
 
         // Otherwise, it's a new handshake or a stale packet
         const auto key = keyFor(sender, senderPort);
-        QDtls *dtls = m_dtlsMap.value(key, nullptr);
+        auto dtls = m_dtlsMap.value(key, nullptr);
         if (!dtls) {
             dtls = new QDtls(QSslSocket::SslServerMode, this);
             auto conf = QSslConfiguration::defaultDtlsConfiguration();
@@ -96,34 +105,33 @@ void DtlsServer::onDatagramReceived()
         }
 
         // Process handshake
-        if (!dtls->doHandshake(&m_socket, dgram)) {
+        if (!dtls->doHandshake(m_socket, dgram)) {
             // [TODO] Generate handshake error message.
             m_dtlsMap.remove(key);
             delete dtls;
             continue;
         }
 
-        if (!dtls->isConnectionEncrypted()) {
-            // [TODO] Generate an error message.
-            continue;
+        if (dtls->isConnectionEncrypted()) {
+            // Handshake finished – create a dedicated socket for this peer
+            auto dedicated = m_socket;
+            disconnect(m_socket, &QUdpSocket::readyRead, this, &DtlsServer::onDatagramReceived);
+
+            m_socket = new QUdpSocket(this);
+            if (!m_socket->bind(m_address, m_port, QUdpSocket::ShareAddress)) [[unlikely]] {
+                // [TODO] Properly handle error.
+                qWarning() << "Failed to bind dedicated UDP socket";
+                delete dedicated;
+                return;
+            }
+
+            // Create a NetworkClientDtls that holds the QDtls and the dedicated socket
+            auto wrapper = new NetworkClientDtls(dtls, dedicated, this);
+
+            // Remove from m_dtlsMap and add to m_clients
+            m_dtlsMap.remove(keyFor(sender, senderPort));
+            m_clients.append(wrapper);
+            Q_EMIT clientConnected(wrapper);
         }
-
-        // Handshake finished – create a dedicated socket for this peer
-        auto dedicated = new QUdpSocket(this);
-        if (!dedicated->bind(m_socket.localAddress(), m_socket.localPort(), QUdpSocket::ShareAddress)) {
-            // [TODO] Properly handle error.
-            qWarning() << "Failed to bind dedicated UDP socket";
-            delete dedicated;
-            return;
-        }
-        dedicated->connectToHost(sender, senderPort);
-
-        // Create a NetworkClientDtls that holds the QDtls and the dedicated socket
-        auto wrapper = new NetworkClientDtls(dtls, dedicated, this);
-
-        // Remove from m_dtlsMap and add to m_clients
-        m_dtlsMap.remove(keyFor(sender, senderPort));
-        m_clients.append(wrapper);
-        Q_EMIT clientConnected(wrapper);
     }
 }

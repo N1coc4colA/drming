@@ -9,6 +9,8 @@ NetworkClient::NetworkClient(QAbstractSocket *socket, QObject *parent)
     : QObject(parent)
     , m_socket(socket)
 {
+    m_socket->setParent(this);
+
     connect(m_socket, &QAbstractSocket::disconnected, this, &NetworkClient::disconnected);
 }
 
@@ -23,7 +25,33 @@ NetworkClientSsl::NetworkClientSsl(QSslSocket *socket, QObject *parent)
 
 qint64 NetworkClientDtls::write(const QByteArray &data)
 {
-    if (!m_dtls || !m_socket) [[unlikely]] {
+    auto *udp = qobject_cast<QUdpSocket *>(m_socket);
+    if (!m_dtls || !udp) [[unlikely]] {
+        return -1;
+    }
+
+    qsizetype offset = 0;
+    while (offset < data.size()) {
+        const auto chunk = data.mid(offset, Settings::dtlsChunkSize);
+
+        if (m_dtls->writeDatagramEncrypted(udp, chunk) < 0) [[unlikely]] {
+            const auto err = m_dtls->dtlsError();
+            if (err != QDtlsError::NoError && err != QDtlsError::UnderlyingSocketError) {
+                qWarning() << "DTLS Error" << static_cast<int>(err) << ":" << m_dtls->dtlsErrorString();
+            }
+            return -1;
+        }
+
+        offset += chunk.size();
+    }
+
+    return data.size();
+}
+
+/*qint64 NetworkClientDtls::write(const QByteArray &data)
+{
+    auto socket = qobject_cast<QUdpSocket *>(m_socket);
+    if (!m_dtls || !socket) [[unlikely]] {
         return -1;
     }
 
@@ -32,7 +60,7 @@ qint64 NetworkClientDtls::write(const QByteArray &data)
     while (offset < data.size()) {
         const auto chunk = data.mid(offset, chunkSize);
 
-        if (m_dtls->writeDatagramEncrypted(qobject_cast<QUdpSocket *>(m_socket), chunk) < 0) [[unlikely]] {
+        if (m_dtls->writeDatagramEncrypted(socket, chunk) < 0) [[unlikely]] {
             const auto err = m_dtls->dtlsError();
             if (err != QDtlsError::NoError && err != QDtlsError::UnderlyingSocketError) {
                 qWarning() << "DTLS Error" << static_cast<int>(err) << ":" << m_dtls->dtlsErrorString();
@@ -44,8 +72,8 @@ qint64 NetworkClientDtls::write(const QByteArray &data)
         }
     }
 
-    return m_dtls->writeDatagramEncrypted(qobject_cast<QUdpSocket *>(m_socket), data);
-}
+    return m_dtls->writeDatagramEncrypted(socket, data);
+}*/
 
 qint64 NetworkClientSsl::write(const QByteArray &data)
 {

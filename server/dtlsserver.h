@@ -24,9 +24,12 @@ private Q_SLOTS:
     void onDatagramReceived();
 
 private:
-    QUdpSocket m_socket{};
+    QUdpSocket *m_socket = nullptr;
     QSet<QPair<QHostAddress, quint16>> m_peerSockets{};
     QMap<QString, QDtls *> m_dtlsMap{};
+
+    QHostAddress m_address;
+    quint16 m_port;
 };
 
 #endif
