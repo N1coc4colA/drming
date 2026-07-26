@@ -8,7 +8,9 @@
 NetworkClient::NetworkClient(QAbstractSocket *socket, QObject *parent)
     : QObject(parent)
     , m_socket(socket)
-{}
+{
+    connect(m_socket, &QAbstractSocket::disconnected, this, &NetworkClient::disconnected);
+}
 
 NetworkClientDtls::NetworkClientDtls(QDtls *dtls, QUdpSocket *socket, QObject *parent)
     : NetworkClient(socket, parent)
