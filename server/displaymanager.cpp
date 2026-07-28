@@ -4,7 +4,7 @@
 
 #include "../settings.h"
 
-#include "display.h"
+#include "displaythread.h"
 #include "dispsetup.h"
 #include "parameters.h"
 
@@ -14,15 +14,13 @@ DisplayManager::DisplayManager(QObject *parent)
 
 DisplayManager::~DisplayManager()
 {
-    qDeleteAll(m_freeDisplays);
-    m_freeDisplays.clear();
-
-    qDeleteAll(m_usedDisplays);
-    m_usedDisplays.clear();
+    // Let Qt ownership take care of the children.
 }
 
 bool DisplayManager::registerClient(NetworkClient *client)
 {
+    client->setParent(this);
+
     const auto number = QString::number(Parameters::instance.servedScreens);
     if (m_freeDisplays.isEmpty()) {
         if (Parameters::instance.servedScreens > Settings::maximumDisplayCount) {
@@ -36,20 +34,28 @@ bool DisplayManager::registerClient(NetworkClient *client)
         }
 
         Parameters::instance.servedScreens++;
-        m_freeDisplays.enqueue(generateNewDisplay(setup.virtualConnectorName(), this));
+        m_freeDisplays.enqueue(new DisplayThread(generateNewDisplay(setup.virtualConnectorName(), this), this));
     }
 
-    const auto display = m_freeDisplays.dequeue();
+    const auto thread = m_freeDisplays.dequeue();
 
     const auto digest = client->digest();
-    if (m_usedDisplays.contains(digest)) {
-    } else {
-        m_usedDisplays.insert(digest, display);
+    if (!m_usedDisplays.contains(digest)) {
+        m_usedDisplays.insert(digest, thread);
+        thread->start();
     }
 
-    display->addClient(client);
+    thread->addClient(client);
 
-    connect(display, &Display::nowFree, this, [this](Display *disp) { m_freeDisplays.enqueue(disp); });
+    connect(
+        thread,
+        &DisplayThread::nowFree,
+        this,
+        [this](DisplayThread *thread) {
+            thread->terminate();
+            m_freeDisplays.enqueue(thread);
+        },
+        Qt::QueuedConnection);
 
     return true;
 }

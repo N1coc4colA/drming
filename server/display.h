@@ -14,7 +14,7 @@ public:
     explicit Display(const QString &connectorName, QObject *parent = nullptr);
 
 Q_SIGNALS:
-    void nowFree(Display *);
+    void nowFree();
 
 public Q_SLOTS:
     void addClient(NetworkClient *client);

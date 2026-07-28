@@ -36,6 +36,7 @@ set(PROJECT_SOURCES
     display.h display.cpp
     displaymanager.h displaymanager.cpp
     displayreader.h displayreader.cpp
+    displaythread.h displaythread.cpp
     dispsetup.h dispsetup.cpp
     ffmpeg.h ffmpeg.cpp
     networkclient.h networkclient.cpp

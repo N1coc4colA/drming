@@ -22,6 +22,8 @@ void Display::addClient(NetworkClient *client)
 {
     assert(!m_clients.contains(client));
 
+    client->setParent(this);
+
     m_clients.insert(client);
     if (client) {
         connect(client, &NetworkClient::disconnected, this, &Display::onDisconnected);
@@ -94,7 +96,9 @@ void Display::forward()
 
 void Display::onConnected()
 {
-    m_timer.start();
+    if (!m_timer.isActive()) {
+        m_timer.start();
+    }
 }
 
 void Display::onDisconnected()
@@ -105,7 +109,7 @@ void Display::onDisconnected()
 
     if (m_clients.isEmpty()) {
         m_timer.stop();
-        Q_EMIT nowFree(this);
+        Q_EMIT nowFree();
     }
 }
 

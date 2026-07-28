@@ -7,7 +7,7 @@
 #include <QSet>
 
 class NetworkClient;
-class Display;
+class DisplayThread;
 
 class DisplayManager : public QObject
 {
@@ -18,8 +18,8 @@ public:
     bool registerClient(NetworkClient *client);
 
 private:
-    QQueue<Display *> m_freeDisplays{};
-    QMap<QByteArray, Display *> m_usedDisplays{};
+    QQueue<DisplayThread *> m_freeDisplays{};
+    QMap<QByteArray, DisplayThread *> m_usedDisplays{};
 };
 
 #endif // DISPLAYMANAGER_H
