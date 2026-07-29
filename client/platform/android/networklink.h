@@ -17,9 +17,12 @@ public:
     explicit NetworkLink(QObject *parent);
 
     void processPacket(const Packets::ServerImage &img);
-    void processPacket(const Packets::ClientResolution &res) { Q_UNUSED(res); }
-    void processPacket(const Packets::ServerBrightness &brightness);
+    inline void processPacket(const Packets::ClientResolution &) {}
+    inline void processPacket(const Packets::ServerBrightness &) {};
     void processPacket(const Packets::ServerStream &img);
+    inline void processPacket(const Packets::HeartBeat &) {};
+    void processPacket(const Packets::Reinit &);
+    void onPacketErrors();
 
     void setItem(QObject *item) override;
 

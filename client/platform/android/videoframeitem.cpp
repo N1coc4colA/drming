@@ -86,19 +86,20 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
                 node = new QSGNode();
             }
 
-            m_decoder->consumeFrame();
-            const auto texId = m_decoder->oesTextureId();
-            if (texId != 0) [[unlikely]] {
-                auto oesNode = node->childCount() ? static_cast<OESRenderNode*>(node->firstChild()) : nullptr;
-                if (!oesNode) [[unlikely]] {
-                    oesNode = new OESRenderNode();
-                    node->removeAllChildNodes();
-                    node->appendChildNode(oesNode);
-                }
+            if (m_decoder->consumeFrame()) {
+                const auto texId = m_decoder->oesTextureId();
+                if (texId != 0) [[unlikely]] {
+                    auto oesNode = node->childCount() ? static_cast<OESRenderNode*>(node->firstChild()) : nullptr;
+                    if (!oesNode) [[unlikely]] {
+                        oesNode = new OESRenderNode();
+                        node->removeAllChildNodes();
+                        node->appendChildNode(oesNode);
+                    }
 
-                oesNode->setTextureId(texId);
-                oesNode->setRect(fitKeepAspect(QSizeF(width(), height()), m_decoder->textureSize()));
-                oesNode->markDirty(QSGNode::DirtyMaterial);
+                    oesNode->setTextureId(texId);
+                    oesNode->setRect(fitKeepAspect(QSizeF(width(), height()), m_decoder->textureSize()));
+                    oesNode->markDirty(QSGNode::DirtyMaterial);
+                }
             }
 
             return node;

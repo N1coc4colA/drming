@@ -16,20 +16,45 @@ Display::Display(const QString &connectorName, QObject *parent)
 {
     connect(&m_timer, &QTimer::timeout, this, &Display::forward);
     m_timer.setInterval(Settings::frameMSecsInterval);
+    m_timer.stop();
 }
 
 void Display::addClient(NetworkClient *client)
 {
+    if (!client) [[unlikely]] {
+        return;
+    }
+
+    qDebug() << "Adding client to display (A)";
+
     assert(!m_clients.contains(client));
+
+    qDebug() << "Adding client to display (B)";
 
     client->setParent(this);
 
     m_clients.insert(client);
-    if (client) {
-        connect(client, &NetworkClient::disconnected, this, &Display::onDisconnected);
-    }
+    connect(client, &NetworkClient::disconnected, this, &Display::onDisconnected);
 
+    qDebug() << "Client connected" << client->peerAddress() << client->peerPort();
+
+    client->setDisplay(this);
     onConnected();
+}
+
+void Display::reinit()
+{
+    qDebug() << "Stopping screen timer";
+
+    m_timer.stop();
+    QTimer::singleShot(1500, [this]() {
+        if (!m_clients.isEmpty()) {
+            const Packets::Reinit reinitPkt{};
+            sendData(Packets::Writer::generate(reinitPkt));
+            m_timer.setInterval(Settings::frameMSecsInterval);
+            qDebug() << "Restarted screen timer";
+        }
+    });
 }
 
 void Display::forward()
@@ -104,10 +129,14 @@ void Display::onConnected()
 void Display::onDisconnected()
 {
     if (auto client = qobject_cast<NetworkClient *>(sender())) {
+        qDebug() << "Client disconnected" << client->peerAddress() << client->peerPort();
         m_clients.remove(client);
+        client->deleteLater();
     }
 
     if (m_clients.isEmpty()) {
+        qDebug() << "No clients anymore, suspending screen.";
+
         m_timer.stop();
         Q_EMIT nowFree();
     }
@@ -126,7 +155,7 @@ void Display::disconnectAllClients()
 {
     if (!m_clients.isEmpty()) {
         for (const auto &client : m_clients) {
-            client->disconnect();
+            client->close();
         }
     }
 }
@@ -151,6 +180,8 @@ private:
             result.save(&buf, m_format, Parameters::instance.qualityLevel);
             buf.close();
         }
+
+        qDebug() << servImg.data.size();
 
         sendData(std::move(Packets::Writer::generate(servImg)));
     }

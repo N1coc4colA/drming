@@ -89,10 +89,13 @@ void DtlsServer::onDatagramReceived()
             continue;
         }
 
+        qDebug() << "Incoming connection from" << sender << senderPort;
+
         // Otherwise, it's a new handshake or a stale packet
         const auto key = keyFor(sender, senderPort);
         auto dtls = m_dtlsMap.value(key, nullptr);
         if (!dtls) {
+            qDebug() << "Creating DTLS for" << sender << senderPort;
             dtls = new QDtls(QSslSocket::SslServerMode, this);
             auto conf = QSslConfiguration::defaultDtlsConfiguration();
             if (loadServerCertsConfig(conf, "dtls")) [[likely]] {
@@ -104,6 +107,7 @@ void DtlsServer::onDatagramReceived()
             m_dtlsMap.insert(key, dtls);
         }
 
+        qDebug() << "DTLS handshaking for" << sender << senderPort;
         // Process handshake
         if (!dtls->doHandshake(m_socket, dgram)) {
             // [TODO] Generate handshake error message.
@@ -113,11 +117,15 @@ void DtlsServer::onDatagramReceived()
         }
 
         if (dtls->isConnectionEncrypted()) {
+            qDebug() << "DTLS encryption established for" << sender << senderPort;
+
             // Handshake finished – create a dedicated socket for this peer
             auto dedicated = m_socket;
             disconnect(m_socket, &QUdpSocket::readyRead, this, &DtlsServer::onDatagramReceived);
 
             m_socket = new QUdpSocket(this);
+            connect(m_socket, &QUdpSocket::readyRead, this, &DtlsServer::onDatagramReceived);
+
             if (!m_socket->bind(m_address, m_port, QUdpSocket::ShareAddress)) [[unlikely]] {
                 // [TODO] Properly handle error.
                 qWarning() << "Failed to bind dedicated UDP socket";
@@ -126,7 +134,7 @@ void DtlsServer::onDatagramReceived()
             }
 
             // Create a NetworkClientDtls that holds the QDtls and the dedicated socket
-            auto wrapper = new NetworkClientDtls(dtls, dedicated, this);
+            auto wrapper = new NetworkClientDtls(dtls, dedicated, sender, senderPort, this);
 
             // Remove from m_dtlsMap and add to m_clients
             m_dtlsMap.remove(keyFor(sender, senderPort));

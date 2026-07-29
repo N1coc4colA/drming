@@ -23,11 +23,15 @@ Q_SIGNALS:
     void error(const QString &explanation);
     void opened();
     void closed();
+    void connectionInitialised();
 
 public Q_SLOTS:
     void close();
     void connect(const QString &address, int port, const QString &clientName, const QString &protocolName);
     virtual void setItem(QObject *item) = 0;
+
+protected:
+    void write(const QByteArray &data);
 
 private Q_SLOTS:
     void onConnected();
@@ -56,6 +60,8 @@ private:
 
     void connectDtls(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, int port);
     void connectSsl(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, int port);
+    qint64 writeDtls(const QByteArray &data);
+    qint64 writeSsl(const QByteArray &data);
 
     virtual void addData(QByteArray additional) = 0;
 };

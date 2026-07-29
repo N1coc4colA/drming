@@ -80,7 +80,7 @@ void SslServer::close()
     // Close all client connections
     for (const auto socket : m_sockets) {
         if (socket) {
-            socket->disconnectFromHost();
+            socket->close();
             socket->deleteLater();
         }
     }

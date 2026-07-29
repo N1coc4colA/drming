@@ -23,13 +23,18 @@ bool DisplayManager::registerClient(NetworkClient *client)
 
     const auto number = QString::number(Parameters::instance.servedScreens);
     if (m_freeDisplays.isEmpty()) {
+        qDebug() << "Creating new display";
+
+        // [TODO] Move this somewhere else, should be once the identity's checked.
         if (Parameters::instance.servedScreens > Settings::maximumDisplayCount) {
+            qDebug() << "Too many screens generated, rejecting" << client->peerAddress() << client->peerPort();
             return false;
         }
 
         const auto instance = Parameters::instance.targetScreen + "_" + QString(Settings::maximumDisplayCountLength - number.size(), '0') + number;
         const DispSetup setup(instance);
         if (!setup.isSetup()) {
+            qDebug() << "Failed to setup screen, rejecting" << client->peerAddress() << client->peerPort();
             return false;
         }
 
@@ -41,21 +46,23 @@ bool DisplayManager::registerClient(NetworkClient *client)
 
     const auto digest = client->digest();
     if (!m_usedDisplays.contains(digest)) {
+        qDebug() << "Screen not already available for client" << client->peerAddress() << client->peerPort();
+
+        connect(
+            thread,
+            &DisplayThread::nowFree,
+            this,
+            [this](DisplayThread *thread) {
+                thread->terminate();
+                m_freeDisplays.enqueue(thread);
+            },
+            Qt::QueuedConnection);
+
         m_usedDisplays.insert(digest, thread);
-        thread->start();
+        thread->start(); // Looks like there's an issue here.
     }
 
     thread->addClient(client);
-
-    connect(
-        thread,
-        &DisplayThread::nowFree,
-        this,
-        [this](DisplayThread *thread) {
-            thread->terminate();
-            m_freeDisplays.enqueue(thread);
-        },
-        Qt::QueuedConnection);
 
     return true;
 }

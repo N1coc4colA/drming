@@ -19,6 +19,8 @@ Q_SIGNALS:
 public Q_SLOTS:
     void addClient(NetworkClient *client);
 
+    void reinit();
+
 protected:
     void sendData(QByteArray output);
 
