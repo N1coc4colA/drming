@@ -3,16 +3,129 @@
 
 #include <QDataStream>
 #include <QDebug>
-
 #include <QFloat16>
 #include <qtypes.h>
 
 #include <expected>
 #include <type_traits>
+#include <array>
+#include <tuple>
+#include <variant>
+#include <limits>
+#include <utility>      // for std::as_const
 
 namespace Packets {
 
-/* Types of packet */
+// -----------------------------------------------------------------------------
+// Field descriptors
+// -----------------------------------------------------------------------------
+
+template<typename Class, typename T>
+struct FixedField
+{
+    using type = T;
+    T Class::*ptr;
+};
+
+template<typename Class,
+         typename SizeType,
+         typename DataType,
+         size_t Index,
+         SizeType DefaultMin = 0,
+         SizeType DefaultMax = std::numeric_limits<SizeType>::max()>
+struct SizedField
+{
+    using size_type = SizeType;
+    using data_type = DataType;
+    SizeType Class::*sizePtr;
+    DataType Class::*dataPtr;
+    static constexpr size_t index = Index;
+    static constexpr SizeType defaultMin = DefaultMin;
+    static constexpr SizeType defaultMax = DefaultMax;
+};
+
+// -----------------------------------------------------------------------------
+// Traits
+// -----------------------------------------------------------------------------
+
+template<typename> struct is_fixed_field : std::false_type {};
+template<typename C, typename T>
+struct is_fixed_field<FixedField<C, T>> : std::true_type {};
+
+template<typename> struct is_sized_field : std::false_type {};
+template<typename C, typename S, typename D, size_t Idx, S Min, S Max>
+struct is_sized_field<SizedField<C, S, D, Idx, Min, Max>> : std::true_type {};
+
+template<typename F>
+constexpr bool is_fixed_field_v = is_fixed_field<F>::value;
+template<typename F>
+constexpr bool is_sized_field_v = is_sized_field<F>::value;
+
+template<typename> struct always_false : std::false_type {};
+
+// Count sized fields
+template<typename T>
+struct count_sized_fields;
+
+template<typename... Fields>
+struct count_sized_fields<std::tuple<Fields...>>
+{
+    static constexpr size_t value = (is_sized_field_v<Fields> + ... + 0);
+};
+
+template<typename... Fields>
+struct count_sized_fields<const std::tuple<Fields...>>
+{
+    static constexpr size_t value = count_sized_fields<std::tuple<Fields...>>::value;
+};
+
+template<typename T>
+using packet_bounds_type = std::array<std::pair<qsizetype, qsizetype>,
+                                      count_sized_fields<decltype(T::fields)>::value>;
+
+// Helper: extract class from a member pointer
+template<typename> struct member_pointer_class;
+
+template<typename Class, typename Member>
+struct member_pointer_class<Member Class::*>
+{
+    using type = Class;
+};
+
+// Helper: find the index of a sized field whose dataPtr matches a given pointer
+template<typename FieldsTuple, typename DataPtr>
+struct find_sized_field_index;
+
+template<typename... Fields, typename DataPtr>
+struct find_sized_field_index<std::tuple<Fields...>, DataPtr>
+{
+private:
+    template<size_t I>
+    static constexpr size_t check()
+    {
+        if constexpr (I == sizeof...(Fields)) {
+            return static_cast<size_t>(-1);
+        } else {
+            using Field = std::tuple_element_t<I, std::tuple<Fields...>>;
+            if constexpr (is_sized_field_v<Field>) {
+                if constexpr (std::is_same_v<decltype(Field::dataPtr), DataPtr>) {
+                    return I;
+                } else {
+                    return check<I + 1>();
+                }
+            } else {
+                return check<I + 1>();
+            }
+        }
+    }
+public:
+    static constexpr size_t value = check<0>();
+};
+
+// -----------------------------------------------------------------------------
+// Packet types
+// -----------------------------------------------------------------------------
+
 enum class Type : quint16 {
     None = 0,
     HeartBeat,
@@ -29,72 +142,78 @@ enum class Type : quint16 {
     UPPER = MAXIMUM
 };
 
-/* Packets definitions */
+// -----------------------------------------------------------------------------
+// Packet definitions
+// -----------------------------------------------------------------------------
+
 struct HeartBeat
 {
     static constexpr auto type = Type::HeartBeat;
+    static constexpr auto fields = std::tuple{};
 };
 
 struct Reinit
 {
     static constexpr auto type = Type::Reinit;
+    static constexpr auto fields = std::tuple{};
 };
 
 struct ServerImage
 {
     static constexpr auto type = Type::ServerImage;
-
     qsizetype formatSize = 0;
     qsizetype imageSize = 0;
     QByteArray format;
     QByteArray data;
 
-    using mQSizeType = qsizetype ServerImage::*;
-    using mByteArray = QByteArray ServerImage::*;
-    using mSized = std::pair<std::variant<mQSizeType>, mByteArray>;
-    static constexpr std::array<std::variant<mQSizeType>, 2> members = {&ServerImage::formatSize, &ServerImage::imageSize};
-    static constexpr std::array<mSized, 2> variableMembers = {mSized{&ServerImage::formatSize, &ServerImage::format},
-                                                              mSized{&ServerImage::imageSize, &ServerImage::data}};
+    static constexpr auto fields = std::tuple{
+        FixedField<ServerImage, qsizetype>{&ServerImage::formatSize},
+        FixedField<ServerImage, qsizetype>{&ServerImage::imageSize},
+        SizedField<ServerImage, qsizetype, QByteArray, 0>{&ServerImage::formatSize, &ServerImage::format},
+        SizedField<ServerImage, qsizetype, QByteArray, 1>{&ServerImage::imageSize, &ServerImage::data}
+    };
 };
 
 struct ClientResolution
 {
     static constexpr auto type = Type::ClientResolution;
-
     quint32 width = 0;
     quint32 height = 0;
 
-    using mQuint32 = quint32 ClientResolution::*;
-    static constexpr std::array<std::variant<mQuint32>, 2> members = {&ClientResolution::width, &ClientResolution::height};
+    static constexpr auto fields = std::tuple{
+        FixedField<ClientResolution, quint32>{&ClientResolution::width},
+        FixedField<ClientResolution, quint32>{&ClientResolution::height}
+    };
 };
 
 struct ServerBrightness
 {
     static constexpr auto type = Type::ServerBrightness;
-
     qfloat16 brightness;
 
-    using mQFloat16 = qfloat16 ServerBrightness::*;
-    static constexpr std::array<std::variant<mQFloat16>, 1> members = {&ServerBrightness::brightness};
+    static constexpr auto fields = std::tuple{
+        FixedField<ServerBrightness, qfloat16>{&ServerBrightness::brightness}
+    };
 };
 
 struct ServerStream
 {
     static constexpr auto type = Type::ServerStream;
-
     qsizetype frameSize = 0;
     QByteArray data;
 
-    using mQSizeType = qsizetype ServerStream::*;
-    using mByteArray = QByteArray ServerStream::*;
-    using mSized = std::pair<std::variant<mQSizeType>, mByteArray>;
-    static constexpr std::array<std::variant<mQSizeType>, 1> members = {&ServerStream::frameSize};
-    static constexpr std::array<mSized, 1> variableMembers = {mSized{&ServerStream::frameSize, &ServerStream::data}};
+    static constexpr auto fields = std::tuple{
+        FixedField<ServerStream, qsizetype>{&ServerStream::frameSize},
+        SizedField<ServerStream, qsizetype, QByteArray, 0>{&ServerStream::frameSize, &ServerStream::data}
+    };
 };
 
-using PacketVariant = std::variant<HeartBeat, Reinit, ServerImage, ClientResolution, ServerBrightness, ServerStream>;
+using PacketVariant = std::variant<HeartBeat, Reinit, ServerImage,
+                                   ClientResolution, ServerBrightness, ServerStream>;
 
-/* Typing & indexing reflection */
+// -----------------------------------------------------------------------------
+// Utility: index of a type in a tuple
+// -----------------------------------------------------------------------------
 
 template<typename T, typename... Ts>
 struct PacketIndex_counter;
@@ -106,35 +225,29 @@ private:
     static constexpr std::size_t next = PacketIndex_counter<T, Rest...>::value;
 
 public:
-    static constexpr std::size_t value = std::is_same_v<T, First> ? 0 : (next == static_cast<std::size_t>(-1) ? next : next + 1);
+    static constexpr std::size_t value = std::is_same_v<T, First> ? 0
+                                      : (next == static_cast<std::size_t>(-1) ? next : next + 1);
 };
 
 template<typename T>
 struct PacketIndex_counter<T>
 {
-    static constexpr std::size_t value = static_cast<std::size_t>(-1); // not found
+    static constexpr std::size_t value = static_cast<std::size_t>(-1);
 };
 
-template<std::size_t I, typename... Ts>
-struct type_at;
+template<typename T, typename Tuple>
+struct type_index_in_tuple;
 
 template<typename T, typename... Ts>
-struct type_at<0, T, Ts...>
+struct type_index_in_tuple<T, std::tuple<Ts...>>
 {
-    using type = T;
+    static constexpr size_t value = PacketIndex_counter<T, Ts...>::value;
 };
 
-template<std::size_t I, typename T, typename... Ts>
-struct type_at<I, T, Ts...>
-{
-    static_assert(I < sizeof...(Ts) + 1, "index out of range");
-    using type = typename type_at<I - 1, Ts...>::type;
-};
+// -----------------------------------------------------------------------------
+// Validator
+// -----------------------------------------------------------------------------
 
-template<std::size_t I, typename... Ts>
-using type_at_t = typename type_at<I, Ts...>::type;
-
-/* Types validators */
 template<typename T>
 struct Validator
 {
@@ -154,14 +267,12 @@ struct Validator
 template<>
 struct Validator<Type>
 {
-    // From Type to O
     template<typename O>
     static constexpr std::expected<O, bool> validateTo(const Type &t)
     {
         return static_cast<O>(t);
     }
 
-    // From O to Type — no convertibility constraint since scoped enums aren't implicitly convertible
     template<typename O>
     static constexpr std::expected<Type, bool> validateFrom(const O &o)
     {
@@ -170,19 +281,14 @@ struct Validator<Type>
         if (o >= lower && o <= upper) [[likely]] {
             return static_cast<Type>(o);
         }
-
         qInfo() << '[' << lower << ';' << upper << ']' << o;
-
         return std::unexpected(true);
     }
 };
 
-/* Inverse mapping from Type enum value -> packet struct */
-
-template<typename T>
-concept PacketLike = requires {
-    { T::type } -> std::convertible_to<Type>;
-};
+// -----------------------------------------------------------------------------
+// Inverse mapping Type -> packet struct
+// -----------------------------------------------------------------------------
 
 template<Type Wanted, typename... Ts>
 struct find_packet;
@@ -190,7 +296,8 @@ struct find_packet;
 template<Type Wanted, typename Head, typename... Tail>
 struct find_packet<Wanted, Head, Tail...>
 {
-    using type = std::conditional_t<Head::type == Wanted, Head, typename find_packet<Wanted, Tail...>::type>;
+    using type = std::conditional_t<Head::type == Wanted, Head,
+                                    typename find_packet<Wanted, Tail...>::type>;
 };
 
 template<Type Wanted>
@@ -216,58 +323,59 @@ struct variant_types<std::variant<Ts...>>
 template<typename V, Type Wanted>
 using TypeToPacket = variant_types<V>::template find<Wanted>;
 
-/* Packet parser */
-template<typename, typename = void>
-struct has_members : std::false_type
-{};
+// -----------------------------------------------------------------------------
+// Trait: detect if Receiver has a processPacket overload for a given packet type
+// -----------------------------------------------------------------------------
+template<typename Receiver, typename Packet, typename = void>
+struct has_processPacket : std::false_type {};
 
-template<typename T>
-struct has_members<T, std::void_t<decltype(T::members)>> : std::true_type
-{};
+template<typename Receiver, typename Packet>
+struct has_processPacket<Receiver, Packet,
+    std::void_t<decltype(std::declval<Receiver>().processPacket(std::declval<const Packet&>()))>>
+    : std::true_type {};
 
-template<typename, typename = void>
-struct has_variableMembers : std::false_type
-{};
-
-template<typename T>
-struct has_variableMembers<T, std::void_t<decltype(T::variableMembers)>> : std::true_type
-{};
-
-template<typename, typename = void>
-struct count_members
-{
-    static constexpr size_t value = 0;
-};
-
-template<typename T>
-    requires(has_members<T>::value)
-struct count_members<T>
-{
-    static constexpr size_t value = T::members.size();
-};
-
-template<typename, typename = void>
-struct count_variableMembers
-{
-    static constexpr size_t value = 0;
-};
-
-template<typename T>
-    requires(has_members<T>::value)
-struct count_variableMembers<T>
-{
-    static constexpr size_t value = T::variableMembers.size();
-};
+// -----------------------------------------------------------------------------
+// Parser
+// -----------------------------------------------------------------------------
 
 template<typename Receiver, const int ErrorLimit = 5>
 class Parser
 {
-    enum ParseOutput {
-        False = 0,
-        True = 1,
-        Continue,
+    using PacketTypes = typename variant_types<PacketVariant>::types;
+
+    enum ParseOutput : bool {
+        False = false,
+        True = true,
     };
 
+    // -------------------------------------------------------------------------
+    // Helper to build bounds tuple
+    // -------------------------------------------------------------------------
+    template<typename Tuple, typename = std::make_index_sequence<std::tuple_size_v<Tuple>>>
+    struct BoundsTuple;
+
+    template<typename Tuple, size_t... Is>
+    struct BoundsTuple<Tuple, std::index_sequence<Is...>>
+    {
+        using type = std::tuple<packet_bounds_type<std::tuple_element_t<Is, Tuple>>...>;
+    };
+
+    using BoundsTupleType = typename BoundsTuple<PacketTypes>::type;
+    BoundsTupleType m_bounds;
+
+    // -------------------------------------------------------------------------
+    // Internal state
+    // -------------------------------------------------------------------------
+    QByteArray m_array{};
+    Type m_state = Type::None;
+    PacketVariant m_current{};
+    Receiver &m_receiver;
+    size_t m_parsed = 0;
+    int m_errorCount = 0;
+
+    // -------------------------------------------------------------------------
+    // Read a value of type T from the stream (with optional underlying type)
+    // -------------------------------------------------------------------------
     template<typename T, typename Underlying = T>
     std::expected<T, bool> read()
     {
@@ -276,128 +384,102 @@ class Parser
             QDataStream stream(m_array);
             stream.setByteOrder(QDataStream::BigEndian);
             stream >> tmp;
-
             return Validator<T>::template validateFrom<Underlying>(tmp);
         }
-
         return std::unexpected(false);
     }
 
-    template<typename T>
-    ParseOutput instanceMembersParsing()
+    // -------------------------------------------------------------------------
+    // Process a single field (fixed or sized)
+    // -------------------------------------------------------------------------
+    template<typename T, size_t I>
+    bool processField()
     {
-        static constexpr size_t membersCount = T::members.size();
+        auto &packet = std::get<T>(m_current);
+        constexpr auto &field = std::get<I>(T::fields);
 
-        // Parse fixed-size members
-        while (m_parsed < membersCount) {
-            const bool stalled = std::visit(
-                [&](auto ptr) -> bool {
-                    using MemberType = std::decay_t<decltype(std::declval<T>().*ptr)>;
-                    if (m_array.size() < static_cast<qsizetype>(sizeof(MemberType))) {
-                        return True;
-                    }
-
-                    const auto value = read<MemberType>();
-                    if (!value.has_value()) {
-                        // The boolean error indicates if the bytes should be skipped on failure.
-                        if (value.error()) {
-                            m_array.remove(0, sizeof(MemberType));
-                            m_errorCount++;
-                            if (m_errorCount > ErrorLimit) {
-                                m_errorCount = 0;
-                                m_receiver.onPacketErrors();
-                            }
-                        }
-
-                        return True;
-                    }
-
-                    std::get<T>(m_current).*ptr = *value;
+        if constexpr (is_fixed_field_v<std::decay_t<decltype(field)>>) {
+            using MemberType = typename std::decay_t<decltype(field)>::type;
+            auto result = read<MemberType>();
+            if (!result) {
+                if (result.error()) {
                     m_array.remove(0, sizeof(MemberType));
-                    m_parsed++;
-
-                    return False;
-                },
-                T::members[m_parsed]);
-
-            if (stalled) {
-                return False;
-            }
-        }
-
-        return Continue;
-    }
-
-    template<typename T>
-    ParseOutput instanceVariableMembersParsing()
-    {
-        static constexpr size_t variableMembersCount = T::variableMembers.size();
-        static constexpr size_t membersCount = count_members<T>::value;
-        static constexpr size_t toProcess = membersCount + variableMembersCount;
-
-        while (m_parsed < toProcess) {
-            T &packet = std::get<T>(m_current);
-            auto sized = T::variableMembers[m_parsed - membersCount];
-
-            using sizingType = qsizetype;
-
-            const auto len = std::visit([&](auto &&ptr) { return packet.*ptr; }, sized.first);
-
-            // Also consider invalid signed data, giving a negative value instead of positive one.
-            if (len < 0) {
-                if (!m_array.isEmpty()) {
-                    m_array.remove(0, 1);
+                    ++m_errorCount;
+                    if (m_errorCount > ErrorLimit) {
+                        m_errorCount = 0;
+                        m_receiver.onPacketErrors();
+                    }
                 }
-
-                m_state = Type::None;
-                m_parsed = 0;
-
-                return True;
+                return false;
             }
-
-            if (m_array.size() < static_cast<sizingType>(len)) {
-                return False;
-            }
-
-            packet.*sized.second = m_array.first(static_cast<sizingType>(len));
-            m_array.remove(0, static_cast<sizingType>(len));
-            m_parsed++;
+            packet.*field.ptr = *result;
+            m_array.remove(0, sizeof(MemberType));
+            ++m_parsed;
+            return true;
         }
+        else if constexpr (is_sized_field_v<std::decay_t<decltype(field)>>) {
+            auto size = packet.*field.sizePtr;
 
-        return Continue;
+            constexpr size_t packetIdx = type_index_in_tuple<T, PacketTypes>::value;
+            auto &boundsArray = std::get<packetIdx>(m_bounds);
+            constexpr size_t fieldIdx = std::decay_t<decltype(field)>::index;
+            auto &limits = boundsArray[fieldIdx];
+
+            if (size < static_cast<decltype(size)>(limits.first) ||
+                size > static_cast<decltype(size)>(limits.second)) {
+                if (!m_array.isEmpty())
+                    m_array.remove(0, 1);
+                ++m_errorCount;
+                if (m_errorCount > ErrorLimit) {
+                    m_errorCount = 0;
+                    m_receiver.onPacketErrors();
+                }
+                return false;
+            }
+
+            if (m_array.size() < static_cast<qsizetype>(size))
+                return false;
+
+            packet.*field.dataPtr = m_array.first(size);
+            m_array.remove(0, size);
+            ++m_parsed;
+            return true;
+        }
+        else {
+            static_assert(always_false<T>::value, "unknown field type");
+            return false;
+        }
     }
 
+    // -------------------------------------------------------------------------
+    // Parse an entire packet of type T
+    // -------------------------------------------------------------------------
     template<typename T>
     bool instanceParsing()
     {
-        if (!m_parsed) {
+        if (m_parsed == 0) {
             m_current = T{};
         }
 
-        if constexpr (has_members<T>::value) {
-            switch (instanceMembersParsing<T>()) {
-            case False:
+        static constexpr size_t fieldCount = std::tuple_size_v<decltype(T::fields)>;
+        static constexpr auto fieldTable = [] {
+            return [&]<size_t... Is>(std::index_sequence<Is...>) {
+                return std::array<bool (Parser::*)(), fieldCount>{
+                    &Parser::processField<T, Is>...
+                };
+            }(std::make_index_sequence<fieldCount>{});
+        }();
+
+        while (m_parsed < fieldCount) {
+            bool ok = (this->*fieldTable[m_parsed])();
+            if (!ok)
                 return false;
-            case True:
-                return true;
-            default:
-                break;
-            }
         }
 
-        // Parse variable-length members
-        if constexpr (has_variableMembers<T>::value) {
-            switch (instanceVariableMembersParsing<T>()) {
-            case False:
-                return false;
-            case True:
-                return true;
-            default:
-                break;
-            }
+        // Call processPacket only if the receiver has an appropriate overload
+        if constexpr (has_processPacket<Receiver, T>::value) {
+            m_receiver.processPacket(std::as_const(std::get<T>(m_current)));
         }
-
-        m_receiver.processPacket(std::get<T>(m_current));
 
         m_state = Type::None;
         m_parsed = 0;
@@ -405,23 +487,22 @@ class Parser
         return true;
     }
 
-    template<typename Variant>
+    // -------------------------------------------------------------------------
+    // Dispatch to the correct instanceParsing based on the packet type
+    // -------------------------------------------------------------------------
     ParseOutput dispatch(Type state)
     {
-        using Types = typename variant_types<Variant>::types;
+        using Types = typename variant_types<PacketVariant>::types;
         constexpr size_t N = std::tuple_size_v<Types>;
-
-        // Table size: MAXIMUM value + 1 (includes index 0 for None)
         constexpr size_t TABLE_SIZE = static_cast<size_t>(Type::MAXIMUM) + 1;
 
-        // Build a table of **member function pointers**
-        constexpr auto table = [] {
+        static constexpr auto table = [] {
             std::array<bool (Parser::*)(), TABLE_SIZE> arr{};
             arr.fill(nullptr);
 
-            // Fold over the tuple types – use Parser::instanceParsing<...>
             [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((arr[static_cast<size_t>(std::tuple_element_t<Is, Types>::type)] = &Parser::instanceParsing<std::tuple_element_t<Is, Types>>), ...);
+                ((arr[static_cast<size_t>(std::tuple_element_t<Is, Types>::type)] =
+                  &Parser::instanceParsing<std::tuple_element_t<Is, Types>>), ...);
             }(std::make_index_sequence<N>{});
 
             return arr;
@@ -432,14 +513,18 @@ class Parser
             bool result = (this->*table[idx])();
             return result ? True : False;
         }
-
-        return Continue;
+        m_state = Type::None;
+        return False;
     }
 
 public:
     explicit Parser(Receiver &receiver)
         : m_receiver(receiver)
-    {}
+    {
+        std::apply([&](auto &...boundsArray) {
+            ((boundsArray.fill({0, std::numeric_limits<qsizetype>::max()})), ...);
+        }, m_bounds);
+    }
 
     void addData(const QByteArray &additional)
     {
@@ -456,17 +541,16 @@ public:
                     return;
                 }
 
-                const auto type = read<Type, quint16>();
+                auto type = read<Type, quint16>();
                 if (!type.has_value()) [[unlikely]] {
-                    // Invalid type value – consume 2 bytes and count as error
                     m_array.remove(0, sizeof(quint16));
-                    m_errorCount++;
+                    ++m_errorCount;
                     if (m_errorCount > ErrorLimit) {
                         m_errorCount = 0;
                         m_receiver.onPacketErrors();
-                        return; // onPacketErrors() likely clears the buffer, so stop parsing
+                        return;
                     }
-                    break; // continue the while loop to resync on next bytes
+                    break;
                 }
 
                 m_state = *type;
@@ -475,23 +559,11 @@ public:
                 [[fallthrough]];
             }
             default: {
-                bool done = false;
-                const auto parseOutput = dispatch<PacketVariant>(m_state);
-                switch (parseOutput) {
-                case Continue: {
-                    // Unknown state — reset and attempt resync
-                    m_state = Type::None;
-                    done = true;
-                    break;
-                }
-                default: {
-                    done = static_cast<bool>(parseOutput);
-                }
-                }
-
-                if (!done) {
+                auto result = dispatch(m_state);
+                if (result == False) {
                     return;
                 }
+                break;
             }
             }
         }
@@ -505,111 +577,92 @@ public:
         m_errorCount = 0;
     }
 
-private:
-    QByteArray m_array{};
-    Type m_state = Type::None;
-    PacketVariant m_current{};
-    Receiver &m_receiver;
-    size_t m_parsed = 0;
-    int m_errorCount = 0;
+    // -------------------------------------------------------------------------
+    // Set runtime bounds by providing the data member pointer
+    // Example: parser.setBounds<&ServerImage::data>(0, 1024);
+    // -------------------------------------------------------------------------
+    template<auto DataPtr>
+    void setBounds(qsizetype min, qsizetype max)
+    {
+        using Class = typename member_pointer_class<decltype(DataPtr)>::type;
+        constexpr size_t packetIdx = type_index_in_tuple<Class, PacketTypes>::value;
+        static_assert(packetIdx != static_cast<size_t>(-1), "The given member pointer does not belong to any known packet type.");
+
+        using FieldTuple = decltype(Class::fields);
+        constexpr size_t fieldIdx = find_sized_field_index<FieldTuple, decltype(DataPtr)>::value;
+        static_assert(fieldIdx != static_cast<size_t>(-1),
+                      "The provided member pointer does not correspond to a sized field's data member "
+                      "(i.e., it is not the data part of a SizedField).");
+
+        auto &boundsArray = std::get<packetIdx>(m_bounds);
+        boundsArray[fieldIdx] = {min, max};
+    }
+
+    // Old index‑based version (optional)
+    template<Type packetType, size_t FieldIndex>
+    void setBounds(qsizetype min, qsizetype max)
+    {
+        using T = typename variant_types<PacketVariant>::template find<packetType>;
+        constexpr size_t idx = type_index_in_tuple<T, PacketTypes>::value;
+        auto &boundsArray = std::get<idx>(m_bounds);
+        boundsArray[FieldIndex] = {min, max};
+    }
 };
+
+// -----------------------------------------------------------------------------
+// Writer
+// -----------------------------------------------------------------------------
 
 class Writer
 {
+    template<typename Class, typename SizeType, typename DataType, size_t Index,
+             SizeType DefaultMin, SizeType DefaultMax>
+    static void updateSizeIfNeeded(Class &obj,
+                                   const SizedField<Class, SizeType, DataType, Index,
+                                                    DefaultMin, DefaultMax> &field)
+    {
+        obj.*field.sizePtr = static_cast<SizeType>((obj.*field.dataPtr).size());
+    }
+
+    template<typename... Args>
+    static void updateSizeIfNeeded(Args &&...)
+    {}
+
+    template<typename Class, typename T>
+    static void writeField(QDataStream &stream, const Class &obj,
+                           const FixedField<Class, T> &field)
+    {
+        stream << obj.*field.ptr;
+    }
+
+    template<typename Class, typename SizeType, typename DataType, size_t Index,
+             SizeType DefaultMin, SizeType DefaultMax>
+    static void writeField(QDataStream &stream, const Class &obj,
+                           const SizedField<Class, SizeType, DataType, Index,
+                                            DefaultMin, DefaultMax> &field)
+    {
+        stream << (obj.*field.dataPtr);
+    }
+
 public:
     template<typename T>
-        requires(has_variableMembers<T>::value and has_members<T>::value)
     static QByteArray generate(T &t)
     {
-        static constexpr size_t variableMembersCount = has_variableMembers<T>::value ? std::end(T::variableMembers) - std::begin(T::variableMembers)
-                                                                                     : 0;
-        static constexpr size_t membersCount = has_members<T>::value ? std::end(T::members) - std::begin(T::members) : 0;
+        constexpr auto fields = T::fields;
 
-        // Update size fields from actual data lengths before serializing
-        for (size_t i = 0; i < variableMembersCount; i++) {
-            auto sized = T::variableMembers[i];
-            std::visit([&](auto ptr) { t.*ptr = static_cast<std::decay_t<decltype(t.*ptr)>>((t.*sized.second).size()); }, sized.first);
-        }
+        [&]<size_t... Is>(std::index_sequence<Is...>) {
+            ((updateSizeIfNeeded(t, std::get<Is>(fields))), ...);
+        }(std::make_index_sequence<std::tuple_size_v<decltype(fields)>>{});
 
-        QByteArray output{};
+        QByteArray output;
         QDataStream stream(&output, QIODeviceBase::WriteOnly);
         stream.setByteOrder(QDataStream::BigEndian);
 
-        // Write packet type header
         stream << static_cast<quint16>(T::type);
 
-        // Write fixed-size members
-        for (size_t i = 0; i < membersCount; i++) {
-            std::visit([&](auto ptr) { stream << t.*ptr; }, T::members[i]);
-        }
-
-        // Write variable-length data
-        for (size_t i = 0; i < variableMembersCount; i++) {
-            output += t.*T::variableMembers[i].second;
-        }
-
-        return output;
-    }
-
-    template<typename T>
-        requires(has_variableMembers<T>::value and !has_members<T>::value)
-    static QByteArray generate(T &t)
-    {
-        static constexpr size_t variableMembersCount = has_variableMembers<T>::value ? std::end(T::variableMembers) - std::begin(T::variableMembers)
-                                                                                     : 0;
-
-        // Update size fields from actual data lengths before serializing
-        for (size_t i = 0; i < variableMembersCount; i++) {
-            auto sized = T::variableMembers[i];
-            std::visit([&](auto ptr) { t.*ptr = static_cast<std::decay_t<decltype(t.*ptr)>>((t.*sized.second).size()); }, sized.first);
-        }
-
-        QByteArray output{};
-        QDataStream stream(&output, QIODeviceBase::WriteOnly);
-        stream.setByteOrder(QDataStream::BigEndian);
-
-        // Write packet type header
-        stream << static_cast<quint16>(T::type);
-
-        // Write variable-length data
-        for (size_t i = 0; i < variableMembersCount; i++) {
-            output += t.*T::variableMembers[i].second;
-        }
-
-        return output;
-    }
-
-    template<typename T>
-        requires(!has_variableMembers<T>::value and has_members<T>::value)
-    static QByteArray generate(const T &t)
-    {
-        static constexpr size_t membersCount = has_members<T>::value ? std::end(T::members) - std::begin(T::members) : 0;
-
-        QByteArray output{};
-        QDataStream stream(&output, QIODeviceBase::WriteOnly);
-        stream.setByteOrder(QDataStream::BigEndian);
-
-        // Write packet type header
-        stream << static_cast<quint16>(T::type);
-
-        // Write fixed-size members
-        for (size_t i = 0; i < membersCount; i++) {
-            std::visit([&](auto ptr) { stream << t.*ptr; }, T::members[i]);
-        }
-
-        return output;
-    }
-
-    template<typename T>
-        requires(!has_variableMembers<T>::value and !has_members<T>::value)
-    static QByteArray generate(const T &t)
-    {
-        QByteArray output{};
-        QDataStream stream(&output, QIODeviceBase::WriteOnly);
-        stream.setByteOrder(QDataStream::BigEndian);
-
-        // Write packet type header
-        stream << static_cast<quint16>(T::type);
+        [&]<size_t... Is>(std::index_sequence<Is...>) {
+            ((writeField(stream, t, std::get<Is>(fields))), ...);
+        }(std::make_index_sequence<std::tuple_size_v<decltype(fields)>>{});
 
         return output;
     }
