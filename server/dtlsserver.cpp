@@ -1,17 +1,16 @@
 #include "dtlsserver.h"
 
-#include <QDebug>
 #include <QDtls>
-#include <QHostAddress>
-#include <QMap>
-#include <QSslCertificate>
 #include <QSslConfiguration>
-#include <QSslError>
+#include <QDebug>
 
 #include "../settings.h"
+#include "../certificatesupport.h"
 
-// Map key helper (string form address:port)
-static QString keyFor(const QHostAddress &a, const quint16 p) { return QStringLiteral("%1:%2").arg(a.toString()).arg(p); }
+static QString keyFor(const QHostAddress &a, quint16 p)
+{
+    return QStringLiteral("%1:%2").arg(a.toString()).arg(p);
+}
 
 DtlsServer::DtlsServer(QObject *parent)
     : Server(parent)
@@ -20,9 +19,9 @@ DtlsServer::DtlsServer(QObject *parent)
     connect(m_socket, &QUdpSocket::readyRead, this, &DtlsServer::onDatagramReceived);
 }
 
-bool DtlsServer::listen(const QHostAddress &address, const quint16 port)
+bool DtlsServer::listen(const QHostAddress &address, quint16 port)
 {
-    QSslConfiguration sslConfig{};
+    QSslConfiguration sslConfig;
     if (!loadServerCertsConfig(sslConfig, "dtls")) {
         qCritical() << "SSL config not loaded; DTLS connections may not use server certificate.";
         return false;
@@ -31,7 +30,7 @@ bool DtlsServer::listen(const QHostAddress &address, const quint16 port)
     m_address = address;
     m_port = port;
 
-    if (!m_socket->bind(m_address, m_port, QAbstractSocket::ShareAddress)) [[unlikely]] {
+    if (!m_socket->bind(m_address, m_port, QAbstractSocket::ShareAddress)) {
         qCritical() << "Failed to bind UDP socket:" << m_socket->errorString();
         return false;
     }
@@ -42,29 +41,25 @@ bool DtlsServer::listen(const QHostAddress &address, const quint16 port)
 
 void DtlsServer::close()
 {
-    for (const auto client : m_clients) {
-        if (client) {
-            client->deleteLater();
-        }
+    // Delete all clients
+    for (auto it = m_clients.begin(); it != m_clients.end(); ++it) {
+        it.value()->deleteLater();
     }
-
     m_clients.clear();
 
-    // Clean up DTLS associations
-    for (auto it = m_dtlsMap.begin(); it != m_dtlsMap.end(); ++it) {
+    // Delete pending handshakes
+    for (auto it = m_pendingHandshakes.begin(); it != m_pendingHandshakes.end(); ++it) {
         delete it.value();
     }
-    m_dtlsMap.clear();
+    m_pendingHandshakes.clear();
 
     m_socket->close();
 }
 
 void DtlsServer::broadcast(const QByteArray &data)
 {
-    // Send encrypted datagram to all known DTLS associations
-    // We keep track of associations via m_clients list and rely on the DtlsNetworkClient to do the encryption.
-    for (const auto client : m_clients) {
-        if (client && client->state() == QAbstractSocket::ConnectedState) {
+    for (auto *client : m_clients) {
+        if (client->state() == QAbstractSocket::ConnectedState) {
             client->write(data);
         }
     }
@@ -83,63 +78,82 @@ void DtlsServer::onDatagramReceived()
         }
         dgram.resize(read);
 
-        // Check if we already have a dedicated socket for this peer
-        if (m_peerSockets.find({sender, senderPort}) != m_peerSockets.end()) {
-            qWarning() << "Received packets on main DTLS socket, which should not happen.";
+        const auto key = keyFor(sender, senderPort);
+
+        // 1. Check if we already have an active client for this peer
+        if (auto client = m_clients.value(key, nullptr)) {
+            client->incomingEncryptedData(dgram);
             continue;
         }
 
-        qDebug() << "Incoming connection from" << sender << senderPort;
+        // 2. Check if a handshake is in progress
+        if (auto dtls = m_pendingHandshakes.value(key, nullptr)) {
+            qDebug() << "Pending DTLS already present";
 
-        // Otherwise, it's a new handshake or a stale packet
-        const auto key = keyFor(sender, senderPort);
-        auto dtls = m_dtlsMap.value(key, nullptr);
-        if (!dtls) {
-            qDebug() << "Creating DTLS for" << sender << senderPort;
-            dtls = new QDtls(QSslSocket::SslServerMode, this);
-            auto conf = QSslConfiguration::defaultDtlsConfiguration();
-            if (loadServerCertsConfig(conf, "dtls")) [[likely]] {
-                dtls->setDtlsConfiguration(conf);
+            // Process handshake message
+            if (!dtls->doHandshake(m_socket, dgram)) {
+                qWarning() << "DTLS handshake error for" << sender << senderPort << ":" << dtls->dtlsErrorString();
+                m_pendingHandshakes.remove(key);
+                delete dtls;
+                continue;
             }
 
-            dtls->setMtuHint(Settings::dtlsChunkSize);
-            dtls->setPeer(sender, senderPort);
-            m_dtlsMap.insert(key, dtls);
+            if (dtls->isConnectionEncrypted()) {
+                // Handshake completed – create client
+                qDebug() << "DTLS encryption established for" << sender << senderPort;
+                auto client = new NetworkClientDtls(dtls, sender, senderPort, m_socket, this);
+                m_pendingHandshakes.remove(key);
+                m_clients.insert(key, client);
+                connect(client, &NetworkClient::disconnected, this, &DtlsServer::onClientDisconnected);
+                Q_EMIT clientConnected(client);
+            }
+            continue;
         }
 
-        qDebug() << "DTLS handshaking for" << sender << senderPort;
-        // Process handshake
+        // 3. New peer – start handshake
+        qDebug() << "New DTLS handshake from" << sender << senderPort;
+        auto dtls = new QDtls(QSslSocket::SslServerMode, this);
+        auto conf = QSslConfiguration::defaultDtlsConfiguration();
+        if (loadServerCertsConfig(conf, "dtls")) {
+            dtls->setDtlsConfiguration(conf);
+        }
+        dtls->setMtuHint(Settings::dtlsChunkSize);
+        dtls->setPeer(sender, senderPort);
+
         if (!dtls->doHandshake(m_socket, dgram)) {
-            // [TODO] Generate handshake error message.
-            m_dtlsMap.remove(key);
+            qWarning() << "Failed to start DTLS handshake for" << sender << senderPort << ":" << dtls->dtlsErrorString();
             delete dtls;
             continue;
         }
 
+        // If handshake completed immediately (rare), create client; otherwise store pending
         if (dtls->isConnectionEncrypted()) {
-            qDebug() << "DTLS encryption established for" << sender << senderPort;
+            qDebug() << "DTLS encryption established immediately for" << sender << senderPort;
+            auto client = new NetworkClientDtls(dtls, sender, senderPort, m_socket, this);
+            m_clients.insert(key, client);
+            connect(client, &NetworkClient::disconnected, this, &DtlsServer::onClientDisconnected);
+            Q_EMIT clientConnected(client);
+        } else {
+            m_pendingHandshakes.insert(key, dtls);
+        }
+    }
+}
 
-            // Handshake finished – create a dedicated socket for this peer
-            auto dedicated = m_socket;
-            disconnect(m_socket, &QUdpSocket::readyRead, this, &DtlsServer::onDatagramReceived);
+void DtlsServer::onClientDisconnected()
+{
+    if (auto client = qobject_cast<NetworkClientDtls *>(sender())) {
+        removeClient(client);
+    }
+}
 
-            m_socket = new QUdpSocket(this);
-            connect(m_socket, &QUdpSocket::readyRead, this, &DtlsServer::onDatagramReceived);
-
-            if (!m_socket->bind(m_address, m_port, QUdpSocket::ShareAddress)) [[unlikely]] {
-                // [TODO] Properly handle error.
-                qWarning() << "Failed to bind dedicated UDP socket";
-                delete dedicated;
-                return;
-            }
-
-            // Create a NetworkClientDtls that holds the QDtls and the dedicated socket
-            auto wrapper = new NetworkClientDtls(dtls, dedicated, sender, senderPort, this);
-
-            // Remove from m_dtlsMap and add to m_clients
-            m_dtlsMap.remove(keyFor(sender, senderPort));
-            m_clients.append(wrapper);
-            Q_EMIT clientConnected(wrapper);
+void DtlsServer::removeClient(NetworkClientDtls *client)
+{
+    const auto key = keyFor(client->peerAddress(), client->peerPort());
+    if (m_clients.remove(key) > 0) {
+        client->deleteLater();
+        qDebug() << "Client removed" << client->peerAddress() << client->peerPort();
+        if (m_clients.isEmpty()) {
+            Q_EMIT noClient();
         }
     }
 }
