@@ -44,21 +44,25 @@ void Display::addClient(NetworkClient *client)
 
 void Display::reinit()
 {
-    qDebug() << "Stopping screen timer";
+    if (m_timer.isActive()) {
+        qDebug() << "Stopping screen timer";
 
-    m_timer.stop();
-    QTimer::singleShot(1500, [this]() {
-        if (!m_clients.isEmpty()) {
-            const Packets::Reinit reinitPkt{};
-            sendData(Packets::Writer::generate(reinitPkt));
-            m_timer.setInterval(Settings::frameMSecsInterval);
-            qDebug() << "Restarted screen timer";
-        }
-    });
+        m_timer.stop();
+        QTimer::singleShot(1500, [this]() {
+            if (!m_clients.isEmpty()) {
+                const Packets::Reinit reinitPkt{};
+                sendData(Packets::Writer::generate(reinitPkt));
+                m_timer.start();
+                qDebug() << "Restarted screen timer";
+            }
+        });
+    }
 }
 
 void Display::forward()
 {
+    qDebug() << "Forwarding";
+
     VkmsFrameBuffer fb{};
     if (!m_reader.getVkmsFrameBuffer(fb)) [[unlikely]] {
         if (!primaryFailureNotice) {
@@ -114,6 +118,8 @@ void Display::forward()
 
         DisplayReader::compositeWithCursor(result, cursorFb, m_cursorFrameDescriptor.value());
     }
+
+    qDebug() << "Pushing";
 
     processImage(result);
     DisplayReader::releaseVkmsFrameBuffer(fb);
@@ -180,8 +186,6 @@ private:
             result.save(&buf, m_format, Parameters::instance.qualityLevel);
             buf.close();
         }
-
-        qDebug() << servImg.data.size();
 
         sendData(std::move(Packets::Writer::generate(servImg)));
     }
