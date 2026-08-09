@@ -54,15 +54,19 @@ void Display::reinit()
                 sendData(Packets::Writer::generate(reinitPkt));
                 m_timer.start();
                 qDebug() << "Restarted screen timer";
+                m_prevSize = {};
             }
         });
     }
 }
 
+void Display::requireResolutionInformation()
+{
+    m_prevSize = {};
+}
+
 void Display::forward()
 {
-    qDebug() << "Forwarding";
-
     VkmsFrameBuffer fb{};
     if (!m_reader.getVkmsFrameBuffer(fb)) [[unlikely]] {
         if (!primaryFailureNotice) {
@@ -119,7 +123,11 @@ void Display::forward()
         DisplayReader::compositeWithCursor(result, cursorFb, m_cursorFrameDescriptor.value());
     }
 
-    qDebug() << "Pushing";
+    if (m_prevSize != result.size()) [[unlikely]] {
+        m_prevSize = result.size();
+        const Packets::ClientResolution res{.width = {static_cast<quint32>(result.width())}, .height = {static_cast<quint32>(result.height())}};
+        sendData(std::move(Packets::Writer::generate(res)));
+    }
 
     processImage(result);
     DisplayReader::releaseVkmsFrameBuffer(fb);
@@ -180,8 +188,9 @@ private:
     void processImage(const QImage &result) override
     {
         Packets::ServerImage servImg{};
+        servImg.format.data = m_format;
         {
-            QBuffer buf(&servImg.data);
+            QBuffer buf(&servImg.data.data);
             buf.open(QIODevice::WriteOnly);
             result.save(&buf, m_format, Parameters::instance.qualityLevel);
             buf.close();
@@ -215,7 +224,7 @@ private:
         payload.append("\x00\x00\x00\x01", 4);
         payload.append(reinterpret_cast<const char *>(data), static_cast<qsizetype>(size));
 
-        Packets::ServerStream stm{.data = std::move(payload)};
+        Packets::ServerStream stm{.data = {std::move(payload)}};
         sendData(std::move(Packets::Writer::generate(stm)));
     }
 

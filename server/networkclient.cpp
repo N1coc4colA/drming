@@ -17,6 +17,11 @@ void NetworkClient::processPacket(const Packets::Reinit &)
     m_display->reinit();
 }
 
+void NetworkClient::processPacket(const Packets::RequestClientResolution &)
+{
+    m_display->requireResolutionInformation();
+}
+
 NetworkClientDtls::NetworkClientDtls(QDtls *dtls, const QHostAddress &address, quint16 port,
                                      QUdpSocket *sharedSocket, QObject *parent)
     : NetworkClient(parent)
