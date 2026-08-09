@@ -35,10 +35,7 @@ public:
     // Packet processing stubs (only HeartBeat and Reinit are handled)
     void processPacket(const Packets::HeartBeat &);
     void processPacket(const Packets::Reinit &);
-    void processPacket(const Packets::ServerImage &) {}
-    void processPacket(const Packets::ClientResolution &) {}
-    void processPacket(const Packets::ServerBrightness &) {}
-    void processPacket(const Packets::ServerStream &) {}
+    void processPacket(const Packets::RequestClientResolution &);
     void onPacketErrors() {}
 
     virtual void notifyHeartBeat() {}
