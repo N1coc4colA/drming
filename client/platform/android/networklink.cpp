@@ -9,6 +9,11 @@ NetworkLink::NetworkLink(QObject *parent)
     , Parser(*this)
 {
     QObject::connect(this, &NetworkLink::connectionInitialised, this, [this]() { Parser::clear(); });
+    QObject::connect(this, &NetworkLink::closed, this, [this]() {
+        m_locked = false;
+        m_waitedForResolution = false;
+        Parser::clearRules();
+    });
 }
 
 void NetworkLink::setItem(QObject *item)
@@ -34,8 +39,8 @@ void NetworkLink::onPacketErrors()
 
     Parser::clear();
 
-    const Packets::Reinit reinit{};
-    write(Packets::Writer::generate(reinit));
+    /*const Packets::Reinit reinit{};
+    write(Packets::Writer::generate(reinit));*/
 }
 
 void NetworkLink::processPacket(const Packets::Reinit &)
@@ -44,25 +49,39 @@ void NetworkLink::processPacket(const Packets::Reinit &)
     Parser::clear();
 }
 
+void NetworkLink::processPacket(const Packets::ClientResolution &res)
+{
+    qDebug() << "Client resolution:" << res.width.data << res.height.data;
+    setBounds<&Packets::ServerImage::data>(quint64(0), static_cast<quint64>(res.width.data) * static_cast<quint64>(res.height.data));
+}
+
 void NetworkLink::processPacket(const Packets::ServerStream &img)
 {
     if (!m_item || !m_decoder) [[unlikely]] {
         return;
     }
 
-    m_decoder->decode(reinterpret_cast<const uint8_t *>(img.data.constData()), img.frameSize);
+    if (!m_locked) [[unlikely]] {
+        disable(Packets::Type::ServerImage);
+        m_locked = true;
+    }
+
+    m_decoder->decode(reinterpret_cast<const uint8_t *>(img.data.data.constData()), img.data.size);
     m_item->update();
 }
 
 void NetworkLink::processPacket(const Packets::ServerImage &img)
 {
-    qDebug() << "IMG";
-
     if (!m_item) [[unlikely]] {
         return;
     }
 
-    const QImage converted = QImage::fromData(img.data, img.format);
+    if (!m_locked) [[unlikely]] {
+        disable(Packets::Type::ServerStream);
+        m_locked = true;
+    }
+
+    const QImage converted = QImage::fromData(img.data.data, img.format.data);
     if (!converted.isNull()) [[unlikely]] {
         // Will trigger repaint.
         m_item->setImage(converted);

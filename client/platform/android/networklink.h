@@ -9,7 +9,9 @@ namespace Platform {
 class FfmpegDecoder;
 class VideoFrameItem;
 
-class NetworkLink : public ::NetworkLink, Packets::Parser<NetworkLink>
+static constexpr auto ErrorLimit = 8192;
+
+class NetworkLink : public ::NetworkLink, Packets::Parser<NetworkLink, ErrorLimit>
 {
     Q_OBJECT
 
@@ -17,11 +19,9 @@ public:
     explicit NetworkLink(QObject *parent);
 
     void processPacket(const Packets::ServerImage &img);
-    inline void processPacket(const Packets::ClientResolution &) {}
-    inline void processPacket(const Packets::ServerBrightness &) {};
     void processPacket(const Packets::ServerStream &img);
-    inline void processPacket(const Packets::HeartBeat &) {};
     void processPacket(const Packets::Reinit &);
+    void processPacket(const Packets::ClientResolution &res);
     void onPacketErrors();
 
     void setItem(QObject *item) override;
@@ -29,8 +29,21 @@ public:
 private:
     FfmpegDecoder *m_decoder = nullptr;
     VideoFrameItem *m_item = nullptr;
+    bool m_waitedForResolution = false;
+    bool m_locked = false;
 
-    inline void addData(QByteArray additional) override { Packets::Parser<NetworkLink>::addData(std::move(additional)); }
+    inline void addData(QByteArray additional) override
+    {
+        if (!m_waitedForResolution) [[unlikely]] {
+            m_waitedForResolution = true;
+            waitFor(Packets::Type::ClientResolution);
+
+            static constexpr Packets::RequestClientResolution resReq{};
+            write(Packets::Writer::generate(resReq));
+        }
+
+        Packets::Parser<NetworkLink, ErrorLimit>::addData(std::move(additional));
+    }
 };
 
 } // namespace Platform
