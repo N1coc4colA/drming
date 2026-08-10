@@ -35,23 +35,16 @@ void NetworkLink::setItem(QObject *item)
 
 void NetworkLink::onPacketErrors()
 {
-    qDebug() << "Clearing, too many errors";
-
     Parser::clear();
-
-    /*const Packets::Reinit reinit{};
-    write(Packets::Writer::generate(reinit));*/
 }
 
 void NetworkLink::processPacket(const Packets::Reinit &)
 {
-    qDebug() << "Reiniting";
     Parser::clear();
 }
 
 void NetworkLink::processPacket(const Packets::ClientResolution &res)
 {
-    qDebug() << "Client resolution:" << res.width.data << res.height.data;
     setBounds<&Packets::ServerImage::data>(quint64(0), static_cast<quint64>(res.width.data) * static_cast<quint64>(res.height.data));
 }
 

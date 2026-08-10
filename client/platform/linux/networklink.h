@@ -17,15 +17,16 @@ public:
     explicit NetworkLink(QObject *parent);
 
     void processPacket(const Packets::ServerImage &img);
-    void processPacket(const Packets::ClientResolution &res) { Q_UNUSED(res); }
-    void processPacket(const Packets::ServerBrightness &brightness);
     void processPacket(const Packets::ServerStream &img);
+    void processPacket(const Packets::Reinit &);
+    void onPacketErrors();
 
     void setItem(QObject *item) override;
 
 private:
     FfmpegDecoder *m_decoder = nullptr;
     VideoFrameItem *m_item = nullptr;
+    bool m_locked = false;
 
     inline void addData(QByteArray additional) override { Packets::Parser<NetworkLink>::addData(std::move(additional)); }
 };
