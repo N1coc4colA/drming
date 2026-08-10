@@ -18,12 +18,15 @@ Q_SIGNALS:
 
 public Q_SLOTS:
     void addClient(NetworkClient *client);
+    void reinit();
+    void requireResolutionInformation();
 
 protected:
     void sendData(QByteArray output);
 
 private:
     QSet<NetworkClient *> m_clients{};
+    QSize m_prevSize{};
     bool primaryFailureNotice = false;
 
     DisplayReader m_reader;

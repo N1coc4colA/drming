@@ -3,8 +3,10 @@
 
 #include <QMap>
 #include <QUdpSocket>
+#include <QHostAddress>
 
 #include "server.h"
+#include "networkclient.h"
 
 class QDtls;
 
@@ -22,14 +24,20 @@ public:
 
 private Q_SLOTS:
     void onDatagramReceived();
+    void onClientDisconnected();
 
 private:
     QUdpSocket *m_socket = nullptr;
-    QSet<QPair<QHostAddress, quint16>> m_peerSockets{};
-    QMap<QString, QDtls *> m_dtlsMap{};
-
     QHostAddress m_address;
     quint16 m_port;
+
+    // Active clients: peer key -> NetworkClientDtls*
+    QMap<QString, NetworkClientDtls*> m_clients;
+    // Pending handshakes: peer key -> QDtls*
+    QMap<QString, QDtls*> m_pendingHandshakes;
+
+    QString peerKey(const QHostAddress &addr, quint16 port) const;
+    void removeClient(NetworkClientDtls *client);
 };
 
-#endif
+#endif // DTLSSERVER_H

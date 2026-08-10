@@ -16,20 +16,53 @@ Display::Display(const QString &connectorName, QObject *parent)
 {
     connect(&m_timer, &QTimer::timeout, this, &Display::forward);
     m_timer.setInterval(Settings::frameMSecsInterval);
+    m_timer.stop();
 }
 
 void Display::addClient(NetworkClient *client)
 {
+    if (!client) [[unlikely]] {
+        return;
+    }
+
+    qDebug() << "Adding client to display (A)";
+
     assert(!m_clients.contains(client));
+
+    qDebug() << "Adding client to display (B)";
 
     client->setParent(this);
 
     m_clients.insert(client);
-    if (client) {
-        connect(client, &NetworkClient::disconnected, this, &Display::onDisconnected);
-    }
+    connect(client, &NetworkClient::disconnected, this, &Display::onDisconnected);
 
+    qDebug() << "Client connected" << client->peerAddress() << client->peerPort();
+
+    client->setDisplay(this);
     onConnected();
+}
+
+void Display::reinit()
+{
+    if (m_timer.isActive()) {
+        qDebug() << "Stopping screen timer";
+
+        m_timer.stop();
+        QTimer::singleShot(1500, [this]() {
+            if (!m_clients.isEmpty()) {
+                const Packets::Reinit reinitPkt{};
+                sendData(Packets::Writer::generate(reinitPkt));
+                m_timer.start();
+                qDebug() << "Restarted screen timer";
+                m_prevSize = {};
+            }
+        });
+    }
+}
+
+void Display::requireResolutionInformation()
+{
+    m_prevSize = {};
 }
 
 void Display::forward()
@@ -90,6 +123,12 @@ void Display::forward()
         DisplayReader::compositeWithCursor(result, cursorFb, m_cursorFrameDescriptor.value());
     }
 
+    if (m_prevSize != result.size()) [[unlikely]] {
+        m_prevSize = result.size();
+        const Packets::ClientResolution res{.width = {static_cast<quint32>(result.width())}, .height = {static_cast<quint32>(result.height())}};
+        sendData(std::move(Packets::Writer::generate(res)));
+    }
+
     processImage(result);
     DisplayReader::releaseVkmsFrameBuffer(fb);
 }
@@ -104,10 +143,14 @@ void Display::onConnected()
 void Display::onDisconnected()
 {
     if (auto client = qobject_cast<NetworkClient *>(sender())) {
+        qDebug() << "Client disconnected" << client->peerAddress() << client->peerPort();
         m_clients.remove(client);
+        client->deleteLater();
     }
 
     if (m_clients.isEmpty()) {
+        qDebug() << "No clients anymore, suspending screen.";
+
         m_timer.stop();
         Q_EMIT nowFree();
     }
@@ -126,7 +169,7 @@ void Display::disconnectAllClients()
 {
     if (!m_clients.isEmpty()) {
         for (const auto &client : m_clients) {
-            client->disconnect();
+            client->close();
         }
     }
 }
@@ -145,8 +188,9 @@ private:
     void processImage(const QImage &result) override
     {
         Packets::ServerImage servImg{};
+        servImg.format.data = m_format;
         {
-            QBuffer buf(&servImg.data);
+            QBuffer buf(&servImg.data.data);
             buf.open(QIODevice::WriteOnly);
             result.save(&buf, m_format, Parameters::instance.qualityLevel);
             buf.close();
@@ -180,7 +224,7 @@ private:
         payload.append("\x00\x00\x00\x01", 4);
         payload.append(reinterpret_cast<const char *>(data), static_cast<qsizetype>(size));
 
-        Packets::ServerStream stm{.data = std::move(payload)};
+        Packets::ServerStream stm{.data = {std::move(payload)}};
         sendData(std::move(Packets::Writer::generate(stm)));
     }
 

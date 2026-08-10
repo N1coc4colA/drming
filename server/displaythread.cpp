@@ -11,5 +11,6 @@ DisplayThread::DisplayThread(Display *display, QObject *parent)
 
 void DisplayThread::addClient(NetworkClient *client)
 {
+    qDebug() << "Adding client to thread";
     m_display->addClient(client);
 }

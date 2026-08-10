@@ -38,13 +38,19 @@ NetworkLink::NetworkLink(QObject *parent)
     QObject::connect(m_sslSocket, &QSslSocket::encrypted, []() { qInfo() << "SSL connection established"; });
     QObject::connect(m_sslSocket, &QSslSocket::modeChanged, [](const QSslSocket::SslMode newMode) { qInfo() << "SSL mode changed:" << newMode; });
 
-    QObject::connect(m_dtls, &QDtls::handshakeTimeout, this, [this] { qWarning() << "DTLS handshake timeout"; });
+    QObject::connect(m_dtls, &QDtls::handshakeTimeout, this, [this] {
+        if (m_inactivityTimer.remainingTime() > 0) {
+            m_dtls->handleTimeout(m_udpSocket);
+        } else {
+            qWarning() << "DTLS handshake timeout";
+        }
+    });
 
-    m_inactivityTimer.setInterval(Settings::inactivityTimeout);
-    m_inactivityTimer.setSingleShot(true);
     QObject::connect(&m_inactivityTimer, &QTimer::timeout, this, &NetworkLink::onConnectionTimeout);
-
-    // No UDP-specific socket options to set here.
+    m_inactivityTimer.setTimerType(Qt::VeryCoarseTimer);
+    m_inactivityTimer.setSingleShot(true);
+    m_inactivityTimer.setInterval(Settings::inactivityTimeout + 2000);
+    m_inactivityTimer.stop();
 }
 
 NetworkLink::~NetworkLink()
@@ -80,6 +86,9 @@ void NetworkLink::close()
 
 void NetworkLink::connect(const QString &address, const int port, const QString &clientName, const QString &protocolName)
 {
+    m_sslSocket->close();
+    m_udpSocket->close();
+
     if (m_sslSocket->state() != QAbstractSocket::UnconnectedState || m_udpSocket->state() != QAbstractSocket::UnconnectedState) {
         return;
     }
@@ -114,6 +123,8 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
         qWarning() << "Unknown protocol name requested to connect to server:" << protocolName;
         Q_EMIT error(tr("The protocol is invalid: %1").arg(clientName));
     }
+
+    m_inactivityTimer.start();
 }
 
 void NetworkLink::connectDtls(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, const int port)
@@ -191,6 +202,7 @@ void NetworkLink::onSslError(const QSslError &error)
 void NetworkLink::onConnected()
 {
     qInfo() << "Socket connected";
+    Q_EMIT connectionInitialised();
 }
 
 void NetworkLink::onDtlsDisconnected()
@@ -216,6 +228,7 @@ void NetworkLink::onDtlsDataAvailable()
             qWarning() << "Spurious UDP read";
             return;
         }
+
         dgram.resize(bytesRead);
 
         if (!m_dtls->isConnectionEncrypted()) {
@@ -224,6 +237,7 @@ void NetworkLink::onDtlsDataAvailable()
                 if (m_dtls->dtlsError() != QDtlsError::NoError) {
                     Q_EMIT error(tr("DTLS handshake error: %1").arg(m_dtls->dtlsErrorString()));
                 }
+
                 return;
             }
 
@@ -281,4 +295,48 @@ void NetworkLink::onConnectionTimeout()
         Q_EMIT error(tr("Connection timed out."));
         close();
     }
+}
+
+void NetworkLink::write(const QByteArray &data)
+{
+    if (m_udpSocket->state() == QAbstractSocket::ConnectedState) {
+        writeDtls(data);
+    } else if (m_sslSocket->state() == QAbstractSocket::ConnectedState) {
+        writeSsl(data);
+    }
+}
+
+qint64 NetworkLink::writeDtls(const QByteArray &data)
+{
+    if (m_udpSocket->state() != QAbstractSocket::ConnectedState) [[unlikely]] {
+        return -1;
+    }
+
+    qsizetype offset = 0;
+    while (offset < data.size()) {
+        const auto chunk = data.mid(offset, Settings::dtlsChunkSize);
+
+        if (m_dtls->writeDatagramEncrypted(m_udpSocket, chunk) < 0) [[unlikely]] {
+            const auto err = m_dtls->dtlsError();
+            if (err != QDtlsError::NoError && err != QDtlsError::UnderlyingSocketError) {
+                qWarning() << "DTLS Error" << static_cast<int>(err) << ":" << m_dtls->dtlsErrorString();
+            }
+
+            return -1;
+        }
+
+        offset += chunk.size();
+    }
+
+    return offset;
+}
+
+qint64 NetworkLink::writeSsl(const QByteArray &data)
+{
+    // [TODO] Handle this stuff more gracefully. Would need a loop to ensure everything's been written 'til the end.
+    const auto ret = m_sslSocket->write(data);
+
+    m_sslSocket->waitForBytesWritten();
+
+    return ret;
 }

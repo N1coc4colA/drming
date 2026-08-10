@@ -8,7 +8,13 @@ namespace Platform {
 NetworkLink::NetworkLink(QObject *parent)
     : ::NetworkLink(parent)
     , Parser(*this)
-{}
+{
+    QObject::connect(this, &NetworkLink::connectionInitialised, this, [this]() { Parser::clear(); });
+    QObject::connect(this, &NetworkLink::closed, this, [this]() {
+        m_locked = false;
+        Parser::clearRules();
+    });
+}
 
 void NetworkLink::setItem(QObject *item)
 {
@@ -20,10 +26,25 @@ void NetworkLink::setItem(QObject *item)
     }
 }
 
+void NetworkLink::onPacketErrors()
+{
+    Parser::clear();
+}
+
+void NetworkLink::processPacket(const Packets::Reinit &)
+{
+    Parser::clear();
+}
+
 void NetworkLink::processPacket(const Packets::ServerStream &img)
 {
     if (!m_item) {
         return;
+    }
+
+    if (!m_locked) [[unlikely]] {
+        disable(Packets::Type::ServerImage);
+        m_locked = true;
     }
 
     if (!m_decoder) {
@@ -37,7 +58,7 @@ void NetworkLink::processPacket(const Packets::ServerStream &img)
         });
     }
 
-    m_decoder->decode(reinterpret_cast<const uint8_t *>(img.data.constData()), img.frameSize);
+    m_decoder->decode(reinterpret_cast<const uint8_t *>(img.data.data.constData()), img.data.size);
 }
 
 void NetworkLink::processPacket(const Packets::ServerImage &img)
@@ -46,18 +67,16 @@ void NetworkLink::processPacket(const Packets::ServerImage &img)
         return;
     }
 
-    const auto converted = QImage::fromData(img.data, img.format);
+    if (!m_locked) [[unlikely]] {
+        disable(Packets::Type::ServerStream);
+        m_locked = true;
+    }
 
-    if (!converted.isNull() && m_item) {
-        [[likely]];
+    const auto converted = QImage::fromData(img.data.data, img.format.data);
 
+    if (!converted.isNull()) [[likely]] {
         m_item->setImage(converted);
     }
-}
-
-void NetworkLink::processPacket(const Packets::ServerBrightness &brightness)
-{
-    Q_UNUSED(brightness);
 }
 
 } // namespace Platform
