@@ -1,5 +1,5 @@
 #include "networklink.h"
-#include "ffmpeg.h"
+#include "decode.h"
 #include "videoframeitem.h"
 
 namespace Platform {
@@ -26,7 +26,7 @@ void NetworkLink::setItem(QObject *item)
 
     // Create decoder if needed
     if (!m_decoder) {
-        m_decoder = new FfmpegDecoder(this);
+        m_decoder = new VideoDecoder(this);
     }
 
     // Tell the item to use the decoder's OES texture

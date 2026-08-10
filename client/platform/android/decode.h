@@ -29,13 +29,14 @@
 #include <GLES2/gl2ext.h>
 
 namespace Platform {
-class FfmpegDecoder : public QObject
+
+class VideoDecoder : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit FfmpegDecoder(QObject* parent = nullptr);
-    ~FfmpegDecoder();
+    explicit VideoDecoder(QObject* parent = nullptr);
+    ~VideoDecoder();
 
     // Basic info
     int width() const { return m_width; }
@@ -99,6 +100,7 @@ private:
     // Called from render thread to update the texture
     void updateTextureFromHardwareBuffer(AHardwareBuffer* buffer);
 };
+
 } // namespace Platform
 
 #endif // FFMPEGPLATFORM_H

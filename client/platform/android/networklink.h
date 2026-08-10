@@ -8,7 +8,7 @@
 
 namespace Platform {
 
-class FfmpegDecoder;
+class VideoDecoder;
 class VideoFrameItem;
 
 class NetworkLink : public ::NetworkLink, Packets::Parser<NetworkLink, Settings::errorLimit>
@@ -27,7 +27,7 @@ public:
     void setItem(QObject *item) override;
 
 private:
-    FfmpegDecoder *m_decoder = nullptr;
+    VideoDecoder *m_decoder = nullptr;
     VideoFrameItem *m_item = nullptr;
     bool m_waitedForResolution = false;
     bool m_locked = false;

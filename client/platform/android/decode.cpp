@@ -1,4 +1,4 @@
-#include "ffmpeg.h"
+#include "decode.h"
 
 #include <QDebug>
 
@@ -80,16 +80,16 @@ void extractCSDH265(const uint8_t *data, const size_t size, std::vector<uint8_t>
 }
 } // namespace
 
-FfmpegDecoder::FfmpegDecoder(QObject* parent)
+VideoDecoder::VideoDecoder(QObject* parent)
     : QObject(parent)
 {}
 
-FfmpegDecoder::~FfmpegDecoder()
+VideoDecoder::~VideoDecoder()
 {
     release();
 }
 
-int FfmpegDecoder::init(const int width, const int height)
+int VideoDecoder::init(const int width, const int height)
 {
     if (m_initialized) {
         return 0;
@@ -135,7 +135,7 @@ int FfmpegDecoder::init(const int width, const int height)
     // 3. Set up the image listener (callback from decoder thread)
     AImageReader_ImageListener listener;
     listener.context = this;
-    listener.onImageAvailable = FfmpegDecoder::onImageAvailable;
+    listener.onImageAvailable = VideoDecoder::onImageAvailable;
     AImageReader_setImageListener(m_imageReader, &listener);
 
     // 4. Create MediaCodec decoder
@@ -182,7 +182,7 @@ int FfmpegDecoder::init(const int width, const int height)
     return 0;
 }
 
-void FfmpegDecoder::release()
+void VideoDecoder::release()
 {
     if (m_codec) {
         AMediaCodec_stop(m_codec);
@@ -218,7 +218,7 @@ void FfmpegDecoder::release()
     m_height = 0;
 }
 
-void FfmpegDecoder::destroyEglImageCache()
+void VideoDecoder::destroyEglImageCache()
 {
     if (m_eglImageCache.empty()) {
         return;
@@ -236,7 +236,7 @@ void FfmpegDecoder::destroyEglImageCache()
     m_eglImageCache.clear();
 }
 
-int FfmpegDecoder::flush()
+int VideoDecoder::flush()
 {
     if (m_codec) {
         AMediaCodec_flush(m_codec);
@@ -246,7 +246,7 @@ int FfmpegDecoder::flush()
     return -1;
 }
 
-int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
+int VideoDecoder::decode(const uint8_t* data, const size_t size)
 {
     const bool needNalScan = m_needResync || !m_csdReady;
     const bool isKeyFrame = needNalScan ? isKeyFrameH265(data, size) : false;
@@ -298,7 +298,7 @@ int FfmpegDecoder::decode(const uint8_t* data, const size_t size)
     return ret;
 }
 
-int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size, const bool isKeyFrame)
+int VideoDecoder::decode_frame(const uint8_t* data, const size_t size, const bool isKeyFrame)
 {
     // Always queue input buffer (works for both paths)
     const auto inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 10000);
@@ -363,14 +363,14 @@ int FfmpegDecoder::decode_frame(const uint8_t* data, const size_t size, const bo
     return 0;
 }
 
-void FfmpegDecoder::onImageAvailable(void* context, AImageReader* reader)
+void VideoDecoder::onImageAvailable(void* context, AImageReader* reader)
 {
-    auto self = static_cast<FfmpegDecoder*>(context);
+    auto self = static_cast<VideoDecoder*>(context);
     // Just set a flag; the actual acquisition happens on the render thread
     self->m_frameAvailable.store(true, std::memory_order_release);
 }
 
-bool FfmpegDecoder::consumeFrame()
+bool VideoDecoder::consumeFrame()
 {
     if (!m_imageReader) {
         qDebug() << "Invalid consume.";
@@ -422,7 +422,7 @@ bool FfmpegDecoder::consumeFrame()
     return true;
 }
 
-void FfmpegDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
+void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
 {
     const auto display = eglGetCurrentDisplay();
     if (display == EGL_NO_DISPLAY) [[unlikely]] {

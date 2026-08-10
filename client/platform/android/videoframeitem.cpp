@@ -4,7 +4,7 @@
 #include <QQuickWindow>
 #include <QSGSimpleTextureNode>
 
-#include "ffmpeg.h"
+#include "decode.h"
 #include "oesrendernode.h"
 
 namespace Platform {
@@ -29,7 +29,7 @@ VideoFrameItem::VideoFrameItem(QQuickItem* parent)
     setFlag(ItemHasContents, true);
 }
 
-void VideoFrameItem::setDecoder(FfmpegDecoder* decoder)
+void VideoFrameItem::setDecoder(VideoDecoder* decoder)
 {
     m_decoder = decoder;
 

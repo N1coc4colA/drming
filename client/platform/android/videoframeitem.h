@@ -10,7 +10,7 @@ class QSGSimpleTextureNode;
 
 namespace Platform {
 
-class FfmpegDecoder;
+class VideoDecoder;
 
 class VideoFrameItem : public QQuickItem
 {
@@ -25,7 +25,7 @@ public:
     explicit VideoFrameItem(QQuickItem* parent = nullptr);
 
     // Set the decoder to use for zero‑copy texture rendering
-    void setDecoder(FfmpegDecoder* decoder);
+    void setDecoder(VideoDecoder* decoder);
 
     Q_INVOKABLE void setImage(const QImage& image);
 
@@ -34,7 +34,7 @@ protected:
     void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
 
 private:
-    FfmpegDecoder* m_decoder = nullptr;
+    VideoDecoder* m_decoder = nullptr;
 
     // Fallback QImage
     QImage m_currentImage;
