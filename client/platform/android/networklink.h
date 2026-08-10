@@ -4,14 +4,14 @@
 #include "../../../parser.h"
 #include "../../networklink.h"
 
+#include "../settings.h"
+
 namespace Platform {
 
 class FfmpegDecoder;
 class VideoFrameItem;
 
-static constexpr auto ErrorLimit = 8192;
-
-class NetworkLink : public ::NetworkLink, Packets::Parser<NetworkLink, ErrorLimit>
+class NetworkLink : public ::NetworkLink, Packets::Parser<NetworkLink, Settings::errorLimit>
 {
     Q_OBJECT
 
@@ -42,7 +42,7 @@ private:
             write(Packets::Writer::generate(resReq));
         }
 
-        Packets::Parser<NetworkLink, ErrorLimit>::addData(std::move(additional));
+        Packets::Parser<NetworkLink, Settings::errorLimit>::addData(std::move(additional));
     }
 };
 

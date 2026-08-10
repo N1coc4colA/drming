@@ -4,12 +4,14 @@
 #include "../../../parser.h"
 #include "../../networklink.h"
 
+#include "../settings.h"
+
 namespace Platform {
 
 class FfmpegDecoder;
 class VideoFrameItem;
 
-class NetworkLink : public ::NetworkLink, Packets::Parser<NetworkLink>
+class NetworkLink : public ::NetworkLink, Packets::Parser<NetworkLink, Settings::errorLimit>
 {
     Q_OBJECT
 
@@ -28,7 +30,7 @@ private:
     VideoFrameItem *m_item = nullptr;
     bool m_locked = false;
 
-    inline void addData(QByteArray additional) override { Packets::Parser<NetworkLink>::addData(std::move(additional)); }
+    inline void addData(QByteArray additional) override { Packets::Parser<NetworkLink, Settings::errorLimit>::addData(std::move(additional)); }
 };
 
 } // namespace Platform
