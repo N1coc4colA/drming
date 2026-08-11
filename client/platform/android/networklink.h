@@ -42,7 +42,8 @@ private:
             write(Packets::Writer::generate(resReq));
         }
 
-        Packets::Parser<NetworkLink, Settings::errorLimit>::addData(std::move(additional));
+        Parser::clear();
+        Parser::addData(std::move(additional));
     }
 };
 

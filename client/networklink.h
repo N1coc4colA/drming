@@ -1,11 +1,16 @@
 #ifndef NETWORKLINK_H
 #define NETWORKLINK_H
 
+#include <optional>
+#include <vector>
+
 #include <QDtls>
 #include <QImage>
 #include <QSslSocket>
 #include <QTimer>
 #include <QUdpSocket>
+
+#include "../settings.h"
 
 class NetworkLink : public QObject
 {
@@ -49,6 +54,9 @@ private:
     QSslSocket *m_sslSocket = nullptr;
     QUdpSocket *m_udpSocket = nullptr;
     QDtls *m_dtls = nullptr;
+    std::vector<std::optional<QByteArray>> m_pendings;
+    qint16 m_pendingTimestamp = -1;
+    qint16 m_ts = 0;
     QTimer m_inactivityTimer{};
     quint16 m_format = 0;
     quint32 m_width = 0;

@@ -82,6 +82,9 @@ public:
 private:
     void checkHeartBeat();
 
+    std::vector<std::optional<QByteArray>> m_pendings;
+    qint16 m_pendingTimestamp = -1;
+    qint16 m_ts = 0;
     QDtls *m_dtls;
     const QHostAddress m_address;
     const quint16 m_port;

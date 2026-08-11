@@ -26,12 +26,12 @@ NetworkLink::NetworkLink(QObject *parent)
 {
     QObject::connect(m_udpSocket, &QUdpSocket::connected, this, &NetworkLink::onConnected);
     QObject::connect(m_udpSocket, &QUdpSocket::disconnected, this, &NetworkLink::onDtlsDisconnected);
-    QObject::connect(m_udpSocket, &QUdpSocket::readyRead, this, &NetworkLink::onDtlsDataAvailable);
+    QObject::connect(m_udpSocket, &QUdpSocket::readyRead, this, &NetworkLink::onDtlsDataAvailable, Qt::QueuedConnection);
     QObject::connect(m_udpSocket, &QUdpSocket::errorOccurred, this, &NetworkLink::onError);
 
     QObject::connect(m_sslSocket, &QSslSocket::connected, this, &NetworkLink::onConnected);
     QObject::connect(m_sslSocket, &QSslSocket::disconnected, this, &NetworkLink::onSslDisconnected);
-    QObject::connect(m_sslSocket, &QSslSocket::readyRead, this, &NetworkLink::onSslDataAvailable);
+    QObject::connect(m_sslSocket, &QSslSocket::readyRead, this, &NetworkLink::onSslDataAvailable, Qt::QueuedConnection);
     QObject::connect(m_sslSocket, &QSslSocket::handshakeInterruptedOnError, this, &NetworkLink::onSslError);
     QObject::connect(m_sslSocket, &QSslSocket::errorOccurred, this, &NetworkLink::onError);
     QObject::connect(m_sslSocket, &QSslSocket::peerVerifyError, [](const QSslError &error) { qWarning() << "Peer verification error:" << error; });
@@ -210,6 +210,8 @@ void NetworkLink::onDtlsDisconnected()
     m_udpSocket->close();
     m_buffer.clear();
     m_inactivityTimer.stop();
+    m_pendingTimestamp = 0;
+    m_pendings.clear();
 }
 
 void NetworkLink::onSslDisconnected()
@@ -250,9 +252,62 @@ void NetworkLink::onDtlsDataAvailable()
         }
 
         // Decrypt application datagram
-        const QByteArray plain = m_dtls->decryptDatagram(m_udpSocket, dgram);
+        auto plain = m_dtls->decryptDatagram(m_udpSocket, dgram);
         if (!plain.isEmpty()) {
-            addData(std::move(plain));
+            if (plain.size() < static_cast<qsizetype>(sizeof(Packets::Ordering) + sizeof(Packets::Timestamp))) {
+                qWarning() << "Invalid DTLS decrypted packet size has been received.";
+                return;
+            }
+
+            const auto ts = qFromBigEndian(*reinterpret_cast<Packets::Timestamp *>(plain.first(sizeof(Packets::Timestamp)).data()));
+            assert(plain.size() >= static_cast<qsizetype>(sizeof(Packets::Timestamp)));
+            plain.slice(static_cast<qsizetype>(sizeof(Packets::Timestamp)));
+            const auto order = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(plain.first(sizeof(Packets::Ordering)).data()));
+            assert(plain.size() >= static_cast<qsizetype>(sizeof(Packets::Ordering)));
+            plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering)));
+
+            qDebug() << "Received" << ts << order;
+
+            if (ts == 0) {
+                m_pendingTimestamp = -1;
+            }
+
+            const auto pos = static_cast<std::size_t>(order);
+            // If we get back to 0, it means we have a new data line incoming. If it's higher but already preset, it just means we may not have the 0th one yet, but we still need to push.
+            if (m_pendingTimestamp < ts) {
+                // Check if we got all packets, meaning it should be valid.
+                if (!std::any_of(m_pendings.cbegin(), m_pendings.cend(), [](const auto p) { return !p.has_value(); })) {
+                    const auto total = std::accumulate(m_pendings.cbegin(), m_pendings.cend(), qsizetype(0), [](auto curr, const auto arr) {
+                        return curr += (*arr).size();
+                    });
+
+                    // Then we just gotta sum it all up.
+                    QByteArray out;
+                    out.reserve(total);
+                    for (const auto &arr : std::as_const(m_pendings)) {
+                        out += (*arr);
+                    }
+
+                    qDebug() << "Pushing data line";
+                    addData(std::move(out));
+                }
+
+                m_pendingTimestamp = ts;
+                m_pendings.clear();
+            }
+
+            if (m_pendings.size() < (pos + 1)) {
+                m_pendings.resize(pos + 1);
+            }
+
+            // If we're already storing data or the timestamp is past, skip it.
+            if (m_pendings[pos].has_value() || (m_pendingTimestamp > ts)) {
+                continue;
+            }
+
+            // We need to slice as the ordering is not part of the information wanted by the application.
+            m_pendings[pos] = plain;
+
             continue;
         }
 
@@ -308,25 +363,46 @@ void NetworkLink::write(const QByteArray &data)
 
 qint64 NetworkLink::writeDtls(const QByteArray &data)
 {
-    if (m_udpSocket->state() != QAbstractSocket::ConnectedState) [[unlikely]] {
-        return -1;
-    }
+    static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) - sizeof(Packets::Timestamp);
+    const auto size = data.size();
 
+    Packets::Ordering order = 0;
     qsizetype offset = 0;
-    while (offset < data.size()) {
-        const auto chunk = data.mid(offset, Settings::dtlsChunkSize);
+    while (offset < size) {
+        auto chunk = data.mid(offset, innerSize);
+        const auto ts_be = qToBigEndian(m_ts);
+        const auto order_be = qToBigEndian(order);
+        chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
+        chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
 
-        if (m_dtls->writeDatagramEncrypted(m_udpSocket, chunk) < 0) [[unlikely]] {
+        if (m_dtls->writeDatagramEncrypted(m_udpSocket, chunk) < 0) {
             const auto err = m_dtls->dtlsError();
-            if (err != QDtlsError::NoError && err != QDtlsError::UnderlyingSocketError) {
-                qWarning() << "DTLS Error" << static_cast<int>(err) << ":" << m_dtls->dtlsErrorString();
+            switch (err) {
+            case QDtlsError::RemoteClosedConnectionError: {
+                close();
+                break;
             }
+            case QDtlsError::UnderlyingSocketError:
+            case QDtlsError::NoError: {
+                continue;
+            }
+            default: {
+                qWarning() << "DTLS write error on" << m_ts << order << static_cast<int>(err) << m_dtls->dtlsErrorString();
+            }
+            }
+
+            m_ts++;
+            m_ts = m_ts % Settings::simultaneousPendings;
 
             return -1;
         }
 
         offset += chunk.size();
+        order++;
     }
+
+    m_ts++;
+    m_ts = m_ts % Settings::simultaneousPendings;
 
     return offset;
 }

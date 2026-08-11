@@ -24,6 +24,8 @@ static constexpr auto errorLimit = 8192;
 
 static constexpr auto timeFormat = " HH:mm";
 
+static constexpr auto simultaneousPendings = 5;
+
 }
 
 #endif // SETTINGS_H

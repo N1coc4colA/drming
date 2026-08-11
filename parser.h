@@ -3,6 +3,7 @@
 
 #include <QByteArray>
 #include <QDataStream>
+#include <QDebug>
 
 #include <algorithm>
 #include <array>
@@ -14,6 +15,9 @@
 #include <variant>
 
 namespace Packets {
+
+using Ordering = quint32;
+using Timestamp = qint16;
 
 enum class Type : quint16 {
     None = 0,
@@ -322,6 +326,7 @@ class Writer
         requires FieldType::__is_field and FieldType::__is_variable
     static void writeField(QDataStream &stream, const FieldType &field)
     {
+        qDebug() << 'w' << field.size;
         stream << field.size;
     }
 
@@ -329,12 +334,14 @@ class Writer
         requires FieldType::__is_field and (not FieldType::__is_variable)
     static void writeField(QDataStream &stream, const FieldType &field)
     {
+        qDebug() << 'w' << field.data;
         stream << field.data;
     }
 
     template<typename FieldType>
     static void writeField(QDataStream &stream, const FieldType &field)
     {
+        qDebug() << 'w' << field;
         stream << field;
     }
 
@@ -346,6 +353,7 @@ class Writer
         requires FieldType::__is_field and FieldType::__is_variable
     static void writeVariableField(QDataStream &stream, const FieldType &field)
     {
+        qDebug() << "wc" << qChecksum(QByteArray(field.data.constData(), static_cast<qint64>(field.size))) << __PRETTY_FUNCTION__;
         stream.writeRawData(field.data.constData(), static_cast<qint64>(field.size));
     }
 
@@ -353,6 +361,8 @@ public:
     template<typename T>
     static QByteArray generate(T &t)
     {
+        qDebug() << __PRETTY_FUNCTION__;
+
         constexpr auto fields = T::fields;
 
         QByteArray output;
@@ -372,6 +382,8 @@ public:
         [&]<size_t... Is>(std::index_sequence<Is...>) {
             ((writeVariableField(stream, t.*std::get<Is>(fields))), ...);
         }(std::make_index_sequence<std::tuple_size_v<decltype(fields)>>{});
+
+        qDebug() << "==== ====";
 
         return output;
     }
@@ -424,6 +436,8 @@ class Parser
             stream.setByteOrder(QDataStream::BigEndian);
             stream >> field.size;
 
+            qDebug() << 'p' << field.size;
+
             m_array.remove(0, sizeof(field.size));
 
             if (field.size > MaxVariableSize) [[unlikely]] {
@@ -449,6 +463,8 @@ class Parser
             QDataStream stream(m_array);
             stream.setByteOrder(QDataStream::BigEndian);
             stream >> field.size;
+
+            qDebug() << 'p' << field.size;
 
             m_array.remove(0, sizeof(field.size));
 
@@ -477,6 +493,8 @@ class Parser
             stream.setByteOrder(QDataStream::BigEndian);
             stream >> field.data;
 
+            qDebug() << 'p' << field.data;
+
             m_array.remove(0, sizeof(field.data));
 
             return (field.data <= field.max && field.data >= field.min) ? True : False;
@@ -500,6 +518,8 @@ class Parser
             stream.setByteOrder(QDataStream::BigEndian);
             stream >> field.data;
 
+            qDebug() << 'p' << field.data;
+
             m_array.remove(0, sizeof(field.data));
 
             return True;
@@ -517,6 +537,8 @@ class Parser
             stream.setByteOrder(QDataStream::BigEndian);
             stream >> field;
 
+            qDebug() << 'p' << field;
+
             m_array.remove(0, sizeof(FieldType));
 
             return True;
@@ -526,11 +548,13 @@ class Parser
     }
 
     template<typename PacketType, size_t Index>
-        requires FieldType<PacketType, Index>::__is_variable
+        requires FieldType<PacketType, Index>::__is_field and FieldType<PacketType, Index>::__is_variable
     inline ParseOutput readVariable()
     {
         auto &packet = std::get<PacketType>(m_current);
         auto &field = packet.*std::get<Index>(std::get<PacketType>(m_current).fields);
+
+        qDebug() << __PRETTY_FUNCTION__;
 
         const auto size = static_cast<qsizetype>(field.size);
         if (m_array.size() >= size) {
@@ -541,7 +565,11 @@ class Parser
             stream.readRawData(field.data.data(), static_cast<qint64>(size));
             m_array.remove(0, size);
 
+            qDebug() << "pc" << qChecksum(field.data);
+
             return True;
+        } else {
+            qDebug() << "Not enough";
         }
 
         return Continue;
@@ -556,6 +584,8 @@ class Parser
     template<typename T>
     inline ParseOutput instanceParsing()
     {
+        qDebug() << __PRETTY_FUNCTION__;
+
         if (m_parsed == 0) {
             m_current = std::get<details::Index<T, decltype(m_bounds)>::value>(m_bounds);
         }
@@ -584,12 +614,14 @@ class Parser
         }
 
         while (m_variablesParsed < fieldCount) {
+            qDebug() << "Processing var no. " << m_variablesParsed;
             const auto result = (this->*variableFieldTable[m_variablesParsed])();
             switch (result) {
             case True:
                 ++m_variablesParsed;
                 continue;
             default:
+                qDebug() << "Output:" << result;
                 return result;
             }
         }
@@ -598,6 +630,8 @@ class Parser
         if constexpr (details::has_processPacket<Receiver, T>::value) {
             m_receiver.processPacket(std::as_const(std::get<T>(m_current)));
         }
+
+        qDebug() << "==== ====";
 
         return True;
     }
@@ -711,6 +745,7 @@ public:
 
                 m_state = converted;
                 m_parsed = 0;
+                m_variablesParsed = 0;
                 [[fallthrough]];
             }
             default: {
