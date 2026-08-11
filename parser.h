@@ -455,6 +455,8 @@ class Parser
             if (field.size > MaxVariableSize) [[unlikely]] {
                 return False;
             }
+
+            return True;
         }
 
         return Continue;
@@ -535,8 +537,8 @@ class Parser
             QDataStream stream(m_array);
             stream.setByteOrder(QDataStream::BigEndian);
 
-            field.data.resize(size);
-            stream.readRawData(field.data.data(), size);
+            field.data.resize(static_cast<qsizetype>(size));
+            stream.readRawData(field.data.data(), static_cast<qint64>(size));
             m_array.remove(0, size);
 
             return True;
