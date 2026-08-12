@@ -60,52 +60,22 @@ void NetworkClientDtls::incomingEncryptedData(const QByteArray &encrypted)
         return;
     }
 
-    if (plaintext.size() < static_cast<qsizetype>(sizeof(Packets::Ordering) + sizeof(Packets::Timestamp))) {
+    if (plaintext.size() < static_cast<qsizetype>(sizeof(Packets::Ordering) * 2 + sizeof(Packets::Timestamp))) {
         qWarning() << "Invalid DTLS decrypted packet size has been received.";
         return;
     }
 
     const auto ts = qFromBigEndian(*reinterpret_cast<Packets::Timestamp *>(plaintext.first(sizeof(Packets::Timestamp)).data()));
-    assert(plaintext.size() >= static_cast<qsizetype>(sizeof(Packets::Timestamp)));
-    plaintext.slice(static_cast<qsizetype>(sizeof(Packets::Timestamp)));
-    const auto order = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(plaintext.first(sizeof(Packets::Ordering)).data()));
-    assert(plaintext.size() >= static_cast<qsizetype>(sizeof(Packets::Ordering)));
-    plaintext.slice(static_cast<qsizetype>(sizeof(Packets::Ordering)));
+    const auto sizing = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
+        plaintext.slice(static_cast<qsizetype>(sizeof(Packets::Timestamp))).first(sizeof(Packets::Ordering)).data()));
+    const auto order = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
+        plaintext.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))).first(sizeof(Packets::Ordering)).data()));
 
-    if (ts == 0) {
-        m_pendingTimestamp = -1;
+    m_jitterBuffer.pushChunk(ts, order, sizing, plaintext.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))));
+
+    while (const auto v = m_jitterBuffer.pullComplete()) {
+        addData(std::move(*v));
     }
-
-    const auto pos = static_cast<std::size_t>(order);
-    // If we get back to 0, it means we have a new data line incoming. If it's higher but already preset, it just means we may not have the 0th one yet, but we still need to push.
-    if (order == 0 || m_pendingTimestamp < ts) {
-        // Check if we got all packets, meaning it should be valid.
-        if (!std::any_of(m_pendings.cbegin(), m_pendings.cend(), [](const auto p) { return !p.has_value(); })) {
-            const auto total = std::accumulate(m_pendings.cbegin(), m_pendings.cend(), qsizetype(0), [](auto curr, const auto arr) {
-                return curr += (*arr).size();
-            });
-
-            // Then we just gotta sum it all up.
-            QByteArray out;
-            out.reserve(total);
-            for (const auto &arr : std::as_const(m_pendings)) {
-                out += (*arr);
-            }
-
-            clear();
-            addData(std::move(out));
-        }
-
-        m_pendingTimestamp = ts;
-        m_pendings.clear();
-    }
-
-    if (m_pendings.size() < (pos + 1)) {
-        m_pendings.resize(pos + 1);
-    }
-
-    // We need to slice as the ordering is not part of the information wanted by the application.
-    m_pendings[static_cast<std::size_t>(order)] = plaintext;
 }
 
 qint64 NetworkClientDtls::write(const QByteArray &data)
@@ -114,10 +84,10 @@ qint64 NetworkClientDtls::write(const QByteArray &data)
         return -1;
     }
 
-    static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) - sizeof(Packets::Timestamp);
+    static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) * 2 - sizeof(Packets::Timestamp);
     const auto size = data.size();
-
-    qDebug() << "Pushing data line of" << ((size / innerSize) + (size % innerSize ? 1 : 0));
+    const Packets::Ordering chunksCount = (size / innerSize) + (size % innerSize ? 1 : 0);
+    const auto chunks_be = qToBigEndian(chunksCount);
 
     Packets::Ordering order = 0;
     qsizetype offset = 0;
@@ -125,7 +95,9 @@ qint64 NetworkClientDtls::write(const QByteArray &data)
         auto chunk = data.mid(offset, innerSize);
         const auto ts_be = qToBigEndian(m_ts);
         const auto order_be = qToBigEndian(order);
+        const auto chunkSize = chunk.size();
         chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
+        chunk.prepend(reinterpret_cast<const char *>(&chunks_be), sizeof(chunks_be));
         chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
 
         if (m_dtls->writeDatagramEncrypted(m_sharedSocket, chunk) < 0) {
@@ -150,7 +122,7 @@ qint64 NetworkClientDtls::write(const QByteArray &data)
             return -1;
         }
 
-        offset += chunk.size();
+        offset += chunkSize;
         order++;
     }
 

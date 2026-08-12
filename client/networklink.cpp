@@ -210,8 +210,7 @@ void NetworkLink::onDtlsDisconnected()
     m_udpSocket->close();
     m_buffer.clear();
     m_inactivityTimer.stop();
-    m_pendingTimestamp = 0;
-    m_pendings.clear();
+    m_jitterBuffer.clear();
 }
 
 void NetworkLink::onSslDisconnected()
@@ -254,59 +253,23 @@ void NetworkLink::onDtlsDataAvailable()
         // Decrypt application datagram
         auto plain = m_dtls->decryptDatagram(m_udpSocket, dgram);
         if (!plain.isEmpty()) {
-            if (plain.size() < static_cast<qsizetype>(sizeof(Packets::Ordering) + sizeof(Packets::Timestamp))) {
+            if (plain.size() < static_cast<qsizetype>(sizeof(Packets::Ordering) * 2 + sizeof(Packets::Timestamp))) {
                 qWarning() << "Invalid DTLS decrypted packet size has been received.";
                 return;
             }
 
             const auto ts = qFromBigEndian(*reinterpret_cast<Packets::Timestamp *>(plain.first(sizeof(Packets::Timestamp)).data()));
-            assert(plain.size() >= static_cast<qsizetype>(sizeof(Packets::Timestamp)));
-            plain.slice(static_cast<qsizetype>(sizeof(Packets::Timestamp)));
-            const auto order = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(plain.first(sizeof(Packets::Ordering)).data()));
-            assert(plain.size() >= static_cast<qsizetype>(sizeof(Packets::Ordering)));
-            plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering)));
-
-            qDebug() << "Received" << ts << order;
-
-            if (ts == 0) {
-                m_pendingTimestamp = -1;
-            }
-
-            const auto pos = static_cast<std::size_t>(order);
-            // If we get back to 0, it means we have a new data line incoming. If it's higher but already preset, it just means we may not have the 0th one yet, but we still need to push.
-            if (m_pendingTimestamp < ts) {
-                // Check if we got all packets, meaning it should be valid.
-                if (!std::any_of(m_pendings.cbegin(), m_pendings.cend(), [](const auto p) { return !p.has_value(); })) {
-                    const auto total = std::accumulate(m_pendings.cbegin(), m_pendings.cend(), qsizetype(0), [](auto curr, const auto arr) {
-                        return curr += (*arr).size();
-                    });
-
-                    // Then we just gotta sum it all up.
-                    QByteArray out;
-                    out.reserve(total);
-                    for (const auto &arr : std::as_const(m_pendings)) {
-                        out += (*arr);
-                    }
-
-                    qDebug() << "Pushing data line";
-                    addData(std::move(out));
-                }
-
-                m_pendingTimestamp = ts;
-                m_pendings.clear();
-            }
-
-            if (m_pendings.size() < (pos + 1)) {
-                m_pendings.resize(pos + 1);
-            }
-
-            // If we're already storing data or the timestamp is past, skip it.
-            if (m_pendings[pos].has_value() || (m_pendingTimestamp > ts)) {
-                continue;
-            }
+            const auto sizing = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
+                plain.slice(static_cast<qsizetype>(sizeof(Packets::Timestamp))).first(sizeof(Packets::Ordering)).data()));
+            const auto order = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
+                plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))).first(sizeof(Packets::Ordering)).data()));
 
             // We need to slice as the ordering is not part of the information wanted by the application.
-            m_pendings[pos] = plain;
+            m_jitterBuffer.pushChunk(ts, order, sizing, plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))));
+
+            while (const auto v = m_jitterBuffer.pullComplete()) {
+                addData(std::move(*v));
+            }
 
             continue;
         }
