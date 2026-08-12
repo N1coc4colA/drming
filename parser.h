@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <limits>
+#include <optional>
 #include <set>
 #include <tuple>
 #include <type_traits>
@@ -780,6 +781,95 @@ public:
     inline void setBounds(const auto min, const auto max)
     {
         setBoundsHelper(ptr, min, max);
+    }
+};
+
+// Limit is the maximum number of TS queues that can be handled simultaneously.
+template<typename OrderType = Ordering, typename TsType = Timestamp, TsType MaxTimestamps = 5, std::size_t PacketsLimit = 200>
+class JitterBuffer
+{
+    struct ChunkQueue
+    {
+        std::vector<std::optional<QByteArray>> chunks{};
+
+        inline bool isComplete() const
+        {
+            return std::none_of(chunks.cbegin(), chunks.cend(), [](const auto &opt) { return !opt.has_value(); });
+        }
+
+        inline QByteArray assemble() const
+        {
+            const auto total = std::accumulate(chunks.cbegin(), chunks.cend(), qsizetype(0), [](qsizetype sum, const auto &opt) {
+                return sum + opt->size();
+            });
+
+            QByteArray out;
+            out.reserve(total);
+            for (const auto &opt : chunks) {
+                out += *opt;
+            }
+
+            return out;
+        }
+    };
+
+    std::map<TsType, ChunkQueue> m_data{}; // sorted by timestamp, oldest first
+
+public:
+    // Insert a chunk for a given timestamp and order.
+    // `totalChunks` is the total number of chunks for this timestamp (must be > 0).
+    void pushChunk(const TsType ts, const OrderType order, const OrderType totalChunks, const QByteArray data)
+    {
+        // If we already have MaxTimestamps timestamps and this one is not present,
+        // evict the oldest one to make room.
+        auto it = m_data.find(ts);
+        if (it == m_data.end()) {
+            while (m_data.size() >= MaxTimestamps) {
+                m_data.erase(m_data.begin()); // remove oldest
+            }
+
+            it = m_data.emplace(ts, ChunkQueue{}).first;
+        }
+
+        auto &queue = it->second;
+        // Ensure the chunks vector is large enough to hold all orders.
+        if (queue.chunks.size() < totalChunks) {
+            queue.chunks.resize(totalChunks);
+        }
+
+        // Store the chunk if the slot is empty (ignore duplicates).
+        if (order < queue.chunks.size() && !queue.chunks[order].has_value()) {
+            queue.chunks[order] = std::move(data);
+        }
+    }
+
+    // Attempt to retrieve a complete packet, oldest first.
+    // Returns the assembled QByteArray if a complete timestamp is found,
+    // otherwise std::nullopt.
+    inline std::optional<QByteArray> pullComplete()
+    {
+        for (auto it = m_data.begin(); it != m_data.end(); ++it) {
+            auto &queue = it->second;
+            if (queue.isComplete()) {
+                QByteArray assembled = queue.assemble();
+                // Remove this timestamp and all older ones (they are no longer needed).
+                m_data.erase(m_data.begin(), std::next(it));
+                return assembled;
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    // Clear all stored data.
+    inline void clear() { m_data.clear(); }
+
+    // Optional: check if a timestamp is already complete (for debugging).
+    inline bool isComplete(const TsType ts) const
+    {
+        const auto it = m_data.find(ts);
+
+        return it != m_data.end() && it->second.isComplete();
     }
 };
 
