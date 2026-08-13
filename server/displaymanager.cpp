@@ -53,13 +53,23 @@ bool DisplayManager::registerClient(NetworkClient *client)
             &DisplayThread::nowFree,
             this,
             [this](DisplayThread *thread) {
-                thread->terminate();
+                // Remove any digest entries that pointed to this thread so it may be reused.
+                for (auto it = m_usedDisplays.begin(); it != m_usedDisplays.end();) {
+                    if (it.value() == thread) {
+                        it = m_usedDisplays.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+
                 m_freeDisplays.enqueue(thread);
             },
             Qt::QueuedConnection);
 
         m_usedDisplays.insert(digest, thread);
-        thread->start(); // Looks like there's an issue here.
+        if (!thread->isRunning()) {
+            thread->start();
+        }
     }
 
     thread->addClient(client);
