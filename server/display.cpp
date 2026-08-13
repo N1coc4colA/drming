@@ -196,9 +196,6 @@ private:
             buf.close();
         }
 
-        qDebug() << servImg.data.data.size() << qChecksum(servImg.data.data);
-        qDebug() << servImg.data.data.right(50).toBase64();
-
         sendData(std::move(Packets::Writer::generate(servImg)));
     }
 };

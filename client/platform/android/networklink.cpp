@@ -74,9 +74,6 @@ void NetworkLink::processPacket(const Packets::ServerImage &img)
         m_locked = true;
     }
 
-    qDebug() << img.data.data.size() << qChecksum(img.data.data);
-    qDebug() << img.data.data.right(50).toBase64();
-
     const QImage converted = QImage::fromData(img.data.data, img.format.data);
     if (!converted.isNull()) [[unlikely]] {
         // Will trigger repaint.
