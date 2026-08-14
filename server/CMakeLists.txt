@@ -14,6 +14,7 @@ set(CMAKE_CXX_STANDARD 23)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Network DBus)
 find_package(Libdrm REQUIRED)
 find_package(PkgConfig REQUIRED)
+find_package(ALSA REQUIRED)
 
 pkg_check_modules(AVAHI REQUIRED avahi-client)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
@@ -42,6 +43,7 @@ set(PROJECT_SOURCES
     networkclient.h networkclient.cpp
     parameters.h parameters.cpp
     server.h server.cpp
+    speaker.h speaker.cpp
     dtlsserver.h dtlsserver.cpp
     sslserver.h sslserver.cpp
     sse.h sse.cpp
@@ -67,6 +69,7 @@ drming_server
         ${AVAHI_LIBRARIES}
         PkgConfig::FFMPEG
         Libdrm::Libdrm
+        ALSA::ALSA
 )
 
 
