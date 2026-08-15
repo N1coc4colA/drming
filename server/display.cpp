@@ -9,6 +9,7 @@
 
 #include "ffmpeg.h"
 #include "parameters.h"
+#include "speaker.h"
 
 Display::Display(const QString &connectorName, QObject *parent)
     : QObject(parent)
@@ -131,6 +132,26 @@ void Display::forward()
 
     processImage(result);
     DisplayReader::releaseVkmsFrameBuffer(fb);
+
+    // Send the audio too.
+    auto cap = AudioCapture::instance();
+    cap->readFrame();
+
+    Packets::ServerAudio audio{};
+
+    {
+        const auto &buffer = cap->getBuffer();
+        const AudioBufferLock lock(buffer);
+
+        if (!buffer.size()) {
+            return;
+        }
+
+        audio.data.data = std::move(QByteArray(reinterpret_cast<const char *>(buffer.getData()), static_cast<qsizetype>(buffer.size())));
+        audio.frames.data = static_cast<unsigned int>(buffer.frameCount());
+    }
+
+    sendData(std::move(Packets::Writer::generate(audio)));
 }
 
 void Display::onConnected()
@@ -205,7 +226,7 @@ class DisplayH265 : public Display
 public:
     DisplayH265(const QString &connectorName, QObject *parent = nullptr)
         : Display(connectorName, parent)
-        , m_encoder([this](const uint8_t *data, size_t size, int64_t pts) { this->h265dataForward(data, size, pts); },
+        , m_encoder([this](const uint8_t *data, const size_t size, const int64_t pts) { this->h265dataForward(data, size, pts); },
                     1000 / Settings::frameMSecsInterval)
     {}
 
