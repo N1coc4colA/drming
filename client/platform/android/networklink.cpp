@@ -1,5 +1,5 @@
 #include "networklink.h"
-#include "decode.h"
+#include "videodecoder.h"
 #include "videoframeitem.h"
 
 namespace Platform {
@@ -8,11 +8,15 @@ NetworkLink::NetworkLink(QObject *parent)
     : ::NetworkLink(parent)
     , Parser(*this)
 {
-    QObject::connect(this, &NetworkLink::connectionInitialised, this, [this]() { Parser::clear(); });
+    QObject::connect(this, &NetworkLink::connectionInitialised, this, [this]() {
+        m_player.open();
+        Parser::clear();
+    });
     QObject::connect(this, &NetworkLink::closed, this, [this]() {
         m_locked = false;
         m_waitedForResolution = false;
         Parser::clearRules();
+        m_player.close();
     });
 }
 
@@ -81,4 +85,8 @@ void NetworkLink::processPacket(const Packets::ServerImage &img)
     }
 }
 
+void NetworkLink::processPacket(const Packets::ServerAudio &audio)
+{
+    m_player.write(reinterpret_cast<const int16_t *>(audio.data.data.constData()), audio.frames.data);
+}
 } // namespace Platform

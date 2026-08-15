@@ -34,6 +34,19 @@ class VideoDecoder : public QObject
 {
     Q_OBJECT
 
+    // EGLImage cache: AImageReader has a fixed pool of buffers (maxImages below),
+    // so we cache one EGLImageKHR per AHardwareBuffer identity instead of
+    // creating/destroying an EGLImage every frame. We hold our own reference
+    // (AHardwareBuffer_acquire/_release) on each cached buffer so the pointer
+    // can't be reused by the system for a different allocation while cached
+    // (ABA hazard) — AImage_delete() only drops AImageReader's reference.
+    static constexpr size_t kMaxCachedImages = 3; // must match AImageReader_new's maxImages
+    struct CachedImage
+    {
+        EGLImageKHR image = EGL_NO_IMAGE_KHR;
+        AHardwareBuffer* bufferRef = nullptr; // our own acquired reference
+    };
+
 public:
     explicit VideoDecoder(QObject* parent = nullptr);
     ~VideoDecoder();
@@ -76,18 +89,6 @@ private:
     AImageReader* m_imageReader = nullptr;
     ANativeWindow* m_window = nullptr;
 
-    // EGLImage cache: AImageReader has a fixed pool of buffers (maxImages below),
-    // so we cache one EGLImageKHR per AHardwareBuffer identity instead of
-    // creating/destroying an EGLImage every frame. We hold our own reference
-    // (AHardwareBuffer_acquire/_release) on each cached buffer so the pointer
-    // can't be reused by the system for a different allocation while cached
-    // (ABA hazard) — AImage_delete() only drops AImageReader's reference.
-    static constexpr size_t kMaxCachedImages = 3; // must match AImageReader_new's maxImages
-    struct CachedImage
-    {
-        EGLImageKHR image = EGL_NO_IMAGE_KHR;
-        AHardwareBuffer* bufferRef = nullptr; // our own acquired reference
-    };
     std::unordered_map<AHardwareBuffer*, CachedImage> m_eglImageCache;
     void destroyEglImageCache();
 

@@ -1,4 +1,4 @@
-#include "decode.h"
+#include "videodecoder.h"
 
 #include <QDebug>
 

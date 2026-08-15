@@ -4,6 +4,8 @@
 #include "../../../parser.h"
 #include "../../networklink.h"
 
+#include "audioplayer.h"
+
 #include "../settings.h"
 
 namespace Platform {
@@ -22,11 +24,13 @@ public:
     void processPacket(const Packets::ServerStream &img);
     void processPacket(const Packets::Reinit &);
     void processPacket(const Packets::ClientResolution &res);
+    void processPacket(const Packets::ServerAudio &audio);
     void onPacketErrors();
 
     void setItem(QObject *item) override;
 
 private:
+    AudioPlayer m_player;
     VideoDecoder *m_decoder = nullptr;
     VideoFrameItem *m_item = nullptr;
     bool m_waitedForResolution = false;

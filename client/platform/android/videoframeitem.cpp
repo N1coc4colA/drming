@@ -4,8 +4,8 @@
 #include <QQuickWindow>
 #include <QSGSimpleTextureNode>
 
-#include "decode.h"
 #include "oesrendernode.h"
+#include "videodecoder.h"
 
 namespace Platform {
 
