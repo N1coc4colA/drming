@@ -29,9 +29,10 @@ enum class Type : quint16 {
     ClientResolution,
     ServerBrightness,
     ServerStream,
+    ServerAudio,
 
     MINIMUM = HeartBeat,
-    MAXIMUM = ServerStream,
+    MAXIMUM = ServerAudio,
 
     LOWER = HeartBeat,
     UPPER = MAXIMUM,
@@ -308,7 +309,17 @@ struct ServerStream
     static constexpr auto fields = std::tuple{&ServerStream::data};
 };
 
-using PacketVariant = std::variant<HeartBeat, Reinit, ServerImage, RequestClientResolution, ClientResolution, ServerBrightness, ServerStream>;
+struct ServerAudio
+{
+    static constexpr auto type = Type::ServerAudio;
+    VariableBoundField<QByteArray, quint64, 1> data;
+    VariableFixedField<uint32_t, uint32_t, 0, 1024> frames;
+
+    static constexpr auto fields = std::tuple{&ServerAudio::data};
+};
+
+using PacketVariant
+    = std::variant<HeartBeat, Reinit, ServerImage, RequestClientResolution, ClientResolution, ServerBrightness, ServerStream, ServerAudio>;
 
 class Writer
 {
