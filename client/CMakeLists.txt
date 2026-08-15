@@ -148,6 +148,7 @@ if (ANDROID)
             EGL
             GLESv2
             android
+            aaudio
     )
 else()
     target_link_libraries(
