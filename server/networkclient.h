@@ -1,9 +1,11 @@
 #ifndef NETWORKCLIENT_H
 #define NETWORKCLIENT_H
 
+#include <QHostAddress>
+#include <QMutex>
 #include <QSslSocket>
 #include <QUdpSocket>
-#include <QHostAddress>
+
 #include <chrono>
 
 #include "../parser.h"
@@ -61,15 +63,15 @@ class NetworkClientDtls : public NetworkClient
 
 public:
     // Takes ownership of dtls, uses sharedSocket for sending/receiving
-    NetworkClientDtls(QDtls *dtls, const QHostAddress &address, quint16 port,
-                      QUdpSocket *sharedSocket, QObject *parent = nullptr);
+    NetworkClientDtls(
+        QDtls *dtls, const QHostAddress &address, quint16 port, QUdpSocket &sharedSocket, QMutex &networkMutex, QObject *parent = nullptr);
     ~NetworkClientDtls() override;
 
     // Feed an encrypted datagram received from this peer
     void incomingEncryptedData(const QByteArray &encrypted);
 
     // NetworkClient interface
-    inline QAbstractSocket *socket() override { return m_sharedSocket; };
+    inline QAbstractSocket *socket() override { return &m_sharedSocket; };
     qint64 write(const QByteArray &data) override;
     void close() override;
     QAbstractSocket::SocketState state() const override;
@@ -87,7 +89,8 @@ private:
     QDtls *m_dtls;
     const QHostAddress m_address;
     const quint16 m_port;
-    QUdpSocket *m_sharedSocket;
+    QUdpSocket &m_sharedSocket;
+    QMutex &m_networkMutex;
     QTimer *m_timer;
     TimePoint m_lastHeartBeat;
 };
@@ -108,7 +111,8 @@ public:
     QByteArray digest() const override;
 
 protected:
-    QSslSocket *m_socket;
+    QMutex m_networkMutex;
+    QSslSocket *m_socket = nullptr;
 };
 
 #endif // NETWORKCLIENT_H

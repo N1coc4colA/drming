@@ -1,9 +1,10 @@
 #ifndef DTLSSERVER_H
 #define DTLSSERVER_H
 
-#include <QMap>
-#include <QUdpSocket>
 #include <QHostAddress>
+#include <QMap>
+#include <QMutex>
+#include <QUdpSocket>
 
 #include "server.h"
 #include "networkclient.h"
@@ -27,7 +28,8 @@ private Q_SLOTS:
     void onClientDisconnected();
 
 private:
-    QUdpSocket *m_socket = nullptr;
+    QMutex m_networkMutex;
+    QUdpSocket m_socket;
     QHostAddress m_address;
     quint16 m_port;
 

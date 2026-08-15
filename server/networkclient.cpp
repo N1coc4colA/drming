@@ -23,13 +23,14 @@ void NetworkClient::processPacket(const Packets::RequestClientResolution &)
     m_display->requireResolutionInformation();
 }
 
-NetworkClientDtls::NetworkClientDtls(QDtls *dtls, const QHostAddress &address, quint16 port,
-                                     QUdpSocket *sharedSocket, QObject *parent)
+NetworkClientDtls::NetworkClientDtls(
+    QDtls *dtls, const QHostAddress &address, const quint16 port, QUdpSocket &sharedSocket, QMutex &networkMutex, QObject *parent)
     : NetworkClient(parent)
     , m_dtls(dtls)
     , m_address(address)
     , m_port(port)
     , m_sharedSocket(sharedSocket)
+    , m_networkMutex(networkMutex)
     , m_timer(new QTimer(this))
 {
     m_dtls->setParent(this); // take ownership
@@ -47,7 +48,7 @@ NetworkClientDtls::~NetworkClientDtls()
 void NetworkClientDtls::incomingEncryptedData(const QByteArray &encrypted)
 {
     // Decrypt using the peer address/port – QDtls::decryptDatagram overload
-    auto plaintext = m_dtls->decryptDatagram(m_sharedSocket, encrypted);
+    auto plaintext = m_dtls->decryptDatagram(&m_sharedSocket, encrypted);
     if (plaintext.isEmpty()) {
         if (m_dtls->dtlsError() != QDtlsError::NoError) {
             qWarning() << "DTLS decrypt error:" << m_dtls->dtlsErrorString();
@@ -80,7 +81,7 @@ void NetworkClientDtls::incomingEncryptedData(const QByteArray &encrypted)
 
 qint64 NetworkClientDtls::write(const QByteArray &data)
 {
-    if (!m_dtls || !m_sharedSocket) {
+    if (!m_dtls) {
         return -1;
     }
 
@@ -100,7 +101,13 @@ qint64 NetworkClientDtls::write(const QByteArray &data)
         chunk.prepend(reinterpret_cast<const char *>(&chunks_be), sizeof(chunks_be));
         chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
 
-        if (m_dtls->writeDatagramEncrypted(m_sharedSocket, chunk) < 0) {
+        qint64 ret;
+        {
+            QMutexLocker lock(&m_networkMutex);
+            ret = m_dtls->writeDatagramEncrypted(&m_sharedSocket, chunk);
+        }
+
+        if (ret < 0) {
             const auto err = m_dtls->dtlsError();
             switch (err) {
             case QDtlsError::RemoteClosedConnectionError: {
@@ -140,15 +147,19 @@ void NetworkClientDtls::close()
 
 QAbstractSocket::SocketState NetworkClientDtls::state() const
 {
-    if (!m_dtls)
+    if (!m_dtls) {
         return QAbstractSocket::UnconnectedState;
+    }
+
     return m_dtls->isConnectionEncrypted() ? QAbstractSocket::ConnectedState : QAbstractSocket::ConnectingState;
 }
 
 QByteArray NetworkClientDtls::digest() const
 {
-    if (!m_dtls)
+    if (!m_dtls) {
         return {};
+    }
+
     return m_dtls->dtlsConfiguration().peerCertificate().digest();
 }
 
@@ -171,8 +182,12 @@ NetworkClientSsl::NetworkClientSsl(QSslSocket *socket, QObject *parent)
     : NetworkClient(parent)
     , m_socket(socket)
 {
+    assert(socket);
+
     m_socket->setParent(this);
+
     connect(m_socket, &QSslSocket::readyRead, this, [this]() {
+        QMutexLocker lock(&m_networkMutex);
         addData(m_socket->readAll());
     });
     connect(m_socket, &QSslSocket::disconnected, this, &NetworkClientSsl::disconnected);
@@ -180,9 +195,7 @@ NetworkClientSsl::NetworkClientSsl(QSslSocket *socket, QObject *parent)
 
 qint64 NetworkClientSsl::write(const QByteArray &data)
 {
-    if (!m_socket) {
-        return -1;
-    }
+    QMutexLocker lock(&m_networkMutex);
 
     const auto ret = m_socket->write(data);
     m_socket->flush();
@@ -191,9 +204,5 @@ qint64 NetworkClientSsl::write(const QByteArray &data)
 
 QByteArray NetworkClientSsl::digest() const
 {
-    if (!m_socket) {
-        return {};
-    }
-
     return m_socket->peerCertificate().digest();
 }

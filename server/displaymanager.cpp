@@ -48,6 +48,13 @@ bool DisplayManager::registerClient(NetworkClient *client)
     if (!m_usedDisplays.contains(digest)) {
         qDebug() << "Screen not already available for client" << client->peerAddress() << client->peerPort();
 
+        m_count++;
+        if (m_count == 1) {
+            Q_EMIT firstClientConnected();
+        }
+
+        qDebug() << "Hello client !";
+
         connect(
             thread,
             &DisplayThread::nowFree,
@@ -63,6 +70,11 @@ bool DisplayManager::registerClient(NetworkClient *client)
                 }
 
                 m_freeDisplays.enqueue(thread);
+
+                m_count--;
+                if (m_count == 0) {
+                    Q_EMIT noMoreClients();
+                }
             },
             Qt::QueuedConnection);
 

@@ -1,9 +1,10 @@
 #include "avahi_publisher.h"
 #include "commandparser.h"
 #include "displaymanager.h"
-#include "parameters.h"
-#include "sslserver.h"
 #include "dtlsserver.h"
+#include "parameters.h"
+#include "speaker.h"
+#include "sslserver.h"
 
 #include <QCoreApplication>
 
@@ -30,9 +31,14 @@ int main(int argc, char *argv[])
         publisher->start();
     }
 
+    AudioCapture capture;
+
     DisplayManager manager{};
     Server *server = Parameters::instance.streamFormat == Opts::DisplayStreamType::h265 ? static_cast<Server *>(new SslServer(&app))
                                                                                         : static_cast<Server *>(new DtlsServer(&app));
+
+    QObject::connect(&manager, &DisplayManager::noMoreClients, &capture, &AudioCapture::stop);
+    QObject::connect(&manager, &DisplayManager::firstClientConnected, &capture, &AudioCapture::start);
 
     QObject::connect(server, &Server::clientConnected, [&manager](NetworkClient *client) {
         // An error occurred.
