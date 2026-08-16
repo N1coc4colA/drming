@@ -143,11 +143,13 @@ void Display::forward()
         const auto &buffer = cap->getBuffer();
         const AudioBufferLock lock(buffer);
 
-        if (!buffer.size()) {
+        if (!buffer.frameCount()) {
             return;
         }
 
-        audio.data.data = std::move(QByteArray(reinterpret_cast<const char *>(buffer.getData()), static_cast<qsizetype>(buffer.size())));
+        audio.left.data = std::move(QByteArray(reinterpret_cast<const char *>(buffer.getLeft()), static_cast<qsizetype>(buffer.size())));
+        audio.right.data = std::move(QByteArray(reinterpret_cast<const char *>(buffer.getRight()), static_cast<qsizetype>(buffer.size())));
+
         audio.frames.data = static_cast<unsigned int>(buffer.frameCount());
     }
 

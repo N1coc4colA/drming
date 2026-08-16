@@ -312,10 +312,11 @@ struct ServerStream
 struct ServerAudio
 {
     static constexpr auto type = Type::ServerAudio;
-    VariableBoundField<QByteArray, quint64, 1> data;
-    VariableFixedField<uint32_t, uint32_t, 0, 1024> frames;
+    FixedField<uint32_t, uint32_t, 0, 1024 * 1024> frames;
+    VariableBoundField<QByteArray, quint64, 1> left;
+    VariableBoundField<QByteArray, quint64, 1> right;
 
-    static constexpr auto fields = std::tuple{&ServerAudio::data};
+    static constexpr auto fields = std::tuple{&ServerAudio::frames, &ServerAudio::left, &ServerAudio::right};
 };
 
 using PacketVariant

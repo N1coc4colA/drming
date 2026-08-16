@@ -39,27 +39,19 @@ class AudioBuffer
 public:
     inline void setFrames(const std::size_t frames) { m_frames = frames; }
     inline void setSize(const std::size_t newSize) { m_size = newSize; }
-    inline void ensureAvailable(const std::size_t size)
-    {
-        if (m_buffer.size() < size) {
-            m_buffer.resize(size);
-        }
-    }
-    inline void setData(const std::uint8_t* newData, const std::size_t newSize)
-    {
-        std::memcpy(m_buffer.data(), newData, newSize);
-        m_size = newSize;
-    }
 
-    inline uint8_t* data() { return m_buffer.data(); }
+    inline void* leftData() { return m_buffers[0]; }
+    inline void* rightData() { return m_buffers[1]; }
+    inline void** data() { return m_buffers; }
 
     inline std::size_t size() const { return m_size; }
-    inline const uint8_t* getData() const { return m_buffer.data(); }
+    inline const void* getLeft() const { return m_buffers[0]; }
+    inline const void* getRight() const { return m_buffers[1]; }
     inline std::size_t frameCount() const { return m_frames; }
 
 private:
     mutable QReadWriteLock m_lock;
-    std::vector<uint8_t> m_buffer{};
+    void* m_buffers[2] = {nullptr};
     std::size_t m_size = 0;
     std::size_t m_frames = 0;
 
@@ -80,36 +72,13 @@ class AudioCapture : public QObject
     Q_OBJECT
 
 public:
-    explicit AudioCapture(const std::string& device = "hw:Loopback,0,0", QObject* parent = nullptr);
+    explicit AudioCapture(const std::string& device = "hw:Loopback,1,0", QObject* parent = nullptr);
     ~AudioCapture();
 
     static AudioCapture* instance() { return m_instance; }
 
     // Lire une période de données audio
-    inline bool readFrame()
-    {
-        const AudioBufferWriteLock lock(this->m_buffer);
-
-        const auto frames = snd_pcm_readi(handle, m_buffer.data(),
-                                          m_maxBufferSize / (2 * Settings::channelCount)); // frames
-        if (frames == -EPIPE) {
-            // Sous-écoulement (overrun) : on réinitialise
-            qWarning() << "Overrun, réinitialisation...";
-            snd_pcm_prepare(handle);
-            return false;
-        } else if (frames < 0) {
-            qWarning() << "Erreur de lecture: " << snd_strerror(frames);
-            return false;
-        } else if (frames == 0) {
-            // Pas de données disponibles
-            return false;
-        }
-
-        m_buffer.setSize(frames * 2 * Settings::channelCount);
-        m_buffer.setFrames(frames);
-
-        return true;
-    }
+    bool readFrame();
 
     inline void performRead() { Q_UNUSED(readFrame()); }
 
@@ -123,7 +92,9 @@ private:
     snd_pcm_t* handle = nullptr;
     snd_pcm_hw_params_t* params = nullptr;
     AudioBuffer m_buffer;
-    std::size_t m_maxBufferSize;
+    snd_pcm_uframes_t m_periodSize = 1024;     // Arbitrary default because it's this one on my computer.
+    snd_pcm_uframes_t m_maxBufferSize = 32768; // Arbitrary default because it's this one on my computer.
+    std::size_t m_bufferByteSize = 0;
     QTimer* m_timer;
 
     static AudioCapture* m_instance;

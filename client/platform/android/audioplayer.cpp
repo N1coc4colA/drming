@@ -15,62 +15,74 @@ bool AudioPlayer::open()
     AAudioStreamBuilder* builder = nullptr;
     aaudio_result_t result = AAudio_createStreamBuilder(&builder);
     if (result != AAUDIO_OK || builder == nullptr) {
-        qCritical() << "Erreur création builder:" << result;
+        qCritical() << "AAudioStream builder creation error:" << result;
         return false;
     }
 
     // Configuration
     AAudioStreamBuilder_setDirection(builder, AAUDIO_DIRECTION_OUTPUT);
-    AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I16); // S16_LE
+    AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I32); // S32_LE
+    AAudioStreamBuilder_setUsage(builder, AAUDIO_USAGE_MEDIA);
+    AAudioStreamBuilder_setContentType(builder, AAUDIO_CONTENT_TYPE_MUSIC);
+    AAudioStreamBuilder_setPerformanceMode(builder, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
     AAudioStreamBuilder_setChannelCount(builder, Settings::channelCount);
     AAudioStreamBuilder_setSampleRate(builder, Settings::sampleRate);
-    AAudioStreamBuilder_setBufferCapacityInFrames(builder, 1024); // Taille tampon
+    AAudioStreamBuilder_setBufferCapacityInFrames(builder, 1024);
 
-    // Ouvrir le flux
     result = AAudioStreamBuilder_openStream(builder, &stream);
-    AAudioStreamBuilder_delete(builder); // Le builder n'est plus nécessaire
+    AAudioStreamBuilder_delete(builder);
 
     if (result != AAUDIO_OK || stream == nullptr) {
-        qCritical() << "Erreur ouverture stream:" << result;
+        qCritical() << "AAudioStream building failed:" << result;
         return false;
     }
 
-    // Démarrer la lecture (le flux est en pause par défaut)
     result = AAudioStream_requestStart(stream);
     if (result != AAUDIO_OK) {
-        qCritical() << "Erreur démarrage: " << result;
+        qCritical() << "AAudioStream start error: " << result;
         return false;
     }
 
     running = true;
-    qDebug() << "Flux AAudio ouvert et démarré.";
 
     return true;
 }
 
-int AudioPlayer::write(const int16_t* data, const int numFrames)
+int AudioPlayer::write(const Settings::audioFormat* left, const Settings::audioFormat* right, const int numFrames)
 {
-    if (!stream || !running) {
+    if (!stream || !running || !numFrames) {
+        qDebug() << stream << running << numFrames;
         return -1;
     }
 
-    // AAudioStream_write est bloquant par défaut.
-    // Le timeout est en nanosecondes. Utilisez 0 pour non-bloquant.
-    const int64_t timeoutNs = 0;
-    const aaudio_result_t result = AAudioStream_write(stream, data, numFrames, timeoutNs);
+    // Perform interleave
+    {
+        m_interleaved.resize(numFrames);
+        Settings::audioFormat* dst = m_interleaved.data();
+        const Settings::audioFormat* l = left;
+        const Settings::audioFormat* r = right;
+
+        // Let the compiler do its magic.
+        for (int i = 0; i < numFrames; ++i) {
+            *dst++ = *l++;
+            *dst++ = *r++;
+        }
+    }
+
+    // 0 timeout for non-blocking.
+    const aaudio_result_t result = AAudioStream_write(stream, m_interleaved.data(), numFrames, 0);
 
     if (result < 0) {
-        // Gérer les erreurs (sous-écoulement, déconnexion...)
         if (result == AAUDIO_ERROR_INTERNAL) {
-            // Sous-écoulement : pas assez de données fournies, on ignore
+            qDebug() << "Not enough data !";
             return 0;
         } else {
-            qWarning() << "Erreur écriture:" << result;
+            qWarning() << "Write error:" << result;
             return -1;
         }
     }
 
-    return static_cast<int>(result); // Nombre de trames réellement écrites
+    return static_cast<int>(result);
 }
 
 void AudioPlayer::close()

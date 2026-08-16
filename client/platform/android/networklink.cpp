@@ -87,6 +87,14 @@ void NetworkLink::processPacket(const Packets::ServerImage &img)
 
 void NetworkLink::processPacket(const Packets::ServerAudio &audio)
 {
-    m_player.write(reinterpret_cast<const int16_t *>(audio.data.data.constData()), audio.frames.data);
+    // Maybe the number of frames & the provided size does not correpsond. This could point to a *flow.
+    if (audio.left.size + audio.right.size != sizeof(Settings::audioFormat) * audio.frames.data * 2) {
+        return;
+    }
+
+    qDebug() << "Written audio:"
+             << m_player.write(reinterpret_cast<const Settings::audioFormat *>(audio.left.data.constData()),
+                               reinterpret_cast<const Settings::audioFormat *>(audio.right.data.constData()),
+                               audio.frames.data);
 }
 } // namespace Platform
