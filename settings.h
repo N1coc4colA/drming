@@ -1,6 +1,8 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
+#include <cstdint>
+
 namespace Settings {
 
 namespace utils {
@@ -26,8 +28,10 @@ static constexpr auto timeFormat = " HH:mm";
 
 static constexpr auto simultaneousPendings = 5;
 
-static constexpr auto sampleRate = 16000;
+static constexpr auto sampleRate = 48000;
 static constexpr auto channelCount = 2;
-}
+using audioFormat = int32_t;
+
+} // namespace Settings
 
 #endif // SETTINGS_H
