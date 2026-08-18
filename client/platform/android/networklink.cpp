@@ -92,9 +92,8 @@ void NetworkLink::processPacket(const Packets::ServerAudio &audio)
         return;
     }
 
-    qDebug() << "Written audio:"
-             << m_player.write(reinterpret_cast<const Settings::audioFormat *>(audio.left.data.constData()),
-                               reinterpret_cast<const Settings::audioFormat *>(audio.right.data.constData()),
-                               audio.frames.data);
+    m_player.write(reinterpret_cast<const Settings::audioFormat *>(audio.left.data.constData()),
+                   reinterpret_cast<const Settings::audioFormat *>(audio.right.data.constData()),
+                   audio.frames.data);
 }
 } // namespace Platform
