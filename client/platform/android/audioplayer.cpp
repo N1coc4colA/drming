@@ -25,6 +25,7 @@ bool AudioPlayer::open()
     AAudioStreamBuilder_setUsage(builder, AAUDIO_USAGE_MEDIA);
     AAudioStreamBuilder_setContentType(builder, AAUDIO_CONTENT_TYPE_MUSIC);
     AAudioStreamBuilder_setPerformanceMode(builder, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
+    AAudioStreamBuilder_setSharingMode(builder, AAUDIO_SHARING_MODE_EXCLUSIVE);
     AAudioStreamBuilder_setChannelCount(builder, Settings::channelCount);
     AAudioStreamBuilder_setSampleRate(builder, Settings::sampleRate);
     AAudioStreamBuilder_setBufferCapacityInFrames(builder, 1024);
@@ -72,7 +73,7 @@ int AudioPlayer::write(const Settings::audioFormat* left, const Settings::audioF
     // 0 timeout for non-blocking.
     const aaudio_result_t result = AAudioStream_write(stream, m_interleaved.data(), numFrames, 0);
 
-    if (result < 0) {
+    if (result < 0) [[unlikely]] {
         if (result == AAUDIO_ERROR_INTERNAL) {
             qDebug() << "Not enough data !";
             return 0;
