@@ -14,6 +14,8 @@ public:
 
     void addClient(NetworkClient *client);
 
+    inline Display *display() { return m_display; }
+
 Q_SIGNALS:
     void nowFree(DisplayThread *);
 

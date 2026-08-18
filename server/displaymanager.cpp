@@ -53,21 +53,19 @@ bool DisplayManager::registerClient(NetworkClient *client)
             Q_EMIT firstClientConnected();
         }
 
-        qDebug() << "Hello client !";
-
         connect(
             thread,
             &DisplayThread::nowFree,
             this,
             [this](DisplayThread *thread) {
                 // Remove any digest entries that pointed to this thread so it may be reused.
-                for (auto it = m_usedDisplays.begin(); it != m_usedDisplays.end();) {
+                m_usedDisplays.apply([this, thread](auto &it) {
                     if (it.value() == thread) {
-                        it = m_usedDisplays.erase(it);
+                        it = m_usedDisplays.eraseUnsafe(it);
                     } else {
                         ++it;
                     }
-                }
+                });
 
                 m_freeDisplays.enqueue(thread);
 

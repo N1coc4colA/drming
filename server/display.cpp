@@ -132,28 +132,6 @@ void Display::forward()
 
     processImage(result);
     DisplayReader::releaseVkmsFrameBuffer(fb);
-
-    // Send the audio too.
-    auto cap = AudioCapture::instance();
-    cap->readFrame();
-
-    Packets::ServerAudio audio{};
-
-    {
-        const auto &buffer = cap->getBuffer();
-        const AudioBufferLock lock(buffer);
-
-        if (!buffer.frameCount()) {
-            return;
-        }
-
-        audio.left.data = std::move(QByteArray(reinterpret_cast<const char *>(buffer.getLeft()), static_cast<qsizetype>(buffer.size())));
-        audio.right.data = std::move(QByteArray(reinterpret_cast<const char *>(buffer.getRight()), static_cast<qsizetype>(buffer.size())));
-
-        audio.frames.data = static_cast<unsigned int>(buffer.frameCount());
-    }
-
-    sendData(std::move(Packets::Writer::generate(audio)));
 }
 
 void Display::onConnected()

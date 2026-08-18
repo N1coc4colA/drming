@@ -8,13 +8,13 @@
 
 #include <alsa/asoundlib.h>
 
+#include <atomic>
 #include <cstring>
-#include <vector>
-
-#include "../settings.h"
+#include <thread>
 
 class QTimer;
 class AudioBuffer;
+class DisplayTable;
 
 class AudioBufferLock
 {
@@ -72,18 +72,15 @@ class AudioCapture : public QObject
     Q_OBJECT
 
 public:
-    explicit AudioCapture(const std::string& device = "hw:Loopback,1,0", QObject* parent = nullptr);
+    explicit AudioCapture(DisplayTable* table = nullptr, const std::string& device = "plughw:Loopback,1,0", QObject* parent = nullptr);
     ~AudioCapture();
 
     static AudioCapture* instance() { return m_instance; }
 
-    // Lire une période de données audio
-    bool readFrame();
-
-    inline void performRead() { Q_UNUSED(readFrame()); }
-
     // Accès aux données audio (format S16_LE, entrelacé)
     inline const AudioBuffer& getBuffer() const { return m_buffer; }
+
+    void setTable(DisplayTable* table);
 
     void stop();
     void start();
@@ -92,12 +89,19 @@ private:
     snd_pcm_t* handle = nullptr;
     snd_pcm_hw_params_t* params = nullptr;
     AudioBuffer m_buffer;
+
     snd_pcm_uframes_t m_periodSize = 1024;     // Arbitrary default because it's this one on my computer.
     snd_pcm_uframes_t m_maxBufferSize = 32768; // Arbitrary default because it's this one on my computer.
     std::size_t m_bufferByteSize = 0;
-    QTimer* m_timer;
+
+    std::atomic<bool> m_continue = false;
+    DisplayTable* m_table = nullptr;
+    std::thread m_thread{};
 
     static AudioCapture* m_instance;
+
+    void run();
+    bool readFrame();
 };
 
 #endif // SPEAKER_H

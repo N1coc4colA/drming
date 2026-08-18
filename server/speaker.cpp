@@ -1,12 +1,16 @@
 #include "speaker.h"
 
-#include <QTimer>
+#include "displaymanager.h"
+#include "displaythread.h"
+
+#include "../parser.h"
+#include "../settings.h"
 
 AudioCapture* AudioCapture::m_instance = nullptr;
 
-AudioCapture::AudioCapture(const std::string& device, QObject* parent)
+AudioCapture::AudioCapture(DisplayTable *table, const std::string &device, QObject *parent)
     : QObject(parent)
-    , m_timer(new QTimer(this))
+    , m_table(table)
 {
     assert(!m_instance);
 
@@ -75,17 +79,13 @@ AudioCapture::AudioCapture(const std::string& device, QObject* parent)
 
         throw std::runtime_error("SND Aligned memory allocation failed: " + std::string(snd_strerror(err)));
     }
-
-    QObject::connect(m_timer, &QTimer::timeout, this, &AudioCapture::performRead);
-
-    m_timer->setInterval(500);
-    m_timer->stop();
 }
 
 AudioCapture::~AudioCapture()
 {
+    stop();
+
     if (handle) {
-        snd_pcm_drop(handle);
         snd_pcm_close(handle);
     }
 
@@ -105,14 +105,18 @@ AudioCapture::~AudioCapture()
 
 void AudioCapture::stop()
 {
-    m_timer->stop();
-    snd_pcm_drop(handle);
+    m_continue = false;
+    m_thread.join();
 }
 
 void AudioCapture::start()
 {
-    snd_pcm_start(handle);
-    m_timer->start();
+    if (m_continue) {
+        return;
+    }
+
+    m_continue = true;
+    m_thread = std::thread([this]() { run(); });
 }
 
 bool AudioCapture::readFrame()
@@ -143,7 +147,7 @@ bool AudioCapture::readFrame()
         m_buffer.setSize(0);
         m_buffer.setFrames(0);
 
-        return true;
+        return false;
     }
 
     // Copy from mmap areas to our buffers (only if we need to, but we can directly use areas)
@@ -171,4 +175,37 @@ bool AudioCapture::readFrame()
     m_buffer.setFrames(frames);
 
     return true;
+}
+
+void AudioCapture::setTable(DisplayTable *table)
+{
+    m_table = table;
+}
+
+void AudioCapture::run()
+{
+    snd_pcm_start(handle);
+
+    while (m_continue) {
+        if (readFrame()) {
+            Packets::ServerAudio audio{};
+            const AudioBufferLock lock(m_buffer);
+
+            audio.left.data = std::move(QByteArray(reinterpret_cast<const char *>(m_buffer.getLeft()), static_cast<qsizetype>(m_buffer.size())));
+            audio.right.data = std::move(QByteArray(reinterpret_cast<const char *>(m_buffer.getRight()), static_cast<qsizetype>(m_buffer.size())));
+
+            audio.frames.data = static_cast<unsigned int>(m_buffer.frameCount());
+
+            const auto toWire = Packets::Writer::generate(audio);
+
+            m_table->apply([&toWire](auto &it) {
+                it.value()->display()->sendData(toWire);
+                ++it;
+            });
+        }
+
+        usleep(100);
+    }
+
+    snd_pcm_drop(handle);
 }

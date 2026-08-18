@@ -31,9 +31,8 @@ int main(int argc, char *argv[])
         publisher->start();
     }
 
-    AudioCapture capture;
-
     DisplayManager manager{};
+    AudioCapture capture(manager.table());
     Server *server = Parameters::instance.streamFormat == Opts::DisplayStreamType::h265 ? static_cast<Server *>(new SslServer(&app))
                                                                                         : static_cast<Server *>(new DtlsServer(&app));
 

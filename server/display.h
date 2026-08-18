@@ -13,6 +13,15 @@ class Display : public QObject
 public:
     explicit Display(const QString &connectorName, QObject *parent = nullptr);
 
+    inline void apply(auto Fn)
+    {
+        for (auto it = m_clients.begin(); it != m_clients.end();) {
+            Fn(it);
+        }
+    }
+
+    void sendData(QByteArray output);
+
 Q_SIGNALS:
     void nowFree();
 
@@ -20,9 +29,6 @@ public Q_SLOTS:
     void addClient(NetworkClient *client);
     void reinit();
     void requireResolutionInformation();
-
-protected:
-    void sendData(QByteArray output);
 
 private:
     QSet<NetworkClient *> m_clients{};
