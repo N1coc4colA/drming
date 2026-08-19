@@ -128,9 +128,20 @@ CommandParser::Exit CommandParser::parse()
 
     if (serviceIp4.isNull() != serviceAudioIp4.isNull()) {
         qCritical() << "Specifying either ipv4-audio or iface4 requires the other.";
+        return Failure;
     }
     if (serviceIp6.isNull() != serviceAudioIp6.isNull()) {
         qCritical() << "Specifying either ipv6-audio or iface6 requires the other.";
+        return Failure;
+    }
+
+    if (!serviceAudioIp4.isNull() && !serviceAudioIp4.isMulticast()) {
+        qCritical() << "The argument ipv4-audio needs to be a multicast address.";
+        return Failure;
+    }
+    if (!serviceAudioIp6.isNull() && !serviceAudioIp6.isMulticast()) {
+        qCritical() << "The argument ipv6-audio needs to be a multicast address.";
+        return Failure;
     }
 
     Parameters::instance = Parameters{
