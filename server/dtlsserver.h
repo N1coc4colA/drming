@@ -18,20 +18,20 @@ class DtlsServer : public Server
 public:
     explicit DtlsServer(QObject *parent = nullptr);
 
-    bool listen(const QHostAddress &address, quint16 port) override;
+    bool listen(const QHostAddress &address4, const QHostAddress &address6, quint16 port = 0) override;
     void close() override;
 
     void broadcast(const QByteArray &data) override;
 
 private Q_SLOTS:
-    void onDatagramReceived();
+    void onDatagramReceived4();
+    void onDatagramReceived6();
     void onClientDisconnected();
 
 private:
     QMutex m_networkMutex;
-    QUdpSocket m_socket;
-    QHostAddress m_address;
-    quint16 m_port;
+    QUdpSocket m_socket4{};
+    QUdpSocket m_socket6{};
 
     // Active clients: peer key -> NetworkClientDtls*
     QMap<QString, NetworkClientDtls*> m_clients;
@@ -40,6 +40,8 @@ private:
 
     QString peerKey(const QHostAddress &addr, quint16 port) const;
     void removeClient(NetworkClientDtls *client);
+
+    void processSocketPendings(QUdpSocket &sock);
 };
 
 #endif // DTLSSERVER_H

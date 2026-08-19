@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
         }
     });
 
-    if (!server->listen(Parameters::instance.serviceHostIp, Parameters::instance.port)) {
+    if (!server->listen(Parameters::instance.serviceIp4, Parameters::instance.serviceIp6, Parameters::instance.port)) {
         return EXIT_FAILURE;
     }
 

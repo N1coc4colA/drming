@@ -13,12 +13,12 @@ static QString keyFor(const QHostAddress &a, const quint16 p)
 
 DtlsServer::DtlsServer(QObject *parent)
     : Server(parent)
-    , m_socket()
 {
-    connect(&m_socket, &QUdpSocket::readyRead, this, &DtlsServer::onDatagramReceived);
+    connect(&m_socket4, &QUdpSocket::readyRead, this, &DtlsServer::onDatagramReceived4);
+    connect(&m_socket6, &QUdpSocket::readyRead, this, &DtlsServer::onDatagramReceived6);
 }
 
-bool DtlsServer::listen(const QHostAddress &address, const quint16 port)
+bool DtlsServer::listen(const QHostAddress &address4, const QHostAddress &address6, quint16 port)
 {
     QSslConfiguration sslConfig;
     if (!loadServerCertsConfig(sslConfig, "dtls")) {
@@ -26,15 +26,22 @@ bool DtlsServer::listen(const QHostAddress &address, const quint16 port)
         return false;
     }
 
-    m_address = address;
-    m_port = port;
-
-    if (!m_socket.bind(m_address, m_port, QAbstractSocket::ShareAddress)) {
-        qCritical() << "Failed to bind UDP socket:" << m_socket.errorString();
-        return false;
+    if (!address4.isNull()) {
+        if (!m_socket4.bind(address4, port, QAbstractSocket::ShareAddress)) {
+            qCritical() << "Failed to bind UDP socket:" << m_socket4.errorString();
+            return false;
+        }
+        qInfo() << "Exposing DTLS service on:" << address4.toString() << ':' << port;
     }
 
-    qInfo() << "Exposing DTLS service on:" << address.toString() << ':' << port;
+    if (!address6.isNull()) {
+        if (!m_socket6.bind(address6, port, QAbstractSocket::ShareAddress)) {
+            qCritical() << "Failed to bind UDP socket:" << m_socket6.errorString();
+            return false;
+        }
+        qInfo() << "Exposing DTLS service on:" << address6.toString() << ':' << port;
+    }
+
     return true;
 }
 
@@ -52,7 +59,8 @@ void DtlsServer::close()
     }
     m_pendingHandshakes.clear();
 
-    m_socket.close();
+    m_socket4.close();
+    m_socket6.close();
 }
 
 void DtlsServer::broadcast(const QByteArray &data)
@@ -64,14 +72,24 @@ void DtlsServer::broadcast(const QByteArray &data)
     }
 }
 
-void DtlsServer::onDatagramReceived()
+void DtlsServer::onDatagramReceived4()
 {
-    while (m_socket.hasPendingDatagrams()) {
-        QByteArray dgram(m_socket.pendingDatagramSize(), Qt::Uninitialized);
+    processSocketPendings(m_socket4);
+}
+
+void DtlsServer::onDatagramReceived6()
+{
+    processSocketPendings(m_socket6);
+}
+
+void DtlsServer::processSocketPendings(QUdpSocket &socket)
+{
+    while (socket.hasPendingDatagrams()) {
+        QByteArray dgram(socket.pendingDatagramSize(), Qt::Uninitialized);
         QHostAddress sender;
         quint16 senderPort;
 
-        const auto read = m_socket.readDatagram(dgram.data(), dgram.size(), &sender, &senderPort);
+        const auto read = socket.readDatagram(dgram.data(), dgram.size(), &sender, &senderPort);
         if (read <= 0) {
             continue;
         }
@@ -91,7 +109,7 @@ void DtlsServer::onDatagramReceived()
             qDebug() << "Pending DTLS already present";
 
             // Process handshake message
-            if (!dtls->doHandshake(&m_socket, dgram)) {
+            if (!dtls->doHandshake(&socket, dgram)) {
                 qWarning() << "DTLS handshake error for" << sender << senderPort << ":" << dtls->dtlsErrorString();
                 m_pendingHandshakes.remove(key);
                 delete dtls;
@@ -101,7 +119,7 @@ void DtlsServer::onDatagramReceived()
             if (dtls->isConnectionEncrypted()) {
                 // Handshake completed – create client
                 qDebug() << "DTLS encryption established for" << sender << senderPort;
-                auto client = new NetworkClientDtls(dtls, sender, senderPort, m_socket, m_networkMutex, this);
+                auto client = new NetworkClientDtls(dtls, sender, senderPort, socket, m_networkMutex, this);
                 m_pendingHandshakes.remove(key);
                 m_clients.insert(key, client);
                 connect(client, &NetworkClient::disconnected, this, &DtlsServer::onClientDisconnected);
@@ -120,7 +138,7 @@ void DtlsServer::onDatagramReceived()
         dtls->setMtuHint(Settings::dtlsChunkSize);
         dtls->setPeer(sender, senderPort);
 
-        if (!dtls->doHandshake(&m_socket, dgram)) {
+        if (!dtls->doHandshake(&socket, dgram)) {
             qWarning() << "Failed to start DTLS handshake for" << sender << senderPort << ":" << dtls->dtlsErrorString();
             delete dtls;
             continue;
@@ -129,7 +147,7 @@ void DtlsServer::onDatagramReceived()
         // If handshake completed immediately (rare), create client; otherwise store pending
         if (dtls->isConnectionEncrypted()) {
             qDebug() << "DTLS encryption established immediately for" << sender << senderPort;
-            auto client = new NetworkClientDtls(dtls, sender, senderPort, m_socket, m_networkMutex, this);
+            auto client = new NetworkClientDtls(dtls, sender, senderPort, socket, m_networkMutex, this);
             m_clients.insert(key, client);
             connect(client, &NetworkClient::disconnected, this, &DtlsServer::onClientDisconnected);
             Q_EMIT clientConnected(client);

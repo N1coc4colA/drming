@@ -2,6 +2,7 @@
 #define PARAMETERS_H
 
 #include <QHostAddress>
+#include <QNetworkInterface>
 #include <QObject>
 
 namespace Opts {
@@ -22,11 +23,20 @@ struct Parameters
 {
     QString targetScreen;
     QString serviceName;
-    QString serviceIp;
-    QHostAddress serviceHostIp;
+
+    QHostAddress serviceIp4;
+    QHostAddress serviceAudioIp4;
+    QNetworkInterface serviceAudioIface4;
+
+    QHostAddress serviceIp6;
+    QHostAddress serviceAudioIp6;
+    QNetworkInterface serviceAudioIface6;
+
+    int port;
+    int audioPort;
+
     int qualityLevel;
     int servedScreens = 0;
-    int port;
     bool advertise;
 
     QString trustedCertsPath;

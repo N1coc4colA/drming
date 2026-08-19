@@ -49,14 +49,15 @@ private:
 
 SslServer::SslServer(QObject *parent)
     : Server(parent)
-    , m_server(new SslServerImpl(this))
+    , m_server4(new SslServerImpl(this))
+    , m_server6(new SslServerImpl(this))
 {
-    connect(m_server, &QTcpServer::acceptError, [](const QAbstractSocket::SocketError socketError) {
-        qWarning() << "SSL acceptation error occurred:" << socketError;
-    });
+    const auto warn = [](const QAbstractSocket::SocketError socketError) { qWarning() << "SSL acceptation error occurred:" << socketError; };
+    connect(m_server4, &QTcpServer::acceptError, warn);
+    connect(m_server6, &QTcpServer::acceptError, warn);
 }
 
-bool SslServer::listen(const QHostAddress &address, const quint16 port)
+bool SslServer::listen(const QHostAddress &address4, const QHostAddress &address6, const quint16 port)
 {
     if (!loadServerCertsConfig(m_sslConfig, "ssl")) {
         qCritical() << "SSL config not loaded; SSL connections may not use server certificate.";
@@ -66,12 +67,22 @@ bool SslServer::listen(const QHostAddress &address, const quint16 port)
     // Store SSL config for use in incomingConnection
     // We'll set it on each new socket
 
-    if (!m_server->listen(address, port)) {
-        qCritical() << "Failed to bind TCP socket:" << m_server->errorString();
-        return false;
+    if (!address4.isNull()) {
+        if (!m_server4->listen(address4, port)) {
+            qCritical() << "Failed to bind TCP socket:" << m_server4->errorString();
+            return false;
+        }
+        qInfo() << "Exposing SSL service on:" << address4.toString() << ':' << port;
     }
 
-    qInfo() << "Exposing SSL service on:" << address.toString() << ':' << port;
+    if (!address6.isNull()) {
+        if (!m_server6->listen(address6, port)) {
+            qCritical() << "Failed to bind TCP socket:" << m_server6->errorString();
+            return false;
+        }
+        qInfo() << "Exposing SSL service on:" << address6.toString() << ':' << port;
+    }
+
     return true;
 }
 
@@ -94,7 +105,8 @@ void SslServer::close()
     }
     m_clients.clear();
 
-    m_server->close();
+    m_server4->close();
+    m_server6->close();
 }
 
 void SslServer::broadcast(const QByteArray &data)
