@@ -126,12 +126,34 @@ CommandParser::Exit CommandParser::parse()
         return Failure;
     }
 
-    if (serviceIp4.isNull() != serviceAudioIp4.isNull()) {
-        qCritical() << "Specifying either ipv4-audio or iface4 requires the other.";
+    if (serviceIp4.isNull() && serviceIp6.isNull()) {
+        qCritical()  << "You need to at least provide ipv4 or ipv6 arguments to run this program.";
         return Failure;
     }
-    if (serviceIp6.isNull() != serviceAudioIp6.isNull()) {
-        qCritical() << "Specifying either ipv6-audio or iface6 requires the other.";
+
+    if (!serviceIp4.isNull() && serviceAudioIp4.isNull()) {
+        qCritical() << "Specifying either ipv4 requires ipv4-audio to be set.";
+        return Failure;
+    }
+    if (!serviceIp6.isNull() && serviceAudioIp6.isNull()) {
+        qCritical() << "Specifying either ipv6 requires ipv6-audio to be set.";
+        return Failure;
+    }
+
+    if (!serviceIp4.isNull() && serviceIp4.protocol() != QAbstractSocket::IPv4Protocol) {
+        qCritical() << "The argument ipv4 must be an IPv4 address.";
+        return Failure;
+    }
+    if (serviceAudioIp4.protocol() != QAbstractSocket::IPv4Protocol) {
+        qCritical() << "The argument ipv4-audio must be an IPv4 address.";
+        return Failure;
+    }
+    if (!serviceIp6.isNull() && serviceIp6.protocol() != QAbstractSocket::IPv6Protocol) {
+        qCritical() << "The argument ipv6 must be an IPv6 address.";
+        return Failure;
+    }
+    if (serviceAudioIp6.protocol() != QAbstractSocket::IPv6Protocol) {
+        qCritical() << "The argument ipv6-audio must be an IPv6 address.";
         return Failure;
     }
 
