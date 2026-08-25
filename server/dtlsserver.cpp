@@ -4,8 +4,8 @@
 #include <QSslConfiguration>
 #include <QDebug>
 
+#include "../net/certificatesupport.h"
 #include "../settings.h"
-#include "../certificatesupport.h"
 
 static QString keyFor(const QHostAddress &a, quint16 p)
 {

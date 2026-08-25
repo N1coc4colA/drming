@@ -2,7 +2,7 @@
 
 #include <QFileDialog>
 
-#include "../../../certificatesupport.h"
+#include "../net/certificatesupport.h"
 
 #include "native.h"
 

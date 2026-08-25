@@ -1,8 +1,8 @@
 #ifndef NETWORKLINKPLATFORM_H
 #define NETWORKLINKPLATFORM_H
 
-#include "../../../parser.h"
 #include "../../networklink.h"
+#include "../net/parser.h"
 
 #include "../settings.h"
 

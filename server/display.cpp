@@ -4,7 +4,7 @@
 #include <QDtls>
 #include <QtEndian>
 
-#include "../parser.h"
+#include "../net/parser.h"
 #include "../settings.h"
 
 #include "ffmpeg.h"

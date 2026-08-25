@@ -6,7 +6,7 @@
 #include <QHostAddress>
 #include <chrono>
 
-#include "../parser.h"
+#include "../net/parser.h"
 #include "../settings.h"
 
 class QUdpSocket;

@@ -4,7 +4,7 @@
 
 #include "parameters.h"
 
-#include "../certificatesupport.h"
+#include "../net/certificatesupport.h"
 
 Server::Server(QObject *parent)
     : QObject{parent}

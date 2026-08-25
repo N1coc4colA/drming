@@ -1,16 +1,13 @@
 #ifndef NETWORKLINK_H
 #define NETWORKLINK_H
 
-#include <optional>
-#include <vector>
-
 #include <QDtls>
 #include <QImage>
 #include <QSslSocket>
 #include <QTimer>
 #include <QUdpSocket>
 
-#include "../parser.h"
+#include "../net/parser.h"
 
 class NetworkLink : public QObject
 {

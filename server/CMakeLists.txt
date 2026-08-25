@@ -3,9 +3,9 @@ cmake_minimum_required(VERSION 3.16)
 project(drming_server VERSION 0.1 LANGUAGES CXX)
 
 
-set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTOUIC OFF)
 set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTORCC OFF)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 23)
@@ -25,9 +25,9 @@ pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
 )
 
 set(PROJECT_SOURCES
-    ../certificatesupport.h
-    ../parser.h
-    ../settings.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../net/certificatesupport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../net/parser.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../settings.h
 
     main.cpp
 
