@@ -24,6 +24,11 @@ pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
     libavformat
 )
 
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../submodules/qt-aes
+    ${CMAKE_CURRENT_BINARY_DIR}/qt-aes
+)
+
 set(PROJECT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/certificatesupport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/parser.h

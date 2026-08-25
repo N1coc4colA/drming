@@ -29,6 +29,11 @@ add_subdirectory(
     ${CMAKE_CURRENT_BINARY_DIR}/ctrack
 )
 
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../submodules/qt-aes
+    ${CMAKE_CURRENT_BINARY_DIR}/qt-aes
+)
+
 set(PROJECT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/certificatesupport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/parser.h
@@ -143,6 +148,7 @@ if (ANDROID)
             Qt6::Quick
             Qt6::QuickControls2
             Qt6::Widgets
+            QtAES::QtAES
             ctrack
             mediandk
             EGL
@@ -160,6 +166,7 @@ else()
             Qt6::QuickControls2
             Qt6::Widgets
             PkgConfig::FFMPEG
+            QtAES::QtAES
             ctrack
     )
 endif()
