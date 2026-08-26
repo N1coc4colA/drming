@@ -18,8 +18,7 @@ public:
     bool registerClient(NetworkClient *client);
 
 private:
-    QQueue<DisplayThread *> m_freeDisplays{};
-    QMap<QByteArray, DisplayThread *> m_usedDisplays{};
+    DisplayThread *m_thread = nullptr;
 };
 
 #endif // DISPLAYMANAGER_H
