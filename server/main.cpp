@@ -2,8 +2,7 @@
 #include "commandparser.h"
 #include "displaymanager.h"
 #include "parameters.h"
-#include "sslserver.h"
-#include "dtlsserver.h"
+#include "server.h"
 
 #include <QCoreApplication>
 
@@ -24,17 +23,16 @@ int main(int argc, char *argv[])
 
     if (!Parameters::instance.advertise) {
         const auto publisher = new AvahiPublisher(Parameters::instance.serviceName,
-                                                  Parameters::instance.streamFormat == Opts::DisplayStreamType::h265 ? "_drming._tcp" : "_drming._udp",
+                                                  "_drming._udp",
                                                   static_cast<uint16_t>(Parameters::instance.port),
                                                   &app);
         publisher->start();
     }
 
     DisplayManager manager{};
-    Server *server = Parameters::instance.streamFormat == Opts::DisplayStreamType::h265 ? static_cast<Server *>(new SslServer(&app))
-                                                                                        : static_cast<Server *>(new DtlsServer(&app));
+    Server server;
 
-    QObject::connect(server, &Server::clientConnected, [&manager](NetworkClient *client) {
+    QObject::connect(&server, &Server::clientConnected, [&manager](NetworkClient *client) {
         // An error occurred.
         if (!manager.registerClient(client)) {
             // If registration failed, drop client
@@ -42,7 +40,7 @@ int main(int argc, char *argv[])
         }
     });
 
-    if (!server->listen(Parameters::instance.serviceHostIp, Parameters::instance.port)) {
+    if (!server.listen(Parameters::instance.serviceIp4, Parameters::instance.serviceIp6, Parameters::instance.port)) {
         return EXIT_FAILURE;
     }
 

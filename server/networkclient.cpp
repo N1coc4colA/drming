@@ -23,31 +23,33 @@ void NetworkClient::processPacket(const Packets::RequestClientResolution &)
     m_display->requireResolutionInformation();
 }
 
-NetworkClientDtls::NetworkClientDtls(QDtls *dtls, const QHostAddress &address, quint16 port,
-                                     QUdpSocket *sharedSocket, QObject *parent)
-    : NetworkClient(parent)
+NetworkClient::NetworkClient(
+    QDtls *dtls, const QHostAddress &address, const quint16 port, QUdpSocket &sharedSocket, QMutex &networkMutex, QObject *parent)
+    : QObject(parent)
+    , Packets::Parser<NetworkClient>(*this)
     , m_dtls(dtls)
     , m_address(address)
     , m_port(port)
     , m_sharedSocket(sharedSocket)
+    , m_networkMutex(networkMutex)
     , m_timer(new QTimer(this))
 {
     m_dtls->setParent(this); // take ownership
 
     m_timer->setTimerType(Qt::VeryCoarseTimer);
-    connect(m_timer, &QTimer::timeout, this, &NetworkClientDtls::checkHeartBeat);
+    connect(m_timer, &QTimer::timeout, this, &NetworkClient::checkHeartBeat);
     m_timer->setInterval(Settings::inactivityTimeout);
 }
 
-NetworkClientDtls::~NetworkClientDtls()
+NetworkClient::~NetworkClient()
 {
     // dtls deleted automatically via parent
 }
 
-void NetworkClientDtls::incomingEncryptedData(const QByteArray &encrypted)
+void NetworkClient::incomingEncryptedData(const QByteArray &encrypted)
 {
     // Decrypt using the peer address/port – QDtls::decryptDatagram overload
-    auto plaintext = m_dtls->decryptDatagram(m_sharedSocket, encrypted);
+    auto plaintext = m_dtls->decryptDatagram(&m_sharedSocket, encrypted);
     if (plaintext.isEmpty()) {
         if (m_dtls->dtlsError() != QDtlsError::NoError) {
             qWarning() << "DTLS decrypt error:" << m_dtls->dtlsErrorString();
@@ -78,9 +80,9 @@ void NetworkClientDtls::incomingEncryptedData(const QByteArray &encrypted)
     }
 }
 
-qint64 NetworkClientDtls::write(const QByteArray &data)
+qint64 NetworkClient::write(const QByteArray &data)
 {
-    if (!m_dtls || !m_sharedSocket) {
+    if (!m_dtls) {
         return -1;
     }
 
@@ -100,7 +102,13 @@ qint64 NetworkClientDtls::write(const QByteArray &data)
         chunk.prepend(reinterpret_cast<const char *>(&chunks_be), sizeof(chunks_be));
         chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
 
-        if (m_dtls->writeDatagramEncrypted(m_sharedSocket, chunk) < 0) {
+        qint64 ret;
+        {
+            QMutexLocker lock(&m_networkMutex);
+            ret = m_dtls->writeDatagramEncrypted(&m_sharedSocket, chunk);
+        }
+
+        if (ret < 0) {
             const auto err = m_dtls->dtlsError();
             switch (err) {
             case QDtlsError::RemoteClosedConnectionError: {
@@ -132,68 +140,41 @@ qint64 NetworkClientDtls::write(const QByteArray &data)
     return offset;
 }
 
-void NetworkClientDtls::close()
+void NetworkClient::close()
 {
     // Notify server that we are closing; the server will remove us.
     Q_EMIT disconnected();
 }
 
-QAbstractSocket::SocketState NetworkClientDtls::state() const
+QAbstractSocket::SocketState NetworkClient::state() const
 {
-    if (!m_dtls)
+    if (!m_dtls) {
         return QAbstractSocket::UnconnectedState;
+    }
+
     return m_dtls->isConnectionEncrypted() ? QAbstractSocket::ConnectedState : QAbstractSocket::ConnectingState;
 }
 
-QByteArray NetworkClientDtls::digest() const
+QByteArray NetworkClient::digest() const
 {
-    if (!m_dtls)
+    if (!m_dtls) {
         return {};
+    }
+
     return m_dtls->dtlsConfiguration().peerCertificate().digest();
 }
 
-void NetworkClientDtls::notifyHeartBeat()
+void NetworkClient::notifyHeartBeat()
 {
     m_timer->start();
     m_lastHeartBeat = std::chrono::system_clock::now();
 }
 
-void NetworkClientDtls::checkHeartBeat()
+void NetworkClient::checkHeartBeat()
 {
     if ((std::chrono::system_clock::now() - m_lastHeartBeat) > systemTimeout) {
         m_timer->stop();
         // Heartbeat timeout – close connection
         close();
     }
-}
-
-NetworkClientSsl::NetworkClientSsl(QSslSocket *socket, QObject *parent)
-    : NetworkClient(parent)
-    , m_socket(socket)
-{
-    m_socket->setParent(this);
-    connect(m_socket, &QSslSocket::readyRead, this, [this]() {
-        addData(m_socket->readAll());
-    });
-    connect(m_socket, &QSslSocket::disconnected, this, &NetworkClientSsl::disconnected);
-}
-
-qint64 NetworkClientSsl::write(const QByteArray &data)
-{
-    if (!m_socket) {
-        return -1;
-    }
-
-    const auto ret = m_socket->write(data);
-    m_socket->flush();
-    return ret;
-}
-
-QByteArray NetworkClientSsl::digest() const
-{
-    if (!m_socket) {
-        return {};
-    }
-
-    return m_socket->peerCertificate().digest();
 }

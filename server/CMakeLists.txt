@@ -47,8 +47,6 @@ set(PROJECT_SOURCES
     networkclient.h networkclient.cpp
     parameters.h parameters.cpp
     server.h server.cpp
-    dtlsserver.h dtlsserver.cpp
-    sslserver.h sslserver.cpp
     sse.h sse.cpp
     utils.h utils.cpp
     vkmsfb.h

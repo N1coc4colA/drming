@@ -73,7 +73,6 @@ public class MdnsHelper {
         sslDiscoveryListener = buildListener("ssl");
 
         nsdManager.discoverServices("_drming._udp.", NsdManager.PROTOCOL_DNS_SD, dtlsDiscoveryListener);
-        nsdManager.discoverServices("_drming._tcp.", NsdManager.PROTOCOL_DNS_SD, sslDiscoveryListener);
 
         isDiscovering = true;
     }
