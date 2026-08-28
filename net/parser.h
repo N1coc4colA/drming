@@ -19,6 +19,7 @@ namespace Packets {
 
 using Ordering = quint32;
 using Timestamp = qint16;
+using Keystamp = qint16;
 
 enum class Type : quint16 {
     None = 0,

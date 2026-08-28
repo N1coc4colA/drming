@@ -8,8 +8,9 @@
 #include "dispsetup.h"
 #include "parameters.h"
 
-DisplayManager::DisplayManager(QObject *parent)
+DisplayManager::DisplayManager(StreamSocket &ss, QObject *parent)
     : QObject(parent)
+    , m_ss(ss)
 {}
 
 DisplayManager::~DisplayManager()
@@ -38,7 +39,7 @@ bool DisplayManager::registerClient(NetworkClient *client)
             return false;
         }
 
-        m_thread = new DisplayThread(generateNewDisplay(setup.virtualConnectorName(), this), this);
+        m_thread = new DisplayThread(generateNewDisplay(setup.virtualConnectorName(), m_ss, this), this);
     }
 
     if (!m_thread->isRunning()) {

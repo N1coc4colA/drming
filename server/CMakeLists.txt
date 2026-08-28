@@ -32,6 +32,7 @@ add_subdirectory(
 set(PROJECT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/certificatesupport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/parser.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../net/udp.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../settings.h
 
     main.cpp
@@ -48,6 +49,7 @@ set(PROJECT_SOURCES
     parameters.h parameters.cpp
     server.h server.cpp
     sse.h sse.cpp
+    streamsocket.h
     utils.h utils.cpp
     vkmsfb.h
 )
@@ -69,6 +71,7 @@ drming_server
         Qt6::DBus
         ${AVAHI_LIBRARIES}
         PkgConfig::FFMPEG
+        QtAES::QtAES
         Libdrm::Libdrm
 )
 

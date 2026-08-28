@@ -9,9 +9,11 @@
 
 #include "ffmpeg.h"
 #include "parameters.h"
+#include "streamsocket.h"
 
-Display::Display(const QString &connectorName, QObject *parent)
+Display::Display(const QString &connectorName, StreamSocket &ss, QObject *parent)
     : QObject(parent)
+    , m_ss(ss)
     , m_reader(connectorName)
 {
     connect(&m_timer, &QTimer::timeout, this, &Display::forward);
@@ -158,11 +160,7 @@ void Display::onDisconnected()
 
 void Display::sendData(QByteArray output)
 {
-    for (const auto &client : m_clients) {
-        if (client->state() == QAbstractSocket::ConnectedState) [[likely]] {
-            client->write(output);
-        }
-    }
+    m_ss.write(output);
 }
 
 void Display::disconnectAllClients()
@@ -177,8 +175,8 @@ void Display::disconnectAllClients()
 class DisplayImage : public Display
 {
 public:
-    DisplayImage(const QString &connectorName, const QString &format, QObject *parent = nullptr)
-        : Display(connectorName, parent)
+    DisplayImage(const QString &connectorName, StreamSocket &ss, const QString &format, QObject *parent = nullptr)
+        : Display(connectorName, ss, parent)
         , m_format(format.toLocal8Bit())
     {}
 
@@ -203,8 +201,8 @@ private:
 class DisplayH265 : public Display
 {
 public:
-    DisplayH265(const QString &connectorName, QObject *parent = nullptr)
-        : Display(connectorName, parent)
+    DisplayH265(const QString &connectorName, StreamSocket &ss, QObject *parent = nullptr)
+        : Display(connectorName, ss, parent)
         , m_encoder([this](const uint8_t *data, size_t size, int64_t pts) { this->h265dataForward(data, size, pts); },
                     1000 / Settings::frameMSecsInterval)
     {}
@@ -231,20 +229,20 @@ private:
     Ffmpeg::Encoder m_encoder;
 };
 
-Display *generateNewDisplay(const QString &connectorName, QObject *parent)
+Display *generateNewDisplay(const QString &connectorName, StreamSocket &ss, QObject *parent)
 {
     switch (Parameters::instance.streamFormat) {
     case Opts::DisplayStreamType::h265: {
-        return new DisplayH265(connectorName, parent);
+        return new DisplayH265(connectorName, ss, parent);
     }
     case Opts::DisplayStreamType::jpg: {
-        return new DisplayImage(connectorName, "JPG", parent);
+        return new DisplayImage(connectorName, ss, "JPG", parent);
     }
     case Opts::DisplayStreamType::png: {
-        return new DisplayImage(connectorName, "PNG", parent);
+        return new DisplayImage(connectorName, ss, "PNG", parent);
     }
     case Opts::DisplayStreamType::webp: {
-        return new DisplayImage(connectorName, "WEBP", parent);
+        return new DisplayImage(connectorName, ss, "WEBP", parent);
     }
     }
 

@@ -3,6 +3,7 @@
 #include "displaymanager.h"
 #include "parameters.h"
 #include "server.h"
+#include "streamsocket.h"
 
 #include <QCoreApplication>
 
@@ -21,16 +22,11 @@ int main(int argc, char *argv[])
         break;
     }
 
-    if (!Parameters::instance.advertise) {
-        const auto publisher = new AvahiPublisher(Parameters::instance.serviceName,
-                                                  "_drming._udp",
-                                                  static_cast<uint16_t>(Parameters::instance.port),
-                                                  &app);
-        publisher->start();
-    }
+    Server server{};
+    StreamSocket videoSocket{};
+    StreamSocket audioSocket{};
 
-    DisplayManager manager{};
-    Server server;
+    DisplayManager manager(videoSocket);
 
     QObject::connect(&server, &Server::clientConnected, [&manager](NetworkClient *client) {
         // An error occurred.
@@ -40,8 +36,31 @@ int main(int argc, char *argv[])
         }
     });
 
+    if (!videoSocket.listen(Parameters::instance.serviceVideoIp4,
+                            Parameters::instance.serviceVideoIp6,
+                            Parameters::instance.videoPort,
+                            Parameters::instance.serviceIface4,
+                            Parameters::instance.serviceIface6)) {
+        return EXIT_FAILURE;
+    }
+    if (!audioSocket.listen(Parameters::instance.serviceAudioIp4,
+                            Parameters::instance.serviceAudioIp6,
+                            Parameters::instance.audioPort,
+                            Parameters::instance.serviceIface4,
+                            Parameters::instance.serviceIface6)) {
+        return EXIT_FAILURE;
+    }
+
     if (!server.listen(Parameters::instance.serviceIp4, Parameters::instance.serviceIp6, Parameters::instance.port)) {
         return EXIT_FAILURE;
+    }
+
+    if (!Parameters::instance.advertise) {
+        const auto publisher = new AvahiPublisher(Parameters::instance.serviceName,
+                                                  "_drming._udp",
+                                                  static_cast<uint16_t>(Parameters::instance.port),
+                                                  &app);
+        publisher->start();
     }
 
     qInfo() << "Ready!";
