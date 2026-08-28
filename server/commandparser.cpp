@@ -35,6 +35,7 @@ CommandParser::CommandParser()
 
          {{"p", "port"}, QObject::tr("Port on which to expose."), QObject::tr("port", "Port on which to expose"), "80"},
          {{"pa", "audio-port"}, QObject::tr("Port on which to expose the audio."), QObject::tr("audio-port", "Port on which to expose the audio"), "80"},
+         {{"pv", "video-port"}, QObject::tr("Port on which to expose the video."), QObject::tr("video-port", "Port on which to expose the audio"), "80"},
 
          {{"i4", "ipv4"}, QObject::tr("IP address on which to expose the service for IPv4."), QObject::tr("ip-address-4"), "0.0.0.0"},
          {{"i6", "ipv6"}, QObject::tr("IP address on which to expose the service for IPv6."), QObject::tr("ip-address-6"), "::"},
@@ -92,6 +93,7 @@ CommandParser::Exit CommandParser::parse()
 
     const auto portName = m_parser.value("port");
     const auto audioPortName = m_parser.value("audio-port");
+    const auto videoPortName = m_parser.value("video-port");
 
     const auto serviceIp4 = QHostAddress(m_parser.value("ipv4"));
     const auto serviceIp6 = QHostAddress(m_parser.value("ipv6"));
@@ -99,18 +101,21 @@ CommandParser::Exit CommandParser::parse()
     const auto serviceAudioIp6 = QHostAddress(m_parser.value("ipv6-audio"));
     const auto serviceVideoIp4 = QHostAddress(m_parser.value("ipv4-video"));
     const auto serviceVideoIp6 = QHostAddress(m_parser.value("ipv6-video"));
-    const auto serviceAudioIface4 = QNetworkInterface::interfaceFromName(m_parser.value("iface4"));
-    const auto serviceAudioIface6 = QNetworkInterface::interfaceFromName(m_parser.value("iface6"));
+    const auto serviceIface4 = QNetworkInterface::interfaceFromName(m_parser.value("iface4"));
+    const auto serviceIface6 = QNetworkInterface::interfaceFromName(m_parser.value("iface6"));
 
     const auto compressionLevel = m_parser.value("quality");
     const auto streamFormat = m_parser.value("format");
 
-    int port = 0, audioPort = 0;
+    int port = 0, audioPort = 0, videoPort = 0;
 
     if (validatePort(portName, port) != Continue) {
         return Failure;
     }
     if (validatePort(audioPortName, audioPort) != Continue) {
+        return Failure;
+    }
+    if (validatePort(videoPortName, videoPort) != Continue) {
         return Failure;
     }
 
@@ -196,13 +201,16 @@ CommandParser::Exit CommandParser::parse()
         .serviceIp4 = serviceIp4,
         .serviceAudioIp4 = serviceAudioIp4,
         .serviceVideoIp4 = serviceVideoIp4,
-        .serviceAudioIface4 = serviceAudioIface4,
+        .serviceIface4 = serviceIface4,
+
         .serviceIp6 = serviceIp6,
         .serviceAudioIp6 = serviceAudioIp6,
         .serviceVideoIp6 = serviceVideoIp6,
-        .serviceAudioIface6 = serviceAudioIface6,
+        .serviceIface6 = serviceIface6,
+
         .port = port,
         .audioPort = audioPort,
+        .videoPort = videoPort,
 
         .qualityLevel = quality,
         .advertise = m_parser.isSet("no-advertise"),

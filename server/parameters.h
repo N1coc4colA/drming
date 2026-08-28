@@ -27,15 +27,16 @@ struct Parameters
     QHostAddress serviceIp4;
     QHostAddress serviceAudioIp4;
     QHostAddress serviceVideoIp4;
-    QNetworkInterface serviceAudioIface4;
+    QNetworkInterface serviceIface4;
 
     QHostAddress serviceIp6;
     QHostAddress serviceAudioIp6;
     QHostAddress serviceVideoIp6;
-    QNetworkInterface serviceAudioIface6;
+    QNetworkInterface serviceIface6;
 
     int port;
     int audioPort;
+    int videoPort;
 
     int qualityLevel;
     int servedScreens = 0;
