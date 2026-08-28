@@ -25,6 +25,10 @@ enum class Type : quint16 {
     None = 0,
     HeartBeat,
     Reinit,
+
+    RequestKey,
+    KeyUpdate,
+
     ServerImage,
     RequestClientResolution,
     ClientResolution,
@@ -266,6 +270,22 @@ struct Reinit
     static constexpr auto fields = std::tuple{};
 };
 
+struct RequestKey
+{
+    static constexpr auto type = Type::RequestKey;
+    static constexpr auto fields = std::tuple{};
+};
+
+struct KeyUpdate
+{
+    static constexpr auto type = Type::KeyUpdate;
+
+    Field<Keystamp> keyStamp;
+    VariableFixedField<QByteArray, quint64, 1, 2048> key;
+
+    static constexpr auto fields = std::tuple{&KeyUpdate::keyStamp, &KeyUpdate::key};
+};
+
 struct ServerImage
 {
     static constexpr auto type = Type::ServerImage;
@@ -309,7 +329,8 @@ struct ServerStream
     static constexpr auto fields = std::tuple{&ServerStream::data};
 };
 
-using PacketVariant = std::variant<HeartBeat, Reinit, ServerImage, RequestClientResolution, ClientResolution, ServerBrightness, ServerStream>;
+using PacketVariant
+    = std::variant<HeartBeat, Reinit, RequestKey, KeyUpdate, ServerImage, RequestClientResolution, ClientResolution, ServerBrightness, ServerStream>;
 
 class Writer
 {

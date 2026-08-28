@@ -26,6 +26,7 @@ Q_SIGNALS:
     void opened();
     void closed();
     void connectionInitialised();
+    void connectionReady();
 
 public Q_SLOTS:
     void close();
@@ -36,11 +37,15 @@ protected:
     void write(const QByteArray &data);
 
 private Q_SLOTS:
-    void onConnected();
+    void onSslConnected();
+    void onUdpConnected();
+
     void onDtlsDisconnected();
     void onSslDisconnected();
+
     void onDtlsDataAvailable();
     void onSslDataAvailable();
+
     void onConnectionTimeout();
     void onError(QAbstractSocket::SocketError error);
     void onSslError(const QSslError &error);
@@ -50,6 +55,7 @@ private:
     QByteArray m_buffer{};
     QSslSocket *m_sslSocket = nullptr;
     QUdpSocket *m_udpSocket = nullptr;
+    bool m_encryptionNotified = false;
     QDtls *m_dtls = nullptr;
     Packets::JitterBuffer<> m_jitterBuffer;
     Packets::Timestamp m_ts = 0;

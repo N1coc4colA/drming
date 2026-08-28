@@ -107,7 +107,12 @@ public Q_SLOTS:
         m_keyCount++;
         m_keyCount %= std::numeric_limits<Packets::Keystamp>::max() - 1;
 
-        setKey(QPasswordDigestor::deriveKeyPbkdf2(QCryptographicHash::Sha256, generate(sizeof(quint32) * 10), generate(32), 10000, 32), m_keyCount);
+        setKey(QPasswordDigestor::deriveKeyPbkdf2(QCryptographicHash::Sha256,
+                                                  generate(sizeof(quint32) * 10),
+                                                  generate(Settings::saltLen),
+                                                  Settings::keyIterations,
+                                                  Settings::dkLen),
+               m_keyCount);
     }
 
 protected:

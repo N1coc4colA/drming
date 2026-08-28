@@ -37,6 +37,7 @@ add_subdirectory(
 set(PROJECT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/certificatesupport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/parser.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../net/udp.h
     ../settings.h
 
     main.cpp

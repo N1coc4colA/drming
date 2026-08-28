@@ -17,8 +17,8 @@ static QString keyFor(const QHostAddress &a, quint16 p)
 Server::Server(QObject *parent)
     : QObject(parent)
 {
-    connect(&m_socket4, &QUdpSocket::readyRead, this, &Server::onDatagramReceived4);
-    connect(&m_socket6, &QUdpSocket::readyRead, this, &Server::onDatagramReceived6);
+    connect(&m_socket4.first, &QUdpSocket::readyRead, this, &Server::onDatagramReceived4);
+    connect(&m_socket6.first, &QUdpSocket::readyRead, this, &Server::onDatagramReceived6);
 }
 
 bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, quint16 port)
@@ -30,16 +30,16 @@ bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, 
     }
 
     if (!address4.isNull()) {
-        if (!m_socket4.bind(address4, port, QAbstractSocket::ShareAddress)) {
-            qCritical() << "Failed to bind UDP socket:" << m_socket4.errorString();
+        if (!m_socket4.first.bind(address4, port, QAbstractSocket::ShareAddress)) {
+            qCritical() << "Failed to bind UDP socket:" << m_socket4.first.errorString();
             return false;
         }
         qInfo() << "Exposing DTLS service on:" << address4.toString() << ':' << port;
     }
 
     if (!address6.isNull()) {
-        if (!m_socket6.bind(address6, port, QAbstractSocket::ShareAddress)) {
-            qCritical() << "Failed to bind UDP socket:" << m_socket6.errorString();
+        if (!m_socket6.first.bind(address6, port, QAbstractSocket::ShareAddress)) {
+            qCritical() << "Failed to bind UDP socket:" << m_socket6.first.errorString();
             return false;
         }
         qInfo() << "Exposing DTLS service on:" << address6.toString() << ':' << port;
@@ -62,8 +62,8 @@ void Server::close()
     }
     m_pendingHandshakes.clear();
 
-    m_socket4.close();
-    m_socket6.close();
+    m_socket4.first.close();
+    m_socket6.first.close();
 }
 
 void Server::broadcast(const QByteArray &data)
@@ -85,24 +85,28 @@ void Server::onDatagramReceived6()
     processSocketPendings(m_socket6);
 }
 
-void Server::processSocketPendings(QUdpSocket &socket)
+void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
 {
+    auto &socket = pair.first;
+
     while (socket.hasPendingDatagrams()) {
         QByteArray dgram(socket.pendingDatagramSize(), Qt::Uninitialized);
         QHostAddress sender;
         quint16 senderPort;
 
-        const auto read = socket.readDatagram(dgram.data(), dgram.size(), &sender, &senderPort);
-        if (read <= 0) {
-            continue;
+        {
+            const auto read = socket.readDatagram(dgram.data(), dgram.size(), &sender, &senderPort);
+            if (read <= 0) {
+                continue;
+            }
+            dgram.resize(read);
+            QMutexLocker lock(&pair.second);
         }
-        dgram.resize(read);
 
         const auto key = keyFor(sender, senderPort);
 
         // 1. Check if we already have an active client for this peer
         if (auto client = m_clients.value(key, nullptr)) {
-            QMutexLocker lock(&m_networkMutex);
             client->incomingEncryptedData(dgram);
             continue;
         }
@@ -122,7 +126,7 @@ void Server::processSocketPendings(QUdpSocket &socket)
             if (dtls->isConnectionEncrypted()) {
                 // Handshake completed – create client
                 qDebug() << "DTLS encryption established for" << sender << senderPort;
-                auto client = new NetworkClient(dtls, sender, senderPort, socket, m_networkMutex, this);
+                auto client = new NetworkClient(dtls, sender, senderPort, pair, this);
                 m_pendingHandshakes.remove(key);
                 m_clients.insert(key, client);
                 connect(client, &NetworkClient::disconnected, this, &Server::onClientDisconnected);
@@ -150,7 +154,7 @@ void Server::processSocketPendings(QUdpSocket &socket)
         // If handshake completed immediately (rare), create client; otherwise store pending
         if (dtls->isConnectionEncrypted()) {
             qDebug() << "DTLS encryption established immediately for" << sender << senderPort;
-            auto client = new NetworkClient(dtls, sender, senderPort, socket, m_networkMutex, this);
+            auto client = new NetworkClient(dtls, sender, senderPort, pair, this);
             m_clients.insert(key, client);
             connect(client, &NetworkClient::disconnected, this, &Server::onClientDisconnected);
             Q_EMIT clientConnected(client);

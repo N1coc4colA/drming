@@ -23,15 +23,18 @@ void NetworkClient::processPacket(const Packets::RequestClientResolution &)
     m_display->requireResolutionInformation();
 }
 
-NetworkClient::NetworkClient(
-    QDtls *dtls, const QHostAddress &address, const quint16 port, QUdpSocket &sharedSocket, QMutex &networkMutex, QObject *parent)
+void NetworkClient::processPacket(const Packets::RequestKey &)
+{
+    m_display->requireKeyInformation();
+}
+
+NetworkClient::NetworkClient(QDtls *dtls, const QHostAddress &address, const quint16 port, QPair<QUdpSocket, QMutex> &sharedSocket, QObject *parent)
     : QObject(parent)
     , Packets::Parser<NetworkClient>(*this)
     , m_dtls(dtls)
     , m_address(address)
     , m_port(port)
     , m_sharedSocket(sharedSocket)
-    , m_networkMutex(networkMutex)
     , m_timer(new QTimer(this))
 {
     m_dtls->setParent(this); // take ownership
@@ -49,7 +52,12 @@ NetworkClient::~NetworkClient()
 void NetworkClient::incomingEncryptedData(const QByteArray &encrypted)
 {
     // Decrypt using the peer address/port – QDtls::decryptDatagram overload
-    auto plaintext = m_dtls->decryptDatagram(&m_sharedSocket, encrypted);
+    QByteArray plaintext;
+    {
+        QMutexLocker lock(&m_sharedSocket.second);
+        plaintext = m_dtls->decryptDatagram(&m_sharedSocket.first, encrypted);
+    }
+
     if (plaintext.isEmpty()) {
         if (m_dtls->dtlsError() != QDtlsError::NoError) {
             qWarning() << "DTLS decrypt error:" << m_dtls->dtlsErrorString();
@@ -63,7 +71,7 @@ void NetworkClient::incomingEncryptedData(const QByteArray &encrypted)
     }
 
     if (plaintext.size() < static_cast<qsizetype>(sizeof(Packets::Ordering) * 2 + sizeof(Packets::Timestamp))) {
-        qWarning() << "Invalid DTLS decrypted packet size has been received.";
+        qWarning() << "Invalid DTLS decrypted packet size has been received:" << plaintext.size();
         return;
     }
 
@@ -88,8 +96,8 @@ qint64 NetworkClient::write(const QByteArray &data)
 
     static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) * 2 - sizeof(Packets::Timestamp);
     const auto size = data.size();
-    const Packets::Ordering chunksCount = (size / innerSize) + (size % innerSize ? 1 : 0);
-    const auto chunks_be = qToBigEndian(chunksCount);
+    const Packets::Ordering sizing = size / innerSize + (size % innerSize ? 1 : 0);
+    const auto sizing_be = qToBigEndian(sizing);
 
     Packets::Ordering order = 0;
     qsizetype offset = 0;
@@ -99,13 +107,13 @@ qint64 NetworkClient::write(const QByteArray &data)
         const auto order_be = qToBigEndian(order);
         const auto chunkSize = chunk.size();
         chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
-        chunk.prepend(reinterpret_cast<const char *>(&chunks_be), sizeof(chunks_be));
+        chunk.prepend(reinterpret_cast<const char *>(&sizing_be), sizeof(sizing_be));
         chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
 
         qint64 ret;
         {
-            QMutexLocker lock(&m_networkMutex);
-            ret = m_dtls->writeDatagramEncrypted(&m_sharedSocket, chunk);
+            QMutexLocker lock(&m_sharedSocket.second);
+            ret = m_dtls->writeDatagramEncrypted(&m_sharedSocket.first, chunk);
         }
 
         if (ret < 0) {

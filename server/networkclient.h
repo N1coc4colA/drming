@@ -28,11 +28,10 @@ class NetworkClient : public QObject, public Packets::Parser<NetworkClient>
         std::chrono::duration<double>(Settings::inactivityTimeout / 1000.0));
 
 public:
-    explicit NetworkClient(
-        QDtls *dtls, const QHostAddress &address, quint16 port, QUdpSocket &sharedSocket, QMutex &networkMutex, QObject *parent = nullptr);
+    explicit NetworkClient(QDtls *dtls, const QHostAddress &address, quint16 port, QPair<QUdpSocket, QMutex> &sharedSocket, QObject *parent = nullptr);
     ~NetworkClient();
 
-    inline QAbstractSocket *socket() { return &m_sharedSocket; };
+    inline QAbstractSocket *socket() { return &m_sharedSocket.first; };
     qint64 write(const QByteArray &data);
     void close();
 
@@ -45,6 +44,7 @@ public:
     void processPacket(const Packets::HeartBeat &);
     void processPacket(const Packets::Reinit &);
     void processPacket(const Packets::RequestClientResolution &);
+    void processPacket(const Packets::RequestKey &);
     void onPacketErrors() {}
 
     void notifyHeartBeat();
@@ -65,8 +65,7 @@ private:
     QDtls *m_dtls;
     const QHostAddress m_address;
     const quint16 m_port;
-    QUdpSocket &m_sharedSocket;
-    QMutex &m_networkMutex;
+    QPair<QUdpSocket, QMutex> &m_sharedSocket;
     QTimer *m_timer;
     TimePoint m_lastHeartBeat;
 

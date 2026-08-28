@@ -22,6 +22,7 @@ public:
     void processPacket(const Packets::ServerStream &img);
     void processPacket(const Packets::Reinit &);
     void processPacket(const Packets::ClientResolution &res);
+    void processPacket(const Packets::KeyUpdate &ku);
     void onPacketErrors();
 
     void setItem(QObject *item) override;
@@ -30,18 +31,14 @@ private:
     VideoDecoder *m_decoder = nullptr;
     VideoFrameItem *m_item = nullptr;
     bool m_waitedForResolution = false;
+    bool m_waitedForKey = false;
     bool m_locked = false;
+    QTimer m_requireCheck;
+
+    void performRequirements();
 
     inline void addData(QByteArray additional) override
     {
-        if (!m_waitedForResolution) [[unlikely]] {
-            m_waitedForResolution = true;
-            waitFor(Packets::Type::ClientResolution);
-
-            static constexpr Packets::RequestClientResolution resReq{};
-            write(Packets::Writer::generate(resReq));
-        }
-
         Parser::clear();
         Parser::addData(std::move(additional));
     }

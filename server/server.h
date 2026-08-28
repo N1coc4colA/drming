@@ -5,6 +5,7 @@
 #include <QMap>
 #include <QMutex>
 #include <QObject>
+#include <QPair>
 #include <QUdpSocket>
 
 #include "networkclient.h"
@@ -36,9 +37,8 @@ private Q_SLOTS:
     void onClientDisconnected();
 
 private:
-    QMutex m_networkMutex;
-    QUdpSocket m_socket4{};
-    QUdpSocket m_socket6{};
+    QPair<QUdpSocket, QMutex> m_socket4{};
+    QPair<QUdpSocket, QMutex> m_socket6{};
 
     // Active clients: peer key -> NetworkClientDtls*
     QMap<QString, NetworkClient *> m_clients;
@@ -48,7 +48,7 @@ private:
     QString peerKey(const QHostAddress &addr, quint16 port) const;
     void removeClient(NetworkClient *client);
 
-    void processSocketPendings(QUdpSocket &socket);
+    void processSocketPendings(QPair<QUdpSocket, QMutex> &pair);
 };
 
 #endif // SERVER_H

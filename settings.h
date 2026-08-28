@@ -22,6 +22,9 @@ static constexpr int frameMSecsInterval = 60;
 static constexpr int inactivityTimeout = 2000;
 static constexpr auto errorLimit = 8192;
 static constexpr int ivSize = 16;
+static constexpr int dkLen = 32;
+static constexpr int keyIterations = 10000;
+static constexpr int saltLen = 32;
 
 static constexpr auto timeFormat = " HH:mm";
 

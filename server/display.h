@@ -22,6 +22,7 @@ public Q_SLOTS:
     void addClient(NetworkClient *client);
     void reinit();
     void requireResolutionInformation();
+    void requireKeyInformation();
 
 protected:
     void sendData(QByteArray output);

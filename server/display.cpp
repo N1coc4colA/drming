@@ -67,6 +67,18 @@ void Display::requireResolutionInformation()
     m_prevSize = {};
 }
 
+void Display::requireKeyInformation()
+{
+    Packets::KeyUpdate ku{};
+    ku.key.data = m_ss.getKey();
+    ku.keyStamp.data = m_ss.getKeystamp();
+
+    const auto info = std::move(Packets::Writer::generate(ku));
+    for (auto &client : m_clients) {
+        client->write(info);
+    }
+}
+
 void Display::forward()
 {
     VkmsFrameBuffer fb{};
