@@ -2,6 +2,7 @@
 #define UDP_H
 
 #include <QDtls>
+#include <QMutex>
 #include <QNetworkInterface>
 #include <QPasswordDigestor>
 #include <QRandomGenerator>
@@ -280,6 +281,189 @@ private:
 
         return true;
     }
+};
+
+template<typename T>
+class DtlsCommon
+{
+public:
+    explicit DtlsCommon(T &owner, QDtls *dtls, QUdpSocket *socket, QMutex *mtx = nullptr)
+        : m_owner(owner)
+        , m_dtls(dtls)
+        , m_socket(socket)
+        , m_mtx(mtx)
+    {}
+
+    void setDtls(QDtls *dtls) { m_dtls = dtls; }
+    void setSocket(QUdpSocket *socket) { m_socket = socket; }
+    void setMutex(QMutex *mtx) { m_mtx = mtx; }
+
+    QDtls *dtls() { return m_dtls; }
+    const QDtls *dtls() const { return m_dtls; }
+    QUdpSocket *socket() { return m_socket; }
+    const QUdpSocket *socket() const { return m_socket; }
+    QMutex *mutex() { return m_mtx; }
+    const QMutex *mutex() const { return m_mtx; }
+
+    T &m_owner;
+    QDtls *m_dtls;
+    QUdpSocket *m_socket;
+    QMutex *m_mtx;
+};
+
+template<typename T, typename Storage = DtlsCommon<T>>
+class DtlsWriterImpl
+{
+public:
+    explicit DtlsWriterImpl(Storage &storage)
+        : m_storage(storage)
+    {}
+
+    inline qint64 writeDtls(const QByteArray &data)
+    {
+        static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) * 2 - sizeof(Packets::Timestamp);
+        const auto size = data.size();
+        const Packets::Ordering sizing = size / innerSize + (size % innerSize ? 1 : 0);
+        const auto sizing_be = qToBigEndian(sizing);
+
+        Packets::Ordering order = 0;
+        qsizetype offset = 0;
+        while (offset < size) {
+            auto chunk = data.mid(offset, innerSize);
+            const auto ts_be = qToBigEndian(m_ts);
+            const auto order_be = qToBigEndian(order);
+            chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
+            chunk.prepend(reinterpret_cast<const char *>(&sizing_be), sizeof(sizing_be));
+            chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
+
+            qint64 written;
+            {
+                QMutexLocker lock(m_storage.m_mtx);
+                written = m_storage.m_dtls->writeDatagramEncrypted(m_storage.m_socket, chunk);
+            }
+
+            if (written < 0) {
+                const auto err = m_storage.m_dtls->dtlsError();
+                switch (err) {
+                case QDtlsError::RemoteClosedConnectionError: {
+                    qDebug() << "Remote closed";
+                    m_storage.m_owner.close();
+                    break;
+                }
+                case QDtlsError::UnderlyingSocketError:
+                case QDtlsError::NoError: {
+                    continue;
+                }
+                default: {
+                    qWarning() << "DTLS write error on" << m_ts << order << static_cast<int>(err) << m_storage.m_dtls->dtlsErrorString();
+                }
+                }
+
+                m_ts++;
+                m_ts = m_ts % Settings::simultaneousPendings;
+
+                return -1;
+            }
+
+            offset += chunk.size();
+            order++;
+        }
+
+        m_ts++;
+        m_ts = m_ts % Settings::simultaneousPendings;
+
+        return offset;
+    }
+
+private:
+    Storage &m_storage;
+    Packets::Timestamp m_ts = 0;
+};
+
+template<typename T, typename Storage = DtlsCommon<T>>
+class DtlsReaderImpl
+{
+public:
+    explicit DtlsReaderImpl(Storage &storage)
+        : m_storage(storage)
+    {}
+
+    inline void processDtls(const QByteArray &dgram)
+    {
+        // Decrypt application datagram
+        QByteArray plain;
+        {
+            QMutexLocker lock(m_storage.m_mtx);
+            plain = m_storage.m_dtls->decryptDatagram(m_storage.m_socket, dgram);
+        }
+
+        if (!plain.isEmpty()) {
+            if (plain.size() < static_cast<qsizetype>(sizeof(Packets::Ordering) * 2 + sizeof(Packets::Timestamp))) {
+                qWarning() << "Invalid DTLS decrypted packet size has been received:" << plain.size();
+                return;
+            }
+
+            const auto ts = qFromBigEndian(*reinterpret_cast<Packets::Timestamp *>(plain.first(sizeof(Packets::Timestamp)).data()));
+            const auto sizing = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
+                plain.slice(static_cast<qsizetype>(sizeof(Packets::Timestamp))).first(sizeof(Packets::Ordering)).data()));
+            const auto order = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
+                plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))).first(sizeof(Packets::Ordering)).data()));
+
+            // We need to slice as the ordering is not part of the information wanted by the application.
+            m_jitterBuffer.pushChunk(ts, order, sizing, plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))));
+
+            while (const auto v = m_jitterBuffer.pullComplete()) {
+                m_storage.m_owner.addData(std::move(*v));
+            }
+            return;
+        }
+
+        // If plain is empty, check for shutdown/remote-close
+        if (m_storage.m_dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) {
+            qWarning() << "DTLS shutdown received";
+            m_storage.m_socket->close();
+            return;
+        }
+
+        qWarning() << "Received zero-length DTLS plaintext or unexpected datagram";
+    }
+
+    auto &jitterBuffer() { return m_jitterBuffer; }
+
+private:
+    Storage &m_storage;
+    Packets::JitterBuffer<> m_jitterBuffer;
+};
+
+template<typename T>
+class DtlsReader : public DtlsCommon<T>, public DtlsReaderImpl<T, DtlsReader<T>>
+{
+public:
+    explicit DtlsReader(T &owner, QDtls *dtls, QUdpSocket *socket, QMutex *mtx = nullptr)
+        : DtlsCommon<T>(owner, dtls, socket, mtx)
+        , DtlsReaderImpl<T, DtlsReader<T>>(*this)
+    {}
+};
+
+template<typename T>
+class DtlsWriter : public DtlsCommon<T>, public DtlsWriterImpl<T, DtlsWriter<T>>
+{
+public:
+    explicit DtlsWriter(T &owner, QDtls *dtls, QUdpSocket *socket, QMutex *mtx = nullptr)
+        : DtlsCommon<T>(owner, dtls, socket, mtx)
+        , DtlsWriterImpl<T, DtlsWriter<T>>(*this)
+    {}
+};
+
+template<typename T>
+class DtlsReaderWriter : public DtlsCommon<T>, public DtlsReaderImpl<T, DtlsReaderWriter<T>>, public DtlsWriterImpl<T, DtlsReaderWriter<T>>
+{
+public:
+    explicit DtlsReaderWriter(T &owner, QDtls *dtls, QUdpSocket *socket, QMutex *mtx = nullptr)
+        : DtlsCommon<T>(owner, dtls, socket, mtx)
+        , DtlsReaderImpl<T, DtlsReaderWriter>(*this)
+        , DtlsWriterImpl<T, DtlsReaderWriter>(*this)
+    {}
 };
 
 #endif // UDP_H

@@ -9,6 +9,7 @@
 #include <chrono>
 
 #include "../net/parser.h"
+#include "../net/udp.h"
 #include "../settings.h"
 
 class QUdpSocket;
@@ -31,7 +32,6 @@ public:
     explicit NetworkClient(QDtls *dtls, const QHostAddress &address, quint16 port, QPair<QUdpSocket, QMutex> &sharedSocket, QObject *parent = nullptr);
     ~NetworkClient();
 
-    inline QAbstractSocket *socket() { return &m_sharedSocket.first; };
     qint64 write(const QByteArray &data);
     void close();
 
@@ -59,13 +59,11 @@ Q_SIGNALS:
 
 private:
     Display *m_display = nullptr;
-
-    Packets::JitterBuffer<> m_jitterBuffer;
-    Packets::Timestamp m_ts = 0;
-    QDtls *m_dtls;
     const QHostAddress m_address;
     const quint16 m_port;
-    QPair<QUdpSocket, QMutex> &m_sharedSocket;
+
+    DtlsReaderWriter<NetworkClient> m_rw;
+
     QTimer *m_timer;
     TimePoint m_lastHeartBeat;
 

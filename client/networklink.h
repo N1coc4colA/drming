@@ -8,6 +8,7 @@
 #include <QUdpSocket>
 
 #include "../net/parser.h"
+#include "../net/udp.h"
 
 class NetworkLink : public QObject
 {
@@ -20,6 +21,8 @@ public:
     ~NetworkLink() override;
 
     static NetworkLink *createForPlatform(QObject *parent = nullptr);
+
+    virtual void addData(QByteArray additional) = 0;
 
 Q_SIGNALS:
     void error(const QString &explanation);
@@ -55,10 +58,10 @@ private:
     QByteArray m_buffer{};
     QSslSocket *m_sslSocket = nullptr;
     QUdpSocket *m_udpSocket = nullptr;
-    bool m_encryptionNotified = false;
     QDtls *m_dtls = nullptr;
-    Packets::JitterBuffer<> m_jitterBuffer;
-    Packets::Timestamp m_ts = 0;
+
+    DtlsReaderWriter<NetworkLink> m_rw;
+
     QTimer m_inactivityTimer{};
     quint16 m_format = 0;
     quint32 m_width = 0;
@@ -73,7 +76,7 @@ private:
     qint64 writeDtls(const QByteArray &data);
     qint64 writeSsl(const QByteArray &data);
 
-    virtual void addData(QByteArray additional) = 0;
+    friend class DtlsReader<NetworkLink>;
 };
 
 #endif // NETWORKLINK_H

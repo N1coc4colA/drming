@@ -31,13 +31,14 @@ void NetworkClient::processPacket(const Packets::RequestKey &)
 NetworkClient::NetworkClient(QDtls *dtls, const QHostAddress &address, const quint16 port, QPair<QUdpSocket, QMutex> &sharedSocket, QObject *parent)
     : QObject(parent)
     , Packets::Parser<NetworkClient>(*this)
-    , m_dtls(dtls)
     , m_address(address)
     , m_port(port)
-    , m_sharedSocket(sharedSocket)
+    , m_rw(*this, dtls, &sharedSocket.first, &sharedSocket.second)
     , m_timer(new QTimer(this))
 {
-    m_dtls->setParent(this); // take ownership
+    assert(dtls);
+
+    dtls->setParent(this); // take ownership
 
     m_timer->setTimerType(Qt::VeryCoarseTimer);
     connect(m_timer, &QTimer::timeout, this, &NetworkClient::checkHeartBeat);
@@ -51,101 +52,12 @@ NetworkClient::~NetworkClient()
 
 void NetworkClient::incomingEncryptedData(const QByteArray &encrypted)
 {
-    // Decrypt using the peer address/port – QDtls::decryptDatagram overload
-    QByteArray plaintext;
-    {
-        QMutexLocker lock(&m_sharedSocket.second);
-        plaintext = m_dtls->decryptDatagram(&m_sharedSocket.first, encrypted);
-    }
-
-    if (plaintext.isEmpty()) {
-        if (m_dtls->dtlsError() != QDtlsError::NoError) {
-            qWarning() << "DTLS decrypt error:" << m_dtls->dtlsErrorString();
-            // If fatal, close connection
-            if (m_dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) {
-                close();
-            }
-        }
-
-        return;
-    }
-
-    if (plaintext.size() < static_cast<qsizetype>(sizeof(Packets::Ordering) * 2 + sizeof(Packets::Timestamp))) {
-        qWarning() << "Invalid DTLS decrypted packet size has been received:" << plaintext.size();
-        return;
-    }
-
-    const auto ts = qFromBigEndian(*reinterpret_cast<Packets::Timestamp *>(plaintext.first(sizeof(Packets::Timestamp)).data()));
-    const auto sizing = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
-        plaintext.slice(static_cast<qsizetype>(sizeof(Packets::Timestamp))).first(sizeof(Packets::Ordering)).data()));
-    const auto order = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
-        plaintext.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))).first(sizeof(Packets::Ordering)).data()));
-
-    m_jitterBuffer.pushChunk(ts, order, sizing, plaintext.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))));
-
-    while (const auto v = m_jitterBuffer.pullComplete()) {
-        addData(std::move(*v));
-    }
+    m_rw.processDtls(encrypted);
 }
 
 qint64 NetworkClient::write(const QByteArray &data)
 {
-    if (!m_dtls) {
-        return -1;
-    }
-
-    static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) * 2 - sizeof(Packets::Timestamp);
-    const auto size = data.size();
-    const Packets::Ordering sizing = size / innerSize + (size % innerSize ? 1 : 0);
-    const auto sizing_be = qToBigEndian(sizing);
-
-    Packets::Ordering order = 0;
-    qsizetype offset = 0;
-    while (offset < size) {
-        auto chunk = data.mid(offset, innerSize);
-        const auto ts_be = qToBigEndian(m_ts);
-        const auto order_be = qToBigEndian(order);
-        const auto chunkSize = chunk.size();
-        chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
-        chunk.prepend(reinterpret_cast<const char *>(&sizing_be), sizeof(sizing_be));
-        chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
-
-        qint64 ret;
-        {
-            QMutexLocker lock(&m_sharedSocket.second);
-            ret = m_dtls->writeDatagramEncrypted(&m_sharedSocket.first, chunk);
-        }
-
-        if (ret < 0) {
-            const auto err = m_dtls->dtlsError();
-            switch (err) {
-            case QDtlsError::RemoteClosedConnectionError: {
-                close();
-                break;
-            }
-            case QDtlsError::UnderlyingSocketError:
-            case QDtlsError::NoError: {
-                continue;
-            }
-            default: {
-                qWarning() << "DTLS write error on" << m_ts << order << static_cast<int>(err) << m_dtls->dtlsErrorString();
-            }
-            }
-
-            m_ts++;
-            m_ts = m_ts % Settings::simultaneousPendings;
-
-            return -1;
-        }
-
-        offset += chunkSize;
-        order++;
-    }
-
-    m_ts++;
-    m_ts = m_ts % Settings::simultaneousPendings;
-
-    return offset;
+    return m_rw.writeDtls(data);
 }
 
 void NetworkClient::close()
@@ -156,20 +68,12 @@ void NetworkClient::close()
 
 QAbstractSocket::SocketState NetworkClient::state() const
 {
-    if (!m_dtls) {
-        return QAbstractSocket::UnconnectedState;
-    }
-
-    return m_dtls->isConnectionEncrypted() ? QAbstractSocket::ConnectedState : QAbstractSocket::ConnectingState;
+    return m_rw.dtls()->isConnectionEncrypted() ? QAbstractSocket::ConnectedState : QAbstractSocket::ConnectingState;
 }
 
 QByteArray NetworkClient::digest() const
 {
-    if (!m_dtls) {
-        return {};
-    }
-
-    return m_dtls->dtlsConfiguration().peerCertificate().digest();
+    return m_rw.dtls()->dtlsConfiguration().peerCertificate().digest();
 }
 
 void NetworkClient::notifyHeartBeat()

@@ -23,6 +23,7 @@ NetworkLink::NetworkLink(QObject *parent)
     , m_sslSocket(new QSslSocket(this))
     , m_udpSocket(new QUdpSocket(this))
     , m_dtls(new QDtls(QSslSocket::SslClientMode, this))
+    , m_rw(*this, m_dtls, m_udpSocket, nullptr)
 {
     QObject::connect(m_udpSocket, &QUdpSocket::connected, this, &NetworkLink::onUdpConnected);
     QObject::connect(m_udpSocket, &QUdpSocket::disconnected, this, &NetworkLink::onDtlsDisconnected);
@@ -224,7 +225,7 @@ void NetworkLink::onDtlsDisconnected()
     m_udpSocket->close();
     m_buffer.clear();
     m_inactivityTimer.stop();
-    m_jitterBuffer.clear();
+    m_rw.jitterBuffer().clear();
 }
 
 void NetworkLink::onSslDisconnected()
@@ -238,7 +239,8 @@ void NetworkLink::onDtlsDataAvailable()
 
     while (m_udpSocket->hasPendingDatagrams()) {
         QByteArray dgram(m_udpSocket->pendingDatagramSize(), Qt::Uninitialized);
-        const qint64 bytesRead = m_udpSocket->readDatagram(dgram.data(), dgram.size());
+        const auto bytesRead = m_udpSocket->readDatagram(dgram.data(), dgram.size());
+
         if (bytesRead <= 0) {
             qWarning() << "Spurious UDP read";
             return;
@@ -266,39 +268,7 @@ void NetworkLink::onDtlsDataAvailable()
         }
 
         // Decrypt application datagram
-        auto plain = m_dtls->decryptDatagram(m_udpSocket, dgram);
-        if (!plain.isEmpty()) {
-            if (plain.size() < static_cast<qsizetype>(sizeof(Packets::Ordering) * 2 + sizeof(Packets::Timestamp))) {
-                qWarning() << "Invalid DTLS decrypted packet size has been received:" << plain.size();
-                return;
-            }
-
-            const auto ts = qFromBigEndian(*reinterpret_cast<Packets::Timestamp *>(plain.first(sizeof(Packets::Timestamp)).data()));
-            const auto sizing = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
-                plain.slice(static_cast<qsizetype>(sizeof(Packets::Timestamp))).first(sizeof(Packets::Ordering)).data()));
-            const auto order = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
-                plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))).first(sizeof(Packets::Ordering)).data()));
-
-            // We need to slice as the ordering is not part of the information wanted by the application.
-            m_jitterBuffer.pushChunk(ts, order, sizing, plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))));
-
-            while (const auto v = m_jitterBuffer.pullComplete()) {
-                addData(std::move(*v));
-            }
-
-            continue;
-        } else {
-            qDebug() << "Empty dgram.";
-        }
-
-        // If plain is empty, check for shutdown/remote-close
-        if (m_dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) {
-            qWarning() << "DTLS shutdown received";
-            m_udpSocket->close();
-            return;
-        }
-
-        qWarning() << "Received zero-length DTLS plaintext or unexpected datagram";
+        m_rw.processDtls(dgram);
     }
 }
 
@@ -342,52 +312,7 @@ void NetworkLink::write(const QByteArray &data)
 
 qint64 NetworkLink::writeDtls(const QByteArray &data)
 {
-    static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) * 2 - sizeof(Packets::Timestamp);
-    const auto size = data.size();
-    const Packets::Ordering sizing = size / innerSize + (size % innerSize ? 1 : 0);
-    const auto sizing_be = qToBigEndian(sizing);
-
-    Packets::Ordering order = 0;
-    qsizetype offset = 0;
-    while (offset < size) {
-        auto chunk = data.mid(offset, innerSize);
-        const auto ts_be = qToBigEndian(m_ts);
-        const auto order_be = qToBigEndian(order);
-        chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
-        chunk.prepend(reinterpret_cast<const char *>(&sizing_be), sizeof(sizing_be));
-        chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
-
-        if (m_dtls->writeDatagramEncrypted(m_udpSocket, chunk) < 0) {
-            const auto err = m_dtls->dtlsError();
-            switch (err) {
-            case QDtlsError::RemoteClosedConnectionError: {
-                qDebug() << "Remote closed";
-                close();
-                break;
-            }
-            case QDtlsError::UnderlyingSocketError:
-            case QDtlsError::NoError: {
-                continue;
-            }
-            default: {
-                qWarning() << "DTLS write error on" << m_ts << order << static_cast<int>(err) << m_dtls->dtlsErrorString();
-            }
-            }
-
-            m_ts++;
-            m_ts = m_ts % Settings::simultaneousPendings;
-
-            return -1;
-        }
-
-        offset += chunk.size();
-        order++;
-    }
-
-    m_ts++;
-    m_ts = m_ts % Settings::simultaneousPendings;
-
-    return offset;
+    return m_rw.writeDtls(data);
 }
 
 qint64 NetworkLink::writeSsl(const QByteArray &data)
