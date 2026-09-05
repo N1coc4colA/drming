@@ -50,11 +50,13 @@ Q_SIGNALS:
 public Q_SLOTS:
     void connectToHost(const QHostAddress &address, const quint16 port)
     {
-        if (address.protocol() == QAbstractSocket::IPv4Protocol) {
+        const auto proto = address.protocol();
+        if (proto == QAbstractSocket::IPv4Protocol) {
             m_socket4.connectToHost(address, port);
-        }
-        if (address.protocol() == QAbstractSocket::IPv6Protocol) {
+        } else if (proto == QAbstractSocket::IPv6Protocol) {
             m_socket6.connectToHost(address, port);
+        } else {
+            qWarning() << "Invalid protocol:" << proto;
         }
     }
 
@@ -68,9 +70,12 @@ public Q_SLOTS:
             return false;
         }
 
-        if (!address6.isNull() && !listen(m_socket6, QHostAddress::AnyIPv6, address6, port, iface4)) {
+        if (!address6.isNull() && !listen(m_socket6, QHostAddress::AnyIPv6, address6, port, iface6)) {
             return false;
         }
+
+        m_ipv4Address = address4;
+        m_ipv6Address = address6;
 
         return true;
     }
@@ -83,10 +88,10 @@ public Q_SLOTS:
 
     bool write(const QByteArray &data)
     {
-        if (m_socket4.state() == QAbstractSocket::BoundState && !write(data, m_socket4, m_socket4.localAddress(), m_socket4.localPort())) {
+        if (m_socket4.state() == QAbstractSocket::BoundState && !write(data, m_socket4, m_ipv4Address, m_socket4.localPort())) {
             return false;
         }
-        if (m_socket6.state() == QAbstractSocket::BoundState && !write(data, m_socket6, m_socket6.localAddress(), m_socket6.localPort())) {
+        if (m_socket6.state() == QAbstractSocket::BoundState && !write(data, m_socket6, m_ipv6Address, m_socket6.localPort())) {
             return false;
         }
 
@@ -120,6 +125,9 @@ protected:
     virtual void addData(QByteArray additional) = 0;
 
 private:
+    QHostAddress m_ipv4Address{};
+    QHostAddress m_ipv6Address{};
+
     QUdpSocket m_socket4{};
     QUdpSocket m_socket6{};
 
@@ -150,11 +158,13 @@ private:
             return false;
         }
 
-        if (iface.isValid() && !socket.joinMulticastGroup(address, iface)) {
-            qCritical() << "Failed to join multicast" << address << ':' << port;
-            return false;
-        } else if (!socket.joinMulticastGroup(address)) {
-            qCritical() << "Failed to join multicast" << address << ':' << port;
+        const bool isValid = iface.isValid();
+        if (isValid) {
+            socket.setMulticastInterface(iface);
+        }
+
+        if (isValid ? !socket.joinMulticastGroup(address, iface) : !socket.joinMulticastGroup(address)) {
+            qCritical() << "Failed to join multicast" << iface.name() << ':' << address.toString() << ':' << port << socket.errorString();
             return false;
         }
 
@@ -216,6 +226,10 @@ private:
 
     bool write(const QByteArray &data, QUdpSocket &socket, const QHostAddress &address, const quint16 port)
     {
+        if (data.isEmpty()) [[unlikely]] {
+            return true;
+        }
+
         static constexpr auto innerSize = Settings::dtlsChunkSize - Settings::ivSize - sizeof(Packets::Keystamp) - sizeof(Packets::Ordering) * 2
                                           - sizeof(Packets::Timestamp);
         const auto size = data.size();
