@@ -23,16 +23,22 @@ using Keystamp = qint16;
 
 enum class Type : quint16 {
     None = 0,
+
     HeartBeat,
     Reinit,
 
     RequestKey,
     KeyUpdate,
 
-    ServerImage,
+    RequestAudioSource,
+    AudioSource,
+    RequestVideoSource,
+    VideoSource,
     RequestClientResolution,
     ClientResolution,
+
     ServerBrightness,
+    ServerImage,
     ServerStream,
 
     MINIMUM = HeartBeat,
@@ -286,6 +292,40 @@ struct KeyUpdate
     static constexpr auto fields = std::tuple{&KeyUpdate::keyStamp, &KeyUpdate::key};
 };
 
+struct RequestAudioSource
+{
+    static constexpr auto type = Type::RequestAudioSource;
+    static constexpr auto fields = std::tuple{};
+};
+
+struct AudioSource
+{
+    static constexpr auto type = Type::AudioSource;
+
+    VariableFixedField<QByteArray, qsizetype, 4, 16> ip;
+    Field<quint16> port;
+    Field<bool> isV4;
+
+    static constexpr auto fields = std::tuple{&AudioSource::ip, &AudioSource::port, &AudioSource::isV4};
+};
+
+struct RequestVideoSource
+{
+    static constexpr auto type = Type::RequestVideoSource;
+    static constexpr auto fields = std::tuple{};
+};
+
+struct VideoSource
+{
+    static constexpr auto type = Type::VideoSource;
+
+    VariableFixedField<QByteArray, qsizetype, 4, 16> ip;
+    Field<quint16> port;
+    Field<bool> isV4;
+
+    static constexpr auto fields = std::tuple{&VideoSource::ip, &VideoSource::port, &VideoSource::isV4};
+};
+
 struct ServerImage
 {
     static constexpr auto type = Type::ServerImage;
@@ -324,13 +364,25 @@ struct ServerBrightness
 struct ServerStream
 {
     static constexpr auto type = Type::ServerStream;
+
     VariableBoundField<QByteArray, quint64, 1> data;
 
     static constexpr auto fields = std::tuple{&ServerStream::data};
 };
 
-using PacketVariant
-    = std::variant<HeartBeat, Reinit, RequestKey, KeyUpdate, ServerImage, RequestClientResolution, ClientResolution, ServerBrightness, ServerStream>;
+using PacketVariant = std::variant<HeartBeat,
+                                   Reinit,
+                                   RequestKey,
+                                   KeyUpdate,
+                                   RequestAudioSource,
+                                   AudioSource,
+                                   RequestVideoSource,
+                                   VideoSource,
+                                   RequestClientResolution,
+                                   ClientResolution,
+                                   ServerBrightness,
+                                   ServerImage,
+                                   ServerStream>;
 
 class Writer
 {
