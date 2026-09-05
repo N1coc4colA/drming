@@ -141,6 +141,20 @@ CommandParser::Exit CommandParser::parse()
         return Failure;
     }
 
+    if (!serviceIface4.isValid() && !m_parser.value("iface4").isEmpty()) {
+        qCritical() << "The IPv4 interface is invalid:" << m_parser.value("iface4");
+        return Failure;
+    } else {
+        qDebug() << "Iface ipv4:" << m_parser.value("iface4") << ':' << serviceIface4.isValid();
+    }
+
+    if (!serviceIface6.isValid() && !m_parser.value("iface6").isEmpty()) {
+        qCritical() << "The IPv4 interface is invalid:" << m_parser.value("iface6");
+        return Failure;
+    } else {
+        qDebug() << "Iface ipv6:" << m_parser.value("iface6") << ':' << serviceIface6.isValid();
+    }
+
     if (noV4 != serviceAudioIp4.isNull() || noV4 != serviceVideoIp4.isNull()) {
         qCritical() << "Specifying either ipv4 requires ipv4-audio & ipv4-audio to be set.";
         return Failure;
