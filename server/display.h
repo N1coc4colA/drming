@@ -15,6 +15,8 @@ class Display : public QObject
 public:
     explicit Display(const QString &connectorName, StreamSocket &ss, QObject *parent = nullptr);
 
+    StreamSocket &streamSocket() { return m_ss; }
+
 Q_SIGNALS:
     void nowFree();
 
@@ -22,7 +24,6 @@ public Q_SLOTS:
     void addClient(NetworkClient *client);
     void reinit();
     void requireResolutionInformation();
-    void requireKeyInformation();
 
 protected:
     void sendData(QByteArray output);

@@ -45,6 +45,8 @@ public:
     void processPacket(const Packets::Reinit &);
     void processPacket(const Packets::RequestClientResolution &);
     void processPacket(const Packets::RequestKey &);
+    void processPacket(const Packets::RequestAudioSource &);
+    void processPacket(const Packets::RequestVideoSource &);
     void onPacketErrors() {}
 
     void notifyHeartBeat();

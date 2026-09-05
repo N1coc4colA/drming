@@ -7,6 +7,8 @@
 #include <qendian.h>
 
 #include "display.h"
+#include "parameters.h"
+#include "streamsocket.h"
 
 void NetworkClient::processPacket(const Packets::HeartBeat &)
 {
@@ -25,7 +27,49 @@ void NetworkClient::processPacket(const Packets::RequestClientResolution &)
 
 void NetworkClient::processPacket(const Packets::RequestKey &)
 {
-    m_display->requireKeyInformation();
+    auto &ss = m_display->streamSocket();
+
+    Packets::KeyUpdate ku{};
+    ku.key.data = ss.getKey();
+    ku.keyStamp.data = ss.getKeystamp();
+
+    write(std::move(Packets::Writer::generate(ku)));
+}
+
+void NetworkClient::processPacket(const Packets::RequestAudioSource &)
+{
+    Packets::AudioSource src{};
+
+    const auto v4 = Parameters::instance.serviceAudioIp4.toIPv4Address();
+    const auto v6 = Parameters::instance.serviceAudioIp6.toIPv6Address();
+
+    const auto isV4 = m_address.protocol() == QAbstractSocket::IPv4Protocol;
+    const auto size = isV4 ? 4 : 16;
+
+    src.isV4.data = isV4;
+    src.ip.data.resize(size);
+    std::memcpy(src.ip.data.data(), isV4 ? static_cast<const void *>(&v4) : static_cast<const void *>(&v6), size);
+    src.port.data = Parameters::instance.audioPort;
+
+    write(std::move(Packets::Writer::generate(src)));
+}
+
+void NetworkClient::processPacket(const Packets::RequestVideoSource &)
+{
+    Packets::VideoSource src{};
+
+    const auto v4 = Parameters::instance.serviceVideoIp4.toIPv4Address();
+    const auto v6 = Parameters::instance.serviceVideoIp6.toIPv6Address();
+
+    const auto isV4 = m_address.protocol() == QAbstractSocket::IPv4Protocol;
+    const auto size = isV4 ? 4 : 16;
+
+    src.isV4.data = isV4;
+    src.ip.data.resize(size);
+    std::memcpy(src.ip.data.data(), isV4 ? static_cast<const void *>(&v4) : static_cast<const void *>(&v6), size);
+    src.port.data = Parameters::instance.videoPort;
+
+    write(std::move(Packets::Writer::generate(src)));
 }
 
 NetworkClient::NetworkClient(QDtls *dtls, const QHostAddress &address, const quint16 port, QPair<QUdpSocket, QMutex> &sharedSocket, QObject *parent)
