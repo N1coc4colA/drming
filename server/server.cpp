@@ -31,7 +31,7 @@ bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, 
 
     if (!address4.isNull()) {
         if (!m_socket4.first.bind(address4, port, QAbstractSocket::ShareAddress)) {
-            qCritical() << "Failed to bind UDP socket:" << m_socket4.first.errorString();
+            qCritical() << "Failed to bind UDP socket:" << address4 << ':' << port << m_socket4.first.errorString();
             return false;
         }
         qInfo() << "Exposing DTLS service on:" << address4.toString() << ':' << port;
@@ -39,7 +39,7 @@ bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, 
 
     if (!address6.isNull()) {
         if (!m_socket6.first.bind(address6, port, QAbstractSocket::ShareAddress)) {
-            qCritical() << "Failed to bind UDP socket:" << m_socket6.first.errorString();
+            qCritical() << "Failed to bind UDP socket:" << address6 << ':' << port << m_socket6.first.errorString();
             return false;
         }
         qInfo() << "Exposing DTLS service on:" << address6.toString() << ':' << port;
