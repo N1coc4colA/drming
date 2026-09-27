@@ -3,6 +3,7 @@
 
 #include <QDtls>
 #include <QMutex>
+#include <QNetworkDatagram>
 #include <QNetworkInterface>
 #include <QPasswordDigestor>
 #include <QRandomGenerator>
@@ -21,10 +22,12 @@ using Endpoint = QPair<QHostAddress, quint16>;
 class UdpStreamSocket : public QObject
 {
     Q_OBJECT
+    const bool NeedsPacketPrint = false;
 
 public:
-    explicit UdpStreamSocket(QObject *parent = nullptr)
+    explicit UdpStreamSocket(QObject *parent = nullptr, const bool needsPacketPrint = false)
         : QObject(parent)
+        , NeedsPacketPrint(needsPacketPrint)
     {
         connect(&m_socket4, &QUdpSocket::connected, this, &UdpStreamSocket::connected);
         connect(&m_socket4, &QUdpSocket::disconnected, this, &UdpStreamSocket::disconnected);
@@ -40,6 +43,9 @@ public:
 
     inline Packets::Keystamp getKeystamp() const { return m_ks; }
     inline QByteArray getKey() const { return m_key; }
+
+    inline auto ipv4Address() const { return m_ipv4Address; }
+    inline auto ipv6Address() const { return m_ipv6Address; }
 
 Q_SIGNALS:
     void connected();
@@ -57,6 +63,84 @@ public Q_SLOTS:
             m_socket6.connectToHost(address, port);
         } else {
             qWarning() << "Invalid protocol:" << proto;
+        }
+    }
+
+    void connectToMulticast(const QHostAddress &address, const quint16 port)
+    {
+        QUdpSocket *sock = nullptr;
+
+        const auto proto = address.protocol();
+        if (proto == QAbstractSocket::IPv4Protocol) {
+            if (!m_socket4.bind(QHostAddress::AnyIPv4, port, QAbstractSocket::ReuseAddressHint)) {
+                qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket4.errorString();
+                // [TODO] Propagate the error
+                return;
+            }
+            sock = &m_socket4;
+        } else if (proto == QAbstractSocket::IPv6Protocol) {
+            if (!m_socket6.bind(QHostAddress::AnyIPv6, port, QAbstractSocket::ReuseAddressHint)) {
+                qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket6.errorString();
+                // [TODO] Propagate the error
+                return;
+            }
+            sock = &m_socket6;
+        } else {
+            qWarning() << "Invalid protocol:" << proto;
+            // [TOOD] Propagate the error
+            return;
+        }
+
+        bool joined = false;
+        for (const auto &iface : QNetworkInterface::allInterfaces()) {
+            const auto flags = iface.flags();
+            if (iface.isValid() && flags.testFlag(QNetworkInterface::CanMulticast) && iface.flags().testFlag(QNetworkInterface::IsUp)
+                && !flags.testFlag(QNetworkInterface::IsLoopBack)) {
+                sock->setMulticastInterface(iface);
+                if (sock->joinMulticastGroup(address, iface)) {
+                    qDebug() << "Joined multicast group" << address << "on interface" << iface.name();
+                    joined = true;
+                }
+            }
+        }
+
+        if (!joined) {
+            // Fallback to default interface
+            if (!sock->joinMulticastGroup(address)) {
+                qDebug() << "Failed to join multicast group:" << address << sock->errorString();
+            }
+        }
+    }
+
+    void connectToMulticast(const QHostAddress &address, const quint16 port, const QNetworkInterface &iface)
+    {
+        QUdpSocket *sock = nullptr;
+
+        const auto proto = address.protocol();
+        if (proto == QAbstractSocket::IPv4Protocol) {
+            if (!m_socket4.bind(QHostAddress::AnyIPv4, port, QAbstractSocket::ReuseAddressHint)) {
+                qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket4.errorString();
+                // [TODO] Propagate the error
+                return;
+            }
+            sock = &m_socket4;
+        } else if (proto == QAbstractSocket::IPv6Protocol) {
+            if (!m_socket6.bind(QHostAddress::AnyIPv6, port, QAbstractSocket::ReuseAddressHint)) {
+                qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket6.errorString();
+                // [TODO] Propagate the error
+                return;
+            }
+            sock = &m_socket6;
+        } else {
+            qWarning() << "Invalid protocol:" << proto;
+            // [TOOD] Propagate the error
+            return;
+        }
+
+        sock->setMulticastInterface(iface);
+
+        if (!sock->joinMulticastGroup(address)) {
+            qDebug() << "Failed to join multicast group:" << address << sock->errorString();
         }
     }
 
@@ -134,7 +218,7 @@ private:
     Packets::JitterBuffer<> m_jitterBuffer;
     Packets::Timestamp m_ts = 0;
 
-    inline static Packets::Keystamp m_keyCount = 0;
+    Packets::Keystamp m_keyCount = 0;
     Packets::Keystamp m_ks = 0;
     QByteArray m_key;
     QAESEncryption m_aes = {QAESEncryption::AES_256, QAESEncryption::CBC, QAESEncryption::PKCS7};
@@ -153,7 +237,7 @@ private:
 
     bool listen(QUdpSocket &socket, const QHostAddress &bindAddr, const QHostAddress &address, const quint16 port, const QNetworkInterface &iface)
     {
-        if (!socket.bind(bindAddr, port, QAbstractSocket::ShareAddress)) {
+        if (!socket.bind(bindAddr, port, QAbstractSocket::ReuseAddressHint)) {
             qCritical() << "Failed to bind UDP socket" << address << ':' << port << ':' << socket.errorString();
             return false;
         }
@@ -180,7 +264,8 @@ private:
         }
 
         // We need to slice as the ordering is not part of the information wanted by the application.
-        m_jitterBuffer.pushChunk(ts, order, sizing, std::move(plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering)))));
+        //m_jitterBuffer.pushChunk(ts, order, sizing, std::move(plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering)))));
+        m_jitterBuffer.pushChunk(ts, order, sizing, std::move(plain));
 
         while (const auto v = m_jitterBuffer.pullComplete()) {
             addData(std::move(*v));
@@ -189,18 +274,21 @@ private:
 
     void onReadyRead(QUdpSocket &socket)
     {
+        static constexpr qsizetype headerSize = sizeof(Packets::Keystamp) + Settings::ivSize + sizeof(Packets::Timestamp)
+                                                + sizeof(Packets::Ordering) * 2;
+
         while (socket.hasPendingDatagrams()) {
             QByteArray dgram(socket.pendingDatagramSize(), Qt::Uninitialized);
-            const qint64 bytesRead = socket.readDatagram(dgram.data(), dgram.size());
-            if (bytesRead <= (Settings::ivSize + sizeof(Packets::Keystamp) + sizeof(Packets::Timestamp) + sizeof(Packets::Ordering) * 2)) {
+            const auto bytesRead = socket.readDatagram(dgram.data(), dgram.size());
+            if (bytesRead <= headerSize) {
                 qWarning() << "Spurious UDP read";
                 continue;
             }
 
             dgram.resize(bytesRead);
 
-            const auto ks = qFromBigEndian(*reinterpret_cast<Packets::Timestamp *>(dgram.first(sizeof(Packets::Keystamp)).data()));
-            if (ks != m_keyCount) {
+            /*const auto ks = qFromBigEndian(*reinterpret_cast<Packets::Timestamp *>(dgram.first(sizeof(Packets::Keystamp)).data()));
+            if (ks != m_ks) {
                 continue;
             }
 
@@ -215,6 +303,41 @@ private:
 
             bool ok = false;
             const auto plain = m_aes.decode(dgram.slice(sizeof(Packets::Ordering)), m_key, iv, &ok);
+            if (!ok) {
+                qDebug() << "Failed to decode";
+                continue;
+            }
+
+            processPlain(std::move(plain), ts, order, sizing);*/
+
+            if (NeedsPacketPrint) {
+                qDebug() << "Received packet";
+            }
+
+            qsizetype offset = 0;
+
+            const auto ks = qFromBigEndian(*reinterpret_cast<const Packets::Keystamp *>(dgram.constData() + offset));
+            offset += sizeof(Packets::Keystamp);
+
+            if (ks != m_ks) {
+                qDebug() << "Ks is wrong:" << ks << m_ks;
+                continue;
+            }
+
+            const auto iv = dgram.mid(offset, Settings::ivSize);
+            offset += Settings::ivSize;
+
+            const auto ts = qFromBigEndian(*reinterpret_cast<const Packets::Timestamp *>(dgram.constData() + offset));
+            offset += sizeof(Packets::Timestamp);
+
+            const auto sizing = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(dgram.constData() + offset));
+            offset += sizeof(Packets::Ordering);
+
+            const auto order = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(dgram.constData() + offset));
+            offset += sizeof(Packets::Ordering);
+
+            bool ok = false;
+            const auto plain = m_aes.decode(dgram.sliced(offset), m_key, iv, &ok);
             if (!ok) {
                 qDebug() << "Failed to decode";
                 continue;
@@ -243,6 +366,7 @@ private:
         qsizetype offset = 0;
         while (offset < size) {
             const auto order_be = qToBigEndian(order);
+            const auto chunkSize = std::min<qsizetype>(innerSize, size - offset);
 
             bool ok = false;
             auto chunk = m_aes.encode(data.mid(offset, innerSize), m_key, iv, &ok);
@@ -257,8 +381,12 @@ private:
             chunk.prepend(iv);
             chunk.prepend(reinterpret_cast<const char *>(&ks_be), sizeof(ks_be));
 
-            if (m_socket4.writeDatagram(chunk, address, port) < 0) {
-                const auto err = m_socket4.error();
+            QNetworkDatagram dgram(chunk, address, port);
+            dgram.setHopLimit(5);
+            dgram.setInterfaceIndex(socket.multicastInterface().index());
+
+            if (socket.writeDatagram(dgram) < 0) {
+                const auto err = socket.error();
                 switch (err) {
                 case QAbstractSocket::RemoteHostClosedError:
                 case QAbstractSocket::SocketAccessError:
@@ -286,7 +414,7 @@ private:
                 return false;
             }
 
-            offset += chunk.size();
+            offset += chunkSize;
             order++;
         }
 
@@ -344,6 +472,7 @@ public:
         qsizetype offset = 0;
         while (offset < size) {
             auto chunk = data.mid(offset, innerSize);
+            const auto chunkSize = chunk.size();
             const auto ts_be = qToBigEndian(m_ts);
             const auto order_be = qToBigEndian(order);
             chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
@@ -379,7 +508,7 @@ public:
                 return -1;
             }
 
-            offset += chunk.size();
+            offset += chunkSize;
             order++;
         }
 

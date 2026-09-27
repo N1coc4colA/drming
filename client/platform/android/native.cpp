@@ -370,3 +370,26 @@ bool createNativeObject_FileHelper(Platform::FileProvider &provider)
 
     return true;
 }
+
+bool createNativeObject_MulticastLockHelper(QJniObject &m_javaHelper)
+{
+    if (m_javaHelper.isValid()) {
+        return true;
+    }
+
+    const auto activity = QJniObject::callStaticObjectMethod("org/qtproject/qt/android/QtNative", "activity", "()Landroid/app/Activity;");
+
+    if (!activity.isValid()) {
+        qWarning() << "Failed to get Android activity";
+        return false;
+    }
+
+    m_javaHelper = QJniObject("eu/n1coc4cola/drming/MulticastLockHelper", "(Landroid/content/Context;)V", activity.object<jobject>());
+
+    if (!m_javaHelper.isValid()) {
+        qWarning() << "Failed to create MulticastLockHelper instance";
+        return false;
+    }
+
+    return true;
+}

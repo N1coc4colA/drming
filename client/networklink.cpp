@@ -43,10 +43,21 @@ NetworkLink::NetworkLink(QObject *parent)
     QObject::connect(m_udpSocket, &QSslSocket::disconnected, this, &NetworkLink::closed);
 
     QObject::connect(m_dtls, &QDtls::handshakeTimeout, this, [this] {
-        if (m_inactivityTimer.remainingTime() > 0) {
+        const auto rt = m_inactivityTimer.remainingTime();
+
+        switch (rt) {
+        case -1: {
+            // We're still in handshake.
+            break;
+        }
+        case 0: {
+            qWarning() << "DTLS handshake timeout" << m_inactivityTimer.remainingTime();
+            break;
+        }
+        default: {
             m_dtls->handleTimeout(m_udpSocket);
-        } else {
-            qWarning() << "DTLS handshake timeout";
+            break;
+        }
         }
     });
 

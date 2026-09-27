@@ -17,23 +17,21 @@ void NetworkClient::processPacket(const Packets::HeartBeat &)
 
 void NetworkClient::processPacket(const Packets::Reinit &)
 {
-    m_display->reinit();
+    if (m_display) [[likely]] {
+        m_display->reinit();
+    }
 }
 
 void NetworkClient::processPacket(const Packets::RequestClientResolution &)
 {
-    m_display->requireResolutionInformation();
+    if (m_display) [[likely]] {
+        m_display->requireResolutionInformation();
+    }
 }
 
 void NetworkClient::processPacket(const Packets::RequestKey &)
 {
-    auto &ss = m_display->streamSocket();
-
-    Packets::KeyUpdate ku{};
-    ku.key.data = ss.getKey();
-    ku.keyStamp.data = ss.getKeystamp();
-
-    write(std::move(Packets::Writer::generate(ku)));
+    notifyKey();
 }
 
 void NetworkClient::processPacket(const Packets::RequestAudioSource &)
@@ -84,8 +82,9 @@ NetworkClient::NetworkClient(QDtls *dtls, const QHostAddress &address, const qui
 
     dtls->setParent(this); // take ownership
 
-    m_timer->setTimerType(Qt::VeryCoarseTimer);
     connect(m_timer, &QTimer::timeout, this, &NetworkClient::checkHeartBeat);
+
+    m_timer->setTimerType(Qt::VeryCoarseTimer);
     m_timer->setInterval(Settings::inactivityTimeout);
 }
 
@@ -133,4 +132,25 @@ void NetworkClient::checkHeartBeat()
         // Heartbeat timeout – close connection
         close();
     }
+}
+
+void NetworkClient::notifyKey()
+{
+    auto &ss = m_display->streamSocket();
+
+    Packets::KeyUpdate ku{};
+    ku.key.data = ss.getKey();
+    ku.keyStamp.data = ss.getKeystamp();
+
+    write(std::move(Packets::Writer::generate(ku)));
+}
+
+void NetworkClient::setDisplay(Display *disp)
+{
+    if (m_display) {
+        disconnect(&m_display->streamSocket(), &StreamSocket::keyChanged, this, &NetworkClient::notifyKey);
+    }
+
+    m_display = disp;
+    connect(&m_display->streamSocket(), &StreamSocket::keyChanged, this, &NetworkClient::notifyKey);
 }

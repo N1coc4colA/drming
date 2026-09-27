@@ -5,7 +5,7 @@
 #include <QFileDialog>
 #include <QStandardPaths>
 
-#include "../../../certificatesupport.h"
+#include "../../net/certificatesupport.h"
 
 namespace Platform {
 

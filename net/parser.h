@@ -456,7 +456,7 @@ public:
     }
 };
 
-template<typename Receiver, const int ErrorLimit = 64 * 1024 * 1024, std::size_t MaxVariableSize = 1024 * 1024>
+template<typename Receiver, const int ErrorLimit = 64 * 1024 * 1024, std::size_t MaxVariableSize = 1024 * 1024, bool DebugParsed = false>
 class Parser
 {
     using PacketTypes = typename details::variant_types<PacketVariant>::types;
@@ -676,6 +676,10 @@ class Parser
         // Call processPacket only if the receiver has an appropriate overload
         if constexpr (details::has_processPacket<Receiver, T>::value) {
             m_receiver.processPacket(std::as_const(std::get<T>(m_current)));
+        }
+
+        if constexpr (DebugParsed) {
+            qDebug() << "Parsed" << static_cast<int>(m_state);
         }
 
         return True;

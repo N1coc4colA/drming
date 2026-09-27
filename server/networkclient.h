@@ -51,7 +51,7 @@ public:
 
     void notifyHeartBeat();
 
-    void setDisplay(Display *disp) { m_display = disp; }
+    void setDisplay(Display *disp);
 
     // Feed an encrypted datagram received from this peer
     void incomingEncryptedData(const QByteArray &encrypted);
@@ -70,6 +70,7 @@ private:
     TimePoint m_lastHeartBeat;
 
     void checkHeartBeat();
+    void notifyKey();
 };
 
 #endif // NETWORKCLIENT_H

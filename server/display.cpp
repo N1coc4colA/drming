@@ -194,6 +194,7 @@ private:
             buf.close();
         }
 
+        qDebug() << "Sending IMG";
         sendData(std::move(Packets::Writer::generate(servImg)));
     }
 };

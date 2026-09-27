@@ -35,6 +35,9 @@ int main(int argc, char *argv[])
             client->deleteLater();
         }
     });
+    QObject::connect(&videoSocket, &StreamSocket::keyChanged, [&videoSocket, &audioSocket]() {
+        audioSocket.setKey(videoSocket.getKey(), videoSocket.getKeystamp());
+    });
 
     if (!videoSocket.listen(Parameters::instance.serviceVideoIp4,
                             Parameters::instance.serviceVideoIp6,
@@ -50,6 +53,7 @@ int main(int argc, char *argv[])
                             Parameters::instance.serviceIface6)) {
         return EXIT_FAILURE;
     }
+    audioSocket.setKey(videoSocket.getKey(), videoSocket.getKeystamp());
 
     if (!server.listen(Parameters::instance.serviceIp4, Parameters::instance.serviceIp6, Parameters::instance.port)) {
         return EXIT_FAILURE;

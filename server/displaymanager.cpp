@@ -47,5 +47,6 @@ bool DisplayManager::registerClient(NetworkClient *client)
     }
 
     m_thread->addClient(client);
+
     return true;
 }
