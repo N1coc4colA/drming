@@ -44,6 +44,7 @@ set(PROJECT_SOURCES
 
     application.h
     fileprovider.h fileprovider.cpp
+    imagedecoder.h imagedecoder.cpp
     mdns.h mdns.cpp
     networklink.h networklink.cpp
     networkstatus.h networkstatus.cpp

@@ -6,16 +6,12 @@ namespace Platform {
 
 void VideoLink::processPacket(const Packets::ClientResolution &res)
 {
-    qDebug() << "Got resolution";
-
-    m_waitedForResolution = true;
-    setBounds<&Packets::ServerImage::data>(quint64(0), static_cast<quint64>(res.width.data) * static_cast<quint64>(res.height.data));
+    m_waitedForResolution.store(true, std::memory_order_relaxed);
+    setBounds<&Packets::ServerImage::data>(quint64(0), static_cast<quint64>(res.width.data) * static_cast<quint64>(res.height.data) * 4);
 }
 
 void VideoLink::processPacket(const Packets::ServerStream &img)
 {
-    qDebug() << "Got stream";
-
     if (!m_item || !m_decoder) [[unlikely]] {
         return;
     }
@@ -26,13 +22,11 @@ void VideoLink::processPacket(const Packets::ServerStream &img)
     }
 
     m_decoder->decode(reinterpret_cast<const uint8_t *>(img.data.data.constData()), img.data.size);
-    m_item->update();
+    QMetaObject::invokeMethod(m_item, "update", Qt::QueuedConnection);
 }
 
 void VideoLink::processPacket(const Packets::ServerImage &img)
 {
-    qDebug() << "Got image";
-
     if (!m_item) [[unlikely]] {
         return;
     }
@@ -42,23 +36,28 @@ void VideoLink::processPacket(const Packets::ServerImage &img)
         m_locked = true;
     }
 
-    const QImage converted = QImage::fromData(img.data.data, img.format.data);
-    if (!converted.isNull()) [[unlikely]] {
-        // Will trigger repaint.
-        m_item->setImage(converted);
-    }
+    // Offload decompression and format conversion to background decoder thread with frame dropping
+    m_imageDecoder.queueFrame(img.data.data, img.format.data);
 }
 
-void VideoLink::setItem(VideoFrameItem *item, QObject *owner)
+void VideoLink::setItem(VideoFrameItem *item)
 {
     m_item = item;
 
-    // Create decoder if needed
+    // Create hardware decoder if needed for H.265/video streams
     if (!m_decoder) {
-        m_decoder = new VideoDecoder(owner);
+        qDebug() << "Creating video decoder";
+        m_decoder = new VideoDecoder(this);
     }
 
-    // Tell the item to use the decoder's OES texture
+    // Connect image decoder callback to update UI safely on GUI thread
+    m_imageDecoder.setFrameCallback([this](const QImage &image) {
+        if (m_item) {
+            QMetaObject::invokeMethod(m_item, "setImage", Qt::QueuedConnection, Q_ARG(QImage, image));
+        }
+    });
+
+    // Tell the item to use the decoder's OES texture for video stream mode
     m_item->setDecoder(m_decoder);
 }
 
@@ -66,17 +65,32 @@ NetworkLink::NetworkLink(QObject *parent)
     : ::NetworkLink(parent)
     , Parser(*this)
 {
-    QObject::connect(&m_alink, &UdpStreamSocket::disconnected, &m_lock, &MulticastLock::release);
-    QObject::connect(&m_vlink, &UdpStreamSocket::disconnected, &m_lock, &MulticastLock::release);
+    m_vlink = new VideoLink();
+    m_alink = new AudioLink();
+
+    m_vlink->moveToThread(&m_videoThread);
+    m_alink->moveToThread(&m_audioThread);
+
+    QObject::connect(&m_videoThread, &QThread::finished, m_vlink, &QObject::deleteLater);
+    QObject::connect(&m_audioThread, &QThread::finished, m_alink, &QObject::deleteLater);
+
+    m_videoThread.setObjectName("VideoLinkThread");
+    m_audioThread.setObjectName("AudioLinkThread");
+
+    m_videoThread.start();
+    m_audioThread.start();
+
+    QObject::connect(m_alink, &UdpStreamSocket::disconnected, &m_lock, &MulticastLock::release);
+    QObject::connect(m_vlink, &UdpStreamSocket::disconnected, &m_lock, &MulticastLock::release);
 
     QObject::connect(this, &NetworkLink::connectionInitialised, this, [this]() {
-        m_vlink.reset();
+        QMetaObject::invokeMethod(m_vlink, &VideoLink::reset);
         m_waitedForKey = false;
         Parser::clearRules();
     });
     QObject::connect(this, &NetworkLink::connectionReady, this, [this]() { m_requireCheck.start(); });
     QObject::connect(this, &NetworkLink::closed, this, [this]() {
-        m_vlink.reset();
+        QMetaObject::invokeMethod(m_vlink, &VideoLink::reset);
         m_waitedForKey = false;
         Parser::clearRules();
     });
@@ -87,16 +101,34 @@ NetworkLink::NetworkLink(QObject *parent)
     m_requireCheck.stop();
 }
 
+NetworkLink::~NetworkLink()
+{
+    m_requireCheck.stop();
+
+    if (m_vlink) {
+        QMetaObject::invokeMethod(m_vlink, &VideoLink::close, Qt::BlockingQueuedConnection);
+    }
+    if (m_alink) {
+        QMetaObject::invokeMethod(m_alink, &AudioLink::close, Qt::BlockingQueuedConnection);
+    }
+
+    m_videoThread.quit();
+    m_videoThread.wait();
+
+    m_audioThread.quit();
+    m_audioThread.wait();
+}
+
 void NetworkLink::performRequirements()
 {
-    const auto ok = m_vlink.waitedForResolution() && m_waitedForKey;
+    const auto ok = m_vlink && m_vlink->waitedForResolution() && m_waitedForKey;
     if (ok) {
         m_requireCheck.stop();
         return;
     }
 
-    if (!m_vlink.waitedForResolution()) [[unlikely]] {
-        m_vlink.waitFor(Packets::Type::ClientResolution);
+    if (m_vlink && !m_vlink->waitedForResolution()) [[unlikely]] {
+        //m_vlink->waitFor(Packets::Type::ClientResolution);
 
         static constexpr Packets::RequestClientResolution resReq{};
         write(Packets::Writer::generate(resReq));
@@ -132,44 +164,63 @@ void NetworkLink::setItem(QObject *item)
         return;
     }
 
-    m_vlink.setItem(vitem, this);
+    QMetaObject::invokeMethod(m_vlink, [this, vitem]() {
+        m_vlink->setItem(vitem);
+    });
 }
 
 void NetworkLink::processPacket(const Packets::KeyUpdate &ku)
 {
-    qDebug() << "Got key" << ku.keyStamp.data;
+    qDebug() << "Got key" << ku.keyStamp.data << ku.key.data;
+
+    m_inactivityTimer.stop();
     m_waitedForKey = true;
-    m_vlink.setKey(ku.key.data, ku.keyStamp.data);
+
+    const auto keyData = ku.key.data;
+    const auto keyStamp = ku.keyStamp.data;
+    QMetaObject::invokeMethod(m_vlink, [this, keyData, keyStamp]() {
+        m_vlink->setKey(keyData, keyStamp);
+    });
 }
 
 void NetworkLink::processPacket(const Packets::AudioSource &src)
 {
     qDebug() << "Got audio source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':' << src.port.data;
+
+    m_inactivityTimer.stop();
+    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
+    const quint16 port = src.port.data;
+
     m_waitedForAudioSource = true;
-
-    m_alink.close();
-
     m_lock.lock();
-    if (src.isV4.data) {
-        m_alink.connectToMulticast(QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())), src.port.data);
-    } else {
-        m_alink.connectToMulticast(QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData())), src.port.data);
-    }
+
+    QMetaObject::invokeMethod(m_alink, [this, addr, port]() {
+        const auto sock = m_alink->socket();
+        if (sock ? (sock->peerPort() != port || sock->peerAddress() != addr) : true) {
+            m_alink->close();
+            m_alink->connectToMulticast(addr, port);
+        }
+    });
 }
 
 void NetworkLink::processPacket(const Packets::VideoSource &src)
 {
     qDebug() << "Got video source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':' << src.port.data;
+
+    m_inactivityTimer.stop();
+    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
+    const quint16 port = src.port.data;
+
     m_waitedForVideoSource = true;
-
-    m_vlink.close();
-
     m_lock.lock();
-    if (src.isV4.data) {
-        m_vlink.connectToMulticast(QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())), src.port.data);
-    } else {
-        m_vlink.connectToMulticast(QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData())), src.port.data);
-    }
+
+    QMetaObject::invokeMethod(m_vlink, [this, addr, port]() {
+        const auto sock = m_vlink->socket();
+        if (sock ? (sock->peerPort() != port || sock->peerAddress() != addr) : true) {
+            m_vlink->close();
+            m_vlink->connectToMulticast(addr, port);
+        }
+    });
 }
 
 } // namespace Platform

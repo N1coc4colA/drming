@@ -10,7 +10,7 @@ void VideoLink::processPacket(const Packets::ClientResolution &res)
     qDebug() << "Got resolution";
 
     m_waitedForResolution = true;
-    setBounds<&Packets::ServerImage::data>(quint64(0), static_cast<quint64>(res.width.data) * static_cast<quint64>(res.height.data));
+    setBounds<&Packets::ServerImage::data>(quint64(0), static_cast<quint64>(res.width.data) * static_cast<quint64>(res.height.data) * 4);
 }
 
 void VideoLink::processPacket(const Packets::ServerStream &img)
@@ -29,8 +29,8 @@ void VideoLink::processPacket(const Packets::ServerStream &img)
     if (!m_decoder) {
         m_decoder = new FfmpegDecoder(this);
         m_decoder->setFrameCallback([this](const QImage &image) {
-            if (!image.isNull()) {
-                m_item->setImage(image);
+            if (!image.isNull() && m_item) {
+                QMetaObject::invokeMethod(m_item, "setImage", Qt::QueuedConnection, Q_ARG(QImage, image));
             }
         });
     }
@@ -40,8 +40,6 @@ void VideoLink::processPacket(const Packets::ServerStream &img)
 
 void VideoLink::processPacket(const Packets::ServerImage &img)
 {
-    qDebug() << "Got image";
-
     if (!m_item) [[unlikely]] {
         return;
     }
@@ -51,21 +49,24 @@ void VideoLink::processPacket(const Packets::ServerImage &img)
         m_locked = true;
     }
 
-    const QImage converted = QImage::fromData(img.data.data, img.format.data);
-    if (!converted.isNull()) [[likely]] {
-        m_item->setImage(converted);
-    }
+    m_imageDecoder.queueFrame(img.data.data, img.format.data);
 }
 
 void VideoLink::setItem(VideoFrameItem *item, QObject *owner)
 {
     m_item = item;
 
+    m_imageDecoder.setFrameCallback([this](const QImage &image) {
+        if (m_item) {
+            QMetaObject::invokeMethod(m_item, "setImage", Qt::QueuedConnection, Q_ARG(QImage, image));
+        }
+    });
+
     if (!m_decoder) {
         m_decoder = new FfmpegDecoder(owner);
         m_decoder->setFrameCallback([this](const QImage &image) {
             if (!image.isNull() && m_item) {
-                m_item->setImage(image);
+                QMetaObject::invokeMethod(m_item, "setImage", Qt::QueuedConnection, Q_ARG(QImage, image));
             }
         });
     }
@@ -152,26 +153,30 @@ void NetworkLink::processPacket(const Packets::KeyUpdate &ku)
 void NetworkLink::processPacket(const Packets::AudioSource &src)
 {
     qDebug() << "Got audio source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':' << src.port.data;
-    m_waitedForAudioSource = true;
 
-    m_alink.close();
-    if (src.isV4.data) {
-        m_alink.connectToMulticast(QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())), src.port.data);
-    } else {
-        m_alink.connectToMulticast(QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData())), src.port.data);
+    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
+
+    const auto sock = m_alink.socket();
+    if (sock ? (sock->peerPort() != src.port.data || sock->peerAddress() != addr) : true) {
+        m_waitedForAudioSource = true;
+
+        m_alink.close();
+        m_alink.connectToMulticast(addr, src.port.data);
     }
 }
 
 void NetworkLink::processPacket(const Packets::VideoSource &src)
 {
     qDebug() << "Got video source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':' << src.port.data;
-    m_waitedForVideoSource = true;
 
-    m_vlink.close();
-    if (src.isV4.data) {
-        m_vlink.connectToMulticast(QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())), src.port.data);
-    } else {
-        m_vlink.connectToMulticast(QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData())), src.port.data);
+    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
+
+    const auto sock = m_vlink.socket();
+    if (sock ? (sock->peerPort() != src.port.data || sock->peerAddress() != addr) : true) {
+        m_waitedForVideoSource = true;
+
+        m_vlink.close();
+        m_vlink.connectToMulticast(addr, src.port.data);
     }
 }
 

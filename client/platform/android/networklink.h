@@ -1,9 +1,13 @@
 #ifndef NETWORKLINKPLATFORM_H
 #define NETWORKLINKPLATFORM_H
 
+#include <QThread>
+#include <atomic>
+
 #include "../../networklink.h"
 
 #include "multicastlock.h"
+#include "imagedecoder.h"
 
 #include "../net/parser.h"
 #include "../settings.h"
@@ -13,11 +17,14 @@ namespace Platform {
 class VideoDecoder;
 class VideoFrameItem;
 
-class VideoLink : Packets::Parser<VideoLink, Settings::errorLimit>, public UdpStreamSocket
+class VideoLink : public UdpStreamSocket, public Packets::Parser<VideoLink, Settings::errorLimit>
 {
+    Q_OBJECT
+
 public:
-    explicit VideoLink()
-        : Packets::Parser<VideoLink, Settings::errorLimit>(*this)
+    explicit VideoLink(QObject *parent = nullptr)
+        : UdpStreamSocket(parent)
+        , Packets::Parser<VideoLink, Settings::errorLimit>(*this)
     {
         QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "VideoLink connected."; });
     }
@@ -28,9 +35,16 @@ public:
     inline void onPacketErrors() { Parser::clear(); }
 
     inline VideoFrameItem *item() { return m_item; }
-    inline void setItem(VideoFrameItem *item, QObject *owner);
+    void setItem(VideoFrameItem *item);
 
-    inline void clear() { Parser::clear(); }
+    inline void clear()
+    {
+        Parser::clear();
+        m_imageDecoder.reset();
+        clearJitterBuffer();
+    }
+
+public Q_SLOTS:
     void reset()
     {
         m_locked = false;
@@ -38,40 +52,42 @@ public:
         clear();
     }
 
-    inline bool waitedForResolution() const { return m_waitedForResolution; }
+public:
+    inline bool waitedForResolution() const { return m_waitedForResolution.load(std::memory_order_relaxed); }
 
     void addData(QByteArray data) override
     {
-        qDebug() << "Got video data";
-        Parser::addData(data);
+        Parser::pushData(std::move(data));
     }
 
     inline auto waitFor(auto v) { return Parser::waitFor(v); }
 
 private:
     VideoDecoder *m_decoder = nullptr;
+    ImageDecoder m_imageDecoder;
     VideoFrameItem *m_item = nullptr;
-    bool m_waitedForResolution = false;
+    std::atomic<bool> m_waitedForResolution{false};
     bool m_locked = false;
 };
 
-class AudioLink : Packets::Parser<AudioLink, Settings::errorLimit>, public UdpStreamSocket
+class AudioLink : public UdpStreamSocket, public Packets::Parser<AudioLink, Settings::errorLimit>
 {
+    Q_OBJECT
+
 public:
-    explicit AudioLink()
-        : Packets::Parser<AudioLink, Settings::errorLimit>(*this)
+    explicit AudioLink(QObject *parent = nullptr)
+        : UdpStreamSocket(parent)
+        , Packets::Parser<AudioLink, Settings::errorLimit>(*this)
     {
         QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "AudioLink connected."; });
     }
 
     inline void onPacketErrors() { Parser::clear(); }
-
     inline void clear() { Parser::clear(); }
 
     void addData(QByteArray data) override
     {
-        qDebug() << "Got audio data";
-        Parser::addData(data);
+        Parser::pushData(std::move(data));
     }
 };
 
@@ -81,11 +97,16 @@ class NetworkLink : public ::NetworkLink, Packets::Parser<NetworkLink, Settings:
 
 public:
     explicit NetworkLink(QObject *parent);
+    ~NetworkLink() override;
 
     inline void processPacket(const Packets::Reinit &)
     {
-        m_alink.clear();
-        m_vlink.clear();
+        if (m_alink) {
+            QMetaObject::invokeMethod(m_alink, &AudioLink::clear);
+        }
+        if (m_vlink) {
+            QMetaObject::invokeMethod(m_vlink, &VideoLink::clear);
+        }
         Parser::clear();
     }
     void processPacket(const Packets::KeyUpdate &ku);
@@ -97,8 +118,10 @@ public:
 
 private:
     MulticastLock m_lock;
-    VideoLink m_vlink;
-    AudioLink m_alink;
+    QThread m_videoThread;
+    QThread m_audioThread;
+    VideoLink *m_vlink = nullptr;
+    AudioLink *m_alink = nullptr;
     bool m_waitedForKey = false;
     bool m_waitedForAudioSource = false;
     bool m_waitedForVideoSource = false;
@@ -106,11 +129,10 @@ private:
 
     void performRequirements();
 
-    inline void addData(QByteArray additional) override
+    inline void pushData(QByteArray additional) override
     {
-        qDebug() << "Got data";
         Parser::clear();
-        Parser::addData(std::move(additional));
+        Parser::pushData(std::move(additional));
     }
 };
 

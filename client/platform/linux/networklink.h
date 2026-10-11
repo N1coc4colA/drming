@@ -1,11 +1,14 @@
 #ifndef NETWORKLINKPLATFORM_H
 #define NETWORKLINKPLATFORM_H
 
+#include "../../../net/udp.h"
 #include "../../../net/parser.h"
-#include "../../networklink.h"
 
 #include "../settings.h"
-#include "../../../net/udp.h"
+#include "../../networklink.h"
+#include "../../imagedecoder.h"
+
+#include <QThread>
 
 namespace Platform {
 
@@ -17,7 +20,7 @@ class VideoLink : Packets::Parser<VideoLink, Settings::errorLimit>, public UdpSt
 public:
     explicit VideoLink()
         : Packets::Parser<VideoLink, Settings::errorLimit>(*this)
-        , UdpStreamSocket(nullptr, true)
+        , UdpStreamSocket(nullptr)
     {
         QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "VideoLink connected."; });
     }
@@ -28,9 +31,13 @@ public:
     inline void onPacketErrors() { Parser::clear(); }
 
     inline VideoFrameItem *item() { return m_item; }
-    inline void setItem(VideoFrameItem *item, QObject *owner);
+    void setItem(VideoFrameItem *item, QObject *owner);
 
-    inline void clear() { Parser::clear(); }
+    inline void clear()
+    {
+        Parser::clear();
+        m_imageDecoder.reset();
+    }
     void reset()
     {
         m_locked = false;
@@ -42,14 +49,14 @@ public:
 
     void addData(QByteArray data) override
     {
-        qDebug() << "Got video data";
-        Parser::addData(std::move(data));
+        Parser::pushData(std::move(data));
     }
 
     inline auto waitFor(auto v) { return Parser::waitFor(v); }
 
 private:
     FfmpegDecoder *m_decoder = nullptr;
+    ImageDecoder m_imageDecoder;
     VideoFrameItem *m_item = nullptr;
     bool m_waitedForResolution = false;
     bool m_locked = false;
@@ -60,7 +67,7 @@ class AudioLink : Packets::Parser<AudioLink, Settings::errorLimit>, public UdpSt
 public:
     explicit AudioLink()
         : Packets::Parser<AudioLink, Settings::errorLimit>(*this)
-        , UdpStreamSocket(nullptr, true)
+        , UdpStreamSocket(nullptr)
     {
         QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "AudioLink connected."; });
     }
@@ -70,8 +77,7 @@ public:
 
     void addData(QByteArray data) override
     {
-        qDebug() << "Got audio data";
-        Parser::addData(std::move(data));
+        Parser::pushData(std::move(data));
     }
 };
 
@@ -105,11 +111,10 @@ private:
 
     void performRequirements();
 
-    inline void addData(QByteArray additional) override
+    inline void pushData(QByteArray additional) override
     {
-        qDebug() << "Got data";
         Parser::clear();
-        Parser::addData(std::move(additional));
+        Parser::pushData(std::move(additional));
     }
 };
 
