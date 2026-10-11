@@ -5,6 +5,8 @@
 #include <QMutex>
 #include <QQuickItem>
 
+#include <deque>
+
 class QSGSimpleTextureNode;
 
 namespace Platform {
@@ -19,26 +21,17 @@ protected:
     QSGNode* updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*) override;
 
 public Q_SLOTS:
-    void setImage(const QImage& image)
-    {
-        {
-            QMutexLocker locker(&m_mtx);
-            m_currentImage = image.convertToFormat(QImage::Format_RGBA8888);
-            m_imageSize = m_currentImage.size();
-            m_imageDirty = true;
-        }
-
-        update();
-    }
+    void setImage(const QImage& image);
 
 protected:
     void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
 
 private:
-    QImage m_currentImage{};
+    static constexpr size_t MaxPresentationQueue = 2;
+
+    std::deque<QImage> m_frameQueue{};
     QSize m_imageSize{};
     QMutex m_mtx{};
-    bool m_imageDirty = false;
 };
 
 } // namespace Platform

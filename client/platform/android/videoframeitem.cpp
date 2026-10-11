@@ -3,6 +3,7 @@
 #include <QOpenGLContext>
 #include <QQuickWindow>
 #include <QSGSimpleTextureNode>
+#include <QThread>
 
 #include "decode.h"
 #include "oesrendernode.h"
@@ -45,11 +46,16 @@ void VideoFrameItem::setDecoder(VideoDecoder* decoder)
 
 void VideoFrameItem::setImage(const QImage& image)
 {
+    if (image.isNull()) [[unlikely]] {
+        return;
+    }
+
     {
         QMutexLocker locker(&m_mtx);
-        m_currentImage = image.convertToFormat(QImage::Format_RGBA8888);
-        m_imageSize = m_currentImage.size();
-        m_imageDirty = true;
+        m_frameQueue.push_back(image);
+        while (m_frameQueue.size() > MaxPresentationQueue) {
+            m_frameQueue.pop_front(); // drop oldest frame
+        }
     }
 
     if (m_textureMode != TextureMode::Simple) [[unlikely]] {
@@ -57,7 +63,11 @@ void VideoFrameItem::setImage(const QImage& image)
         m_textureMode = TextureMode::Simple;
     }
 
-    update();
+    if (thread() == QThread::currentThread()) {
+        update();
+    } else {
+        QMetaObject::invokeMethod(this, [this]() { update(); }, Qt::QueuedConnection);
+    }
 }
 
 void VideoFrameItem::geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry)
@@ -73,15 +83,18 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
 {
     Q_UNUSED(data);
 
+    if (m_textureMode != m_previousTextureMode) {
+        if (oldNode) {
+            delete oldNode;
+            oldNode = nullptr;
+        }
+        m_previousTextureMode = m_textureMode;
+    }
+
     switch (m_textureMode) {
     case TextureMode::OES: {
         if (m_decoder) [[unlikely]] {
             auto node = static_cast<QSGNode*>(oldNode);
-            if (m_textureMode != m_previousTextureMode && node) [[unlikely]] {
-                delete node;
-                node = nullptr;
-            }
-
             if (!node) [[unlikely]] {
                 node = new QSGNode();
             }
@@ -109,42 +122,36 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
     }
     case TextureMode::Simple: {
         auto node = static_cast<QSGSimpleTextureNode*>(oldNode);
-        if (m_textureMode != m_previousTextureMode && node) [[unlikely]] {
-            delete node;
-            node = nullptr;
-        }
-
         if (!node) [[unlikely]] {
             node = new QSGSimpleTextureNode();
             node->setFiltering(QSGTexture::Linear);
         }
 
         bool textureChanged = false;
-        QSize currentSize = m_imageSize;
-
         QImage localImage;
-        bool dirty = false;
+        bool hasMore = false;
+
         {
             QMutexLocker locker(&m_mtx);
-            if (m_imageDirty) {
-                localImage = m_currentImage;
-                m_imageDirty = false;
-                dirty = true;
+            if (!m_frameQueue.empty()) {
+                localImage = m_frameQueue.front();
+                m_frameQueue.pop_front();
+                m_imageSize = localImage.size();
+                textureChanged = true;
+                hasMore = !m_frameQueue.empty();
             }
         }
 
-        if (dirty && !localImage.isNull()) [[likely]] {
+        if (textureChanged && !localImage.isNull()) [[likely]] {
             if (auto fallbackTex = window()->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque)) [[likely]] {
                 fallbackTex->setFiltering(QSGTexture::Linear);
                 node->setTexture(fallbackTex);
                 node->setOwnsTexture(true);
-                textureChanged = true;
-                currentSize = localImage.size();
             }
         }
 
         // Always update geometry (aspect-fit) even if texture didn't change
-        const QRectF rect = fitKeepAspect(size(), currentSize);
+        const QRectF rect = fitKeepAspect(size(), m_imageSize);
         node->setRect(rect);
 
         // Mark dirty if texture or geometry changed
@@ -152,8 +159,10 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
             node->markDirty(QSGNode::DirtyMaterial | QSGNode::DirtyGeometry);
         }
 
-        // Update m_imageSize for future checks
-        m_imageSize = currentSize;
+        // If another frame is already waiting in the 2-frame buffer, trigger update for next frame
+        if (hasMore) {
+            update();
+        }
 
         return node;
     }

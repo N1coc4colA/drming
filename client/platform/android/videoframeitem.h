@@ -6,6 +6,8 @@
 #include <QQuickItem>
 #include <QSize>
 
+#include <deque>
+
 class QSGSimpleTextureNode;
 
 namespace Platform {
@@ -34,15 +36,15 @@ protected:
     void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
 
 private:
+    static constexpr size_t MaxPresentationQueue = 2;
+
     VideoDecoder* m_decoder = nullptr;
 
-    // Fallback QImage
-    QImage m_currentImage;
+    std::deque<QImage> m_frameQueue;
     QSize m_imageSize;
     QMutex m_mtx;
     TextureMode m_textureMode = TextureMode::Invalid;
     TextureMode m_previousTextureMode = TextureMode::Invalid;
-    bool m_imageDirty = false;
 };
 } // namespace Platform
 
