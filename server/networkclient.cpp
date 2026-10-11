@@ -7,6 +7,8 @@
 #include <qendian.h>
 
 #include "display.h"
+#include "parameters.h"
+#include "streamsocket.h"
 
 void NetworkClient::processPacket(const Packets::HeartBeat &)
 {
@@ -15,150 +17,117 @@ void NetworkClient::processPacket(const Packets::HeartBeat &)
 
 void NetworkClient::processPacket(const Packets::Reinit &)
 {
-    m_display->reinit();
+    if (m_display) [[likely]] {
+        m_display->reinit();
+    }
 }
 
 void NetworkClient::processPacket(const Packets::RequestClientResolution &)
 {
-    m_display->requireResolutionInformation();
+    if (m_display) [[likely]] {
+        m_display->requireResolutionInformation();
+    }
 }
 
-NetworkClientDtls::NetworkClientDtls(QDtls *dtls, const QHostAddress &address, quint16 port,
-                                     QUdpSocket *sharedSocket, QObject *parent)
-    : NetworkClient(parent)
-    , m_dtls(dtls)
+void NetworkClient::processPacket(const Packets::RequestKey &)
+{
+    notifyKey();
+}
+
+void NetworkClient::processPacket(const Packets::RequestAudioSource &)
+{
+    Packets::AudioSource src{};
+
+    const auto ip = Parameters::instance.serviceAudioIp;
+    const auto v4 = ip.toIPv4Address();
+    const auto v6 = ip.toIPv6Address();
+
+    const auto isV4 = ip.protocol() == QAbstractSocket::IPv4Protocol;
+    const auto size = isV4 ? 4 : 16;
+
+    src.isV4.data = isV4;
+    src.ip.data.resize(size);
+    std::memcpy(src.ip.data.data(), isV4 ? static_cast<const void *>(&v4) : static_cast<const void *>(&v6), size);
+    src.port.data = Parameters::instance.audioPort;
+
+    write(std::move(Packets::Writer::generate(src)));
+}
+
+void NetworkClient::processPacket(const Packets::RequestVideoSource &)
+{
+    Packets::VideoSource src{};
+
+    const auto ip = Parameters::instance.serviceVideoIp;
+    const auto v4 = ip.toIPv4Address();
+    const auto v6 = ip.toIPv6Address();
+
+    const auto isV4 = ip.protocol() == QAbstractSocket::IPv4Protocol;
+    const auto size = isV4 ? 4 : 16;
+
+    src.isV4.data = isV4;
+    src.ip.data.resize(size);
+    std::memcpy(src.ip.data.data(), isV4 ? static_cast<const void *>(&v4) : static_cast<const void *>(&v6), size);
+    src.port.data = Parameters::instance.videoPort;
+
+    write(std::move(Packets::Writer::generate(src)));
+}
+
+NetworkClient::NetworkClient(QDtls *dtls, const QHostAddress &address, const quint16 port, QPair<QUdpSocket, QMutex> &sharedSocket, QObject *parent)
+    : QObject(parent)
+    , Packets::Parser<NetworkClient>(*this)
     , m_address(address)
     , m_port(port)
-    , m_sharedSocket(sharedSocket)
+    , m_rw(*this, dtls, &sharedSocket.first, &sharedSocket.second)
     , m_timer(new QTimer(this))
 {
-    m_dtls->setParent(this); // take ownership
+    assert(dtls);
+
+    dtls->setParent(this); // take ownership
+
+    connect(m_timer, &QTimer::timeout, this, &NetworkClient::checkHeartBeat);
 
     m_timer->setTimerType(Qt::VeryCoarseTimer);
-    connect(m_timer, &QTimer::timeout, this, &NetworkClientDtls::checkHeartBeat);
     m_timer->setInterval(Settings::inactivityTimeout);
 }
 
-NetworkClientDtls::~NetworkClientDtls()
+NetworkClient::~NetworkClient()
 {
     // dtls deleted automatically via parent
 }
 
-void NetworkClientDtls::incomingEncryptedData(const QByteArray &encrypted)
+void NetworkClient::incomingEncryptedData(const QByteArray &encrypted)
 {
-    // Decrypt using the peer address/port – QDtls::decryptDatagram overload
-    auto plaintext = m_dtls->decryptDatagram(m_sharedSocket, encrypted);
-    if (plaintext.isEmpty()) {
-        if (m_dtls->dtlsError() != QDtlsError::NoError) {
-            qWarning() << "DTLS decrypt error:" << m_dtls->dtlsErrorString();
-            // If fatal, close connection
-            if (m_dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) {
-                close();
-            }
-        }
-
-        return;
-    }
-
-    if (plaintext.size() < static_cast<qsizetype>(sizeof(Packets::Ordering) * 2 + sizeof(Packets::Timestamp))) {
-        qWarning() << "Invalid DTLS decrypted packet size has been received.";
-        return;
-    }
-
-    const auto ts = qFromBigEndian(*reinterpret_cast<Packets::Timestamp *>(plaintext.first(sizeof(Packets::Timestamp)).data()));
-    const auto sizing = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
-        plaintext.slice(static_cast<qsizetype>(sizeof(Packets::Timestamp))).first(sizeof(Packets::Ordering)).data()));
-    const auto order = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
-        plaintext.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))).first(sizeof(Packets::Ordering)).data()));
-
-    m_jitterBuffer.pushChunk(ts, order, sizing, plaintext.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))));
-
-    while (const auto v = m_jitterBuffer.pullComplete()) {
-        addData(std::move(*v));
-    }
+    m_rw.processDtls(encrypted);
 }
 
-qint64 NetworkClientDtls::write(const QByteArray &data)
+qint64 NetworkClient::write(const QByteArray &data)
 {
-    if (!m_dtls || !m_sharedSocket) {
-        return -1;
-    }
-
-    static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) * 2 - sizeof(Packets::Timestamp);
-    const auto size = data.size();
-    const Packets::Ordering chunksCount = (size / innerSize) + (size % innerSize ? 1 : 0);
-    const auto chunks_be = qToBigEndian(chunksCount);
-
-    Packets::Ordering order = 0;
-    qsizetype offset = 0;
-    while (offset < size) {
-        auto chunk = data.mid(offset, innerSize);
-        const auto ts_be = qToBigEndian(m_ts);
-        const auto order_be = qToBigEndian(order);
-        const auto chunkSize = chunk.size();
-        chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
-        chunk.prepend(reinterpret_cast<const char *>(&chunks_be), sizeof(chunks_be));
-        chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
-
-        if (m_dtls->writeDatagramEncrypted(m_sharedSocket, chunk) < 0) {
-            const auto err = m_dtls->dtlsError();
-            switch (err) {
-            case QDtlsError::RemoteClosedConnectionError: {
-                close();
-                break;
-            }
-            case QDtlsError::UnderlyingSocketError:
-            case QDtlsError::NoError: {
-                continue;
-            }
-            default: {
-                qWarning() << "DTLS write error on" << m_ts << order << static_cast<int>(err) << m_dtls->dtlsErrorString();
-            }
-            }
-
-            m_ts++;
-            m_ts = m_ts % Settings::simultaneousPendings;
-
-            return -1;
-        }
-
-        offset += chunkSize;
-        order++;
-    }
-
-    m_ts++;
-    m_ts = m_ts % Settings::simultaneousPendings;
-
-    return offset;
+    return m_rw.writeDtls(data);
 }
 
-void NetworkClientDtls::close()
+void NetworkClient::close()
 {
     // Notify server that we are closing; the server will remove us.
     Q_EMIT disconnected();
 }
 
-QAbstractSocket::SocketState NetworkClientDtls::state() const
+QAbstractSocket::SocketState NetworkClient::state() const
 {
-    if (!m_dtls)
-        return QAbstractSocket::UnconnectedState;
-    return m_dtls->isConnectionEncrypted() ? QAbstractSocket::ConnectedState : QAbstractSocket::ConnectingState;
+    return m_rw.dtls()->isConnectionEncrypted() ? QAbstractSocket::ConnectedState : QAbstractSocket::ConnectingState;
 }
 
-QByteArray NetworkClientDtls::digest() const
+QByteArray NetworkClient::digest() const
 {
-    if (!m_dtls)
-        return {};
-    return m_dtls->dtlsConfiguration().peerCertificate().digest();
+    return m_rw.dtls()->dtlsConfiguration().peerCertificate().digest();
 }
 
-void NetworkClientDtls::notifyHeartBeat()
+void NetworkClient::notifyHeartBeat()
 {
     m_timer->start();
     m_lastHeartBeat = std::chrono::system_clock::now();
 }
 
-void NetworkClientDtls::checkHeartBeat()
+void NetworkClient::checkHeartBeat()
 {
     if ((std::chrono::system_clock::now() - m_lastHeartBeat) > systemTimeout) {
         m_timer->stop();
@@ -167,33 +136,25 @@ void NetworkClientDtls::checkHeartBeat()
     }
 }
 
-NetworkClientSsl::NetworkClientSsl(QSslSocket *socket, QObject *parent)
-    : NetworkClient(parent)
-    , m_socket(socket)
+void NetworkClient::notifyKey()
 {
-    m_socket->setParent(this);
-    connect(m_socket, &QSslSocket::readyRead, this, [this]() {
-        addData(m_socket->readAll());
-    });
-    connect(m_socket, &QSslSocket::disconnected, this, &NetworkClientSsl::disconnected);
+    auto &ss = m_display->streamSocket();
+
+    Packets::KeyUpdate ku{};
+    ku.key.data = ss.getKey();
+    ku.keyStamp.data = ss.getKeystamp();
+
+    qDebug() << "Sending key" << ku.keyStamp.data << ku.key.data;
+
+    write(std::move(Packets::Writer::generate(ku)));
 }
 
-qint64 NetworkClientSsl::write(const QByteArray &data)
+void NetworkClient::setDisplay(Display *disp)
 {
-    if (!m_socket) {
-        return -1;
+    if (m_display) {
+        disconnect(&m_display->streamSocket(), &StreamSocket::keyChanged, this, &NetworkClient::notifyKey);
     }
 
-    const auto ret = m_socket->write(data);
-    m_socket->flush();
-    return ret;
-}
-
-QByteArray NetworkClientSsl::digest() const
-{
-    if (!m_socket) {
-        return {};
-    }
-
-    return m_socket->peerCertificate().digest();
+    m_display = disp;
+    connect(&m_display->streamSocket(), &StreamSocket::keyChanged, this, &NetworkClient::notifyKey);
 }

@@ -1,18 +1,26 @@
 #ifndef SERVER_H
 #define SERVER_H
 
+#include <QHostAddress>
+#include <QMap>
+#include <QMutex>
 #include <QObject>
+#include <QPair>
+#include <QUdpSocket>
 
 #include "networkclient.h"
+
+class QDtls;
 
 class Server : public QObject
 {
     Q_OBJECT
+
 public:
     explicit Server(QObject *parent = nullptr);
 
-    virtual bool listen(const QHostAddress &address = QHostAddress::Any, quint16 port = 0) = 0;
-    virtual void close() = 0;
+    bool listen(const QHostAddress &address4, const QHostAddress &address6, quint16 port = 0);
+    void close();
 
     [[nodiscard]] virtual bool hasClient() const { return !m_clients.isEmpty(); }
 
@@ -21,12 +29,26 @@ Q_SIGNALS:
     void clientConnected(NetworkClient *client);
 
 public Q_SLOTS:
-    virtual void broadcast(const QByteArray &data) = 0;
+    void broadcast(const QByteArray &data);
 
-protected:
-    QList<NetworkClient *> m_clients{};
+private Q_SLOTS:
+    void onDatagramReceived4();
+    void onDatagramReceived6();
+    void onClientDisconnected();
 
-    static bool loadServerCertsConfig(QSslConfiguration &outConfig, const QString &protocol);
+private:
+    QPair<QUdpSocket, QMutex> m_socket4{};
+    QPair<QUdpSocket, QMutex> m_socket6{};
+
+    // Active clients: peer key -> NetworkClientDtls*
+    QMap<QString, NetworkClient *> m_clients;
+    // Pending handshakes: peer key -> QDtls*
+    QMap<QString, QDtls *> m_pendingHandshakes;
+
+    QString peerKey(const QHostAddress &addr, quint16 port) const;
+    void removeClient(NetworkClient *client);
+
+    void processSocketPendings(QPair<QUdpSocket, QMutex> &pair);
 };
 
 #endif // SERVER_H

@@ -3,6 +3,7 @@
 
 #include <QFile>
 #include <QSslCertificate>
+#include <QSslConfiguration>
 #include <QSslKey>
 
 inline QSslCertificate openCertificateFromData(const QByteArray &data)
@@ -57,6 +58,26 @@ inline bool canOpenCert(const QString &path)
 inline bool canOpenKey(const QString &path)
 {
     return !openKey(path).isNull();
+}
+
+bool loadServerCertsConfig(QSslConfiguration &outConfig, const QString &protocol, const QString &srvCertPath, const QString &srvKeyPath)
+{
+    const auto serverCert = openCertificate(srvCertPath);
+    const auto serverKey = openKey(srvKeyPath);
+    if (serverKey.isNull() || serverCert.isNull()) [[unlikely]] {
+        return false;
+    }
+
+    auto conf = protocol == "dtls" ? QSslConfiguration::defaultDtlsConfiguration() : QSslConfiguration::defaultConfiguration();
+    conf.setLocalCertificate(serverCert);
+    conf.setPrivateKey(serverKey);
+    if (protocol == "dtls") {
+        conf.setDtlsCookieVerificationEnabled(false);
+    }
+
+    outConfig = conf;
+
+    return true;
 }
 
 #endif // CERTIFICATE_SUPPORT_H

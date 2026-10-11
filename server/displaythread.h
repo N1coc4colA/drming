@@ -5,6 +5,8 @@
 
 #include "display.h"
 
+class StreamSocket;
+
 class DisplayThread : public QThread
 {
     Q_OBJECT

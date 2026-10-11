@@ -8,8 +8,9 @@
 #include "dispsetup.h"
 #include "parameters.h"
 
-DisplayManager::DisplayManager(QObject *parent)
+DisplayManager::DisplayManager(StreamSocket &ss, QObject *parent)
     : QObject(parent)
+    , m_ss(ss)
 {}
 
 DisplayManager::~DisplayManager()
@@ -22,7 +23,7 @@ bool DisplayManager::registerClient(NetworkClient *client)
     client->setParent(this);
 
     const auto number = QString::number(Parameters::instance.servedScreens);
-    if (m_freeDisplays.isEmpty()) {
+    if (!m_thread) {
         qDebug() << "Creating new display";
 
         // [TODO] Move this somewhere else, should be once the identity's checked.
@@ -38,41 +39,14 @@ bool DisplayManager::registerClient(NetworkClient *client)
             return false;
         }
 
-        Parameters::instance.servedScreens++;
-        m_freeDisplays.enqueue(new DisplayThread(generateNewDisplay(setup.virtualConnectorName(), this), this));
+        m_thread = new DisplayThread(generateNewDisplay(setup.virtualConnectorName(), m_ss, this), this);
     }
 
-    const auto thread = m_freeDisplays.dequeue();
-
-    const auto digest = client->digest();
-    if (!m_usedDisplays.contains(digest)) {
-        qDebug() << "Screen not already available for client" << client->peerAddress() << client->peerPort();
-
-        connect(
-            thread,
-            &DisplayThread::nowFree,
-            this,
-            [this](DisplayThread *thread) {
-                // Remove any digest entries that pointed to this thread so it may be reused.
-                for (auto it = m_usedDisplays.begin(); it != m_usedDisplays.end();) {
-                    if (it.value() == thread) {
-                        it = m_usedDisplays.erase(it);
-                    } else {
-                        ++it;
-                    }
-                }
-
-                m_freeDisplays.enqueue(thread);
-            },
-            Qt::QueuedConnection);
-
-        m_usedDisplays.insert(digest, thread);
-        if (!thread->isRunning()) {
-            thread->start();
-        }
+    if (!m_thread->isRunning()) {
+        m_thread->start();
     }
 
-    thread->addClient(client);
+    m_thread->addClient(client);
 
     return true;
 }

@@ -8,18 +8,19 @@
 
 class NetworkClient;
 class DisplayThread;
+class StreamSocket;
 
 class DisplayManager : public QObject
 {
 public:
-    explicit DisplayManager(QObject *parent = nullptr);
+    explicit DisplayManager(StreamSocket &ss, QObject *parent = nullptr);
     ~DisplayManager() override;
 
     bool registerClient(NetworkClient *client);
 
 private:
-    QQueue<DisplayThread *> m_freeDisplays{};
-    QMap<QByteArray, DisplayThread *> m_usedDisplays{};
+    DisplayThread *m_thread = nullptr;
+    StreamSocket &m_ss;
 };
 
 #endif // DISPLAYMANAGER_H

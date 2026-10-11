@@ -6,12 +6,16 @@
 #include "displayreader.h"
 #include "networkclient.h"
 
+class StreamSocket;
+
 class Display : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit Display(const QString &connectorName, QObject *parent = nullptr);
+    explicit Display(const QString &connectorName, StreamSocket &ss, QObject *parent = nullptr);
+
+    StreamSocket &streamSocket() { return m_ss; }
 
 Q_SIGNALS:
     void nowFree();
@@ -29,6 +33,7 @@ private:
     QSize m_prevSize{};
     bool primaryFailureNotice = false;
 
+    StreamSocket &m_ss;
     DisplayReader m_reader;
 
     std::optional<DrmFormat::FormatDescriptor> m_cursorFrameDescriptor{};
@@ -45,6 +50,6 @@ private Q_SLOTS:
     void disconnectAllClients();
 };
 
-Display *generateNewDisplay(const QString &connectorName, QObject *parent = nullptr);
+Display *generateNewDisplay(const QString &connectorName, StreamSocket &ss, QObject *parent = nullptr);
 
 #endif // DISPLAY_H

@@ -1,16 +1,14 @@
 #ifndef NETWORKLINK_H
 #define NETWORKLINK_H
 
-#include <optional>
-#include <vector>
-
 #include <QDtls>
 #include <QImage>
 #include <QSslSocket>
 #include <QTimer>
 #include <QUdpSocket>
 
-#include "../parser.h"
+#include "../net/parser.h"
+#include "../net/udp.h"
 
 class NetworkLink : public QObject
 {
@@ -24,11 +22,14 @@ public:
 
     static NetworkLink *createForPlatform(QObject *parent = nullptr);
 
+    virtual void pushData(QByteArray additional) = 0;
+
 Q_SIGNALS:
     void error(const QString &explanation);
     void opened();
     void closed();
     void connectionInitialised();
+    void connectionReady();
 
 public Q_SLOTS:
     void close();
@@ -39,14 +40,21 @@ protected:
     void write(const QByteArray &data);
 
 private Q_SLOTS:
-    void onConnected();
+    void onSslConnected();
+    void onUdpConnected();
+
     void onDtlsDisconnected();
     void onSslDisconnected();
+
     void onDtlsDataAvailable();
     void onSslDataAvailable();
+
     void onConnectionTimeout();
     void onError(QAbstractSocket::SocketError error);
     void onSslError(const QSslError &error);
+
+protected:
+    QTimer m_inactivityTimer{};
 
 private:
     QString m_protocol;
@@ -54,9 +62,9 @@ private:
     QSslSocket *m_sslSocket = nullptr;
     QUdpSocket *m_udpSocket = nullptr;
     QDtls *m_dtls = nullptr;
-    Packets::JitterBuffer<> m_jitterBuffer;
-    Packets::Timestamp m_ts = 0;
-    QTimer m_inactivityTimer{};
+
+    DtlsReaderWriter<NetworkLink> m_rw;
+
     quint16 m_format = 0;
     quint32 m_width = 0;
     quint32 m_height = 0;
@@ -70,7 +78,7 @@ private:
     qint64 writeDtls(const QByteArray &data);
     qint64 writeSsl(const QByteArray &data);
 
-    virtual void addData(QByteArray additional) = 0;
+    friend class DtlsReader<NetworkLink>;
 };
 
 #endif // NETWORKLINK_H

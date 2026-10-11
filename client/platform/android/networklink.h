@@ -1,9 +1,15 @@
 #ifndef NETWORKLINKPLATFORM_H
 #define NETWORKLINKPLATFORM_H
 
-#include "../../../parser.h"
+#include <QThread>
+#include <atomic>
+
 #include "../../networklink.h"
 
+#include "multicastlock.h"
+#include "imagedecoder.h"
+
+#include "../net/parser.h"
 #include "../settings.h"
 
 namespace Platform {
@@ -11,39 +17,122 @@ namespace Platform {
 class VideoDecoder;
 class VideoFrameItem;
 
+class VideoLink : public UdpStreamSocket, public Packets::Parser<VideoLink, Settings::errorLimit>
+{
+    Q_OBJECT
+
+public:
+    explicit VideoLink(QObject *parent = nullptr)
+        : UdpStreamSocket(parent)
+        , Packets::Parser<VideoLink, Settings::errorLimit>(*this)
+    {
+        QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "VideoLink connected."; });
+    }
+
+    void processPacket(const Packets::ServerImage &img);
+    void processPacket(const Packets::ServerStream &img);
+    void processPacket(const Packets::ClientResolution &res);
+    inline void onPacketErrors() { Parser::clear(); }
+
+    inline VideoFrameItem *item() { return m_item; }
+    void setItem(VideoFrameItem *item);
+
+    inline void clear()
+    {
+        Parser::clear();
+        m_imageDecoder.reset();
+        clearJitterBuffer();
+    }
+
+public Q_SLOTS:
+    void reset()
+    {
+        m_locked = false;
+        m_waitedForResolution = false;
+        clear();
+    }
+
+public:
+    inline bool waitedForResolution() const { return m_waitedForResolution.load(std::memory_order_relaxed); }
+
+    void addData(QByteArray data) override
+    {
+        Parser::pushData(std::move(data));
+    }
+
+    inline auto waitFor(auto v) { return Parser::waitFor(v); }
+
+private:
+    VideoDecoder *m_decoder = nullptr;
+    ImageDecoder m_imageDecoder;
+    VideoFrameItem *m_item = nullptr;
+    std::atomic<bool> m_waitedForResolution{false};
+    bool m_locked = false;
+};
+
+class AudioLink : public UdpStreamSocket, public Packets::Parser<AudioLink, Settings::errorLimit>
+{
+    Q_OBJECT
+
+public:
+    explicit AudioLink(QObject *parent = nullptr)
+        : UdpStreamSocket(parent)
+        , Packets::Parser<AudioLink, Settings::errorLimit>(*this)
+    {
+        QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "AudioLink connected."; });
+    }
+
+    inline void onPacketErrors() { Parser::clear(); }
+    inline void clear() { Parser::clear(); }
+
+    void addData(QByteArray data) override
+    {
+        Parser::pushData(std::move(data));
+    }
+};
+
 class NetworkLink : public ::NetworkLink, Packets::Parser<NetworkLink, Settings::errorLimit>
 {
     Q_OBJECT
 
 public:
     explicit NetworkLink(QObject *parent);
+    ~NetworkLink() override;
 
-    void processPacket(const Packets::ServerImage &img);
-    void processPacket(const Packets::ServerStream &img);
-    void processPacket(const Packets::Reinit &);
-    void processPacket(const Packets::ClientResolution &res);
-    void onPacketErrors();
+    inline void processPacket(const Packets::Reinit &)
+    {
+        if (m_alink) {
+            QMetaObject::invokeMethod(m_alink, &AudioLink::clear);
+        }
+        if (m_vlink) {
+            QMetaObject::invokeMethod(m_vlink, &VideoLink::clear);
+        }
+        Parser::clear();
+    }
+    void processPacket(const Packets::KeyUpdate &ku);
+    void processPacket(const Packets::AudioSource &src);
+    void processPacket(const Packets::VideoSource &src);
+    inline void onPacketErrors() { Parser::clear(); }
 
     void setItem(QObject *item) override;
 
 private:
-    VideoDecoder *m_decoder = nullptr;
-    VideoFrameItem *m_item = nullptr;
-    bool m_waitedForResolution = false;
-    bool m_locked = false;
+    MulticastLock m_lock;
+    QThread m_videoThread;
+    QThread m_audioThread;
+    VideoLink *m_vlink = nullptr;
+    AudioLink *m_alink = nullptr;
+    bool m_waitedForKey = false;
+    bool m_waitedForAudioSource = false;
+    bool m_waitedForVideoSource = false;
+    QTimer m_requireCheck;
 
-    inline void addData(QByteArray additional) override
+    void performRequirements();
+
+    inline void pushData(QByteArray additional) override
     {
-        if (!m_waitedForResolution) [[unlikely]] {
-            m_waitedForResolution = true;
-            waitFor(Packets::Type::ClientResolution);
-
-            static constexpr Packets::RequestClientResolution resReq{};
-            write(Packets::Writer::generate(resReq));
-        }
-
         Parser::clear();
-        Parser::addData(std::move(additional));
+        Parser::pushData(std::move(additional));
     }
 };
 

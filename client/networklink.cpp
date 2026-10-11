@@ -23,13 +23,14 @@ NetworkLink::NetworkLink(QObject *parent)
     , m_sslSocket(new QSslSocket(this))
     , m_udpSocket(new QUdpSocket(this))
     , m_dtls(new QDtls(QSslSocket::SslClientMode, this))
+    , m_rw(*this, m_dtls, m_udpSocket, nullptr)
 {
-    QObject::connect(m_udpSocket, &QUdpSocket::connected, this, &NetworkLink::onConnected);
+    QObject::connect(m_udpSocket, &QUdpSocket::connected, this, &NetworkLink::onUdpConnected);
     QObject::connect(m_udpSocket, &QUdpSocket::disconnected, this, &NetworkLink::onDtlsDisconnected);
     QObject::connect(m_udpSocket, &QUdpSocket::readyRead, this, &NetworkLink::onDtlsDataAvailable, Qt::QueuedConnection);
     QObject::connect(m_udpSocket, &QUdpSocket::errorOccurred, this, &NetworkLink::onError);
 
-    QObject::connect(m_sslSocket, &QSslSocket::connected, this, &NetworkLink::onConnected);
+    QObject::connect(m_sslSocket, &QSslSocket::connected, this, &NetworkLink::onSslConnected);
     QObject::connect(m_sslSocket, &QSslSocket::disconnected, this, &NetworkLink::onSslDisconnected);
     QObject::connect(m_sslSocket, &QSslSocket::readyRead, this, &NetworkLink::onSslDataAvailable, Qt::QueuedConnection);
     QObject::connect(m_sslSocket, &QSslSocket::handshakeInterruptedOnError, this, &NetworkLink::onSslError);
@@ -38,18 +39,35 @@ NetworkLink::NetworkLink(QObject *parent)
     QObject::connect(m_sslSocket, &QSslSocket::encrypted, []() { qInfo() << "SSL connection established"; });
     QObject::connect(m_sslSocket, &QSslSocket::modeChanged, [](const QSslSocket::SslMode newMode) { qInfo() << "SSL mode changed:" << newMode; });
 
+    QObject::connect(m_sslSocket, &QSslSocket::disconnected, this, &NetworkLink::closed);
+    QObject::connect(m_udpSocket, &QSslSocket::disconnected, this, &NetworkLink::closed);
+
     QObject::connect(m_dtls, &QDtls::handshakeTimeout, this, [this] {
-        if (m_inactivityTimer.remainingTime() > 0) {
+        const auto rt = m_inactivityTimer.remainingTime();
+
+        switch (rt) {
+        case -1: {
+            // We're still in handshake.
+            qDebug() << "Handshaking...";
+            break;
+        }
+        case 0: {
+            qWarning() << "DTLS handshake timeout" << m_inactivityTimer.remainingTime();
+            break;
+        }
+        default: {
+            qDebug() << "Handling DTLS timeout";
             m_dtls->handleTimeout(m_udpSocket);
-        } else {
-            qWarning() << "DTLS handshake timeout";
+            break;
+        }
         }
     });
 
+    QObject::connect(this, &NetworkLink::connectionReady, &m_inactivityTimer, qOverload<>(&QTimer::start));
     QObject::connect(&m_inactivityTimer, &QTimer::timeout, this, &NetworkLink::onConnectionTimeout);
     m_inactivityTimer.setTimerType(Qt::VeryCoarseTimer);
     m_inactivityTimer.setSingleShot(true);
-    m_inactivityTimer.setInterval(Settings::inactivityTimeout + 2000);
+    m_inactivityTimer.setInterval(Settings::inactivityTimeout + 5000);
     m_inactivityTimer.stop();
 }
 
@@ -90,6 +108,7 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
     m_udpSocket->close();
 
     if (m_sslSocket->state() != QAbstractSocket::UnconnectedState || m_udpSocket->state() != QAbstractSocket::UnconnectedState) {
+        qDebug() << "Invalid socket state";
         return;
     }
 
@@ -123,12 +142,12 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
         qWarning() << "Unknown protocol name requested to connect to server:" << protocolName;
         Q_EMIT error(tr("The protocol is invalid: %1").arg(clientName));
     }
-
-    m_inactivityTimer.start();
 }
 
 void NetworkLink::connectDtls(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, const int port)
 {
+    qDebug() << "Connecting over DTLS";
+
     m_protocol = "dtls";
 
     m_dtls->setDtlsConfiguration(sslConf);
@@ -147,9 +166,18 @@ void NetworkLink::connectDtls(const QSslConfiguration &sslConf, const QHostAddre
     // Connect the UDP socket to the remote peer so readDatagram() only yields packets from peer
     m_udpSocket->connectToHost(hostAddress, static_cast<quint16>(port));
 
+    qDebug() << "Performing handshake";
     if (!m_dtls->doHandshake(m_udpSocket)) {
-        Q_EMIT error(tr("Failed to start DTLS handshake: %1").arg(m_dtls->dtlsErrorString()));
+        const auto errorString = m_dtls->dtlsErrorString();
+        qDebug() << "DTLS error:" << errorString;
+
+        Q_EMIT error(tr("Failed to start DTLS handshake: %1").arg(errorString));
         return;
+    }
+
+    if (m_dtls->isConnectionEncrypted()) {
+        qDebug() << "DTLS connection ready";
+        Q_EMIT connectionReady();
     }
 
     qInfo() << "DTLS handshake started";
@@ -157,6 +185,8 @@ void NetworkLink::connectDtls(const QSslConfiguration &sslConf, const QHostAddre
 
 void NetworkLink::connectSsl(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, const int port)
 {
+    qDebug() << "Connecting over SSL";
+
     m_protocol = "ssl";
 
     // Apply configuration before starting the handshake
@@ -168,7 +198,10 @@ void NetworkLink::connectSsl(const QSslConfiguration &sslConf, const QHostAddres
     m_sslSocket->connectToHost(hostAddress.toString(), static_cast<quint16>(port));
 
     if (!m_sslSocket->waitForConnected()) {
-        Q_EMIT error(tr("Failed to connect TCP socket: %1").arg(m_sslSocket->errorString()));
+        const auto errorString = m_sslSocket->errorString();
+        qDebug() << "SSL error:" << errorString;
+
+        Q_EMIT error(tr("Failed to connect TCP socket: %1").arg(errorString));
         return;
     }
 
@@ -176,7 +209,10 @@ void NetworkLink::connectSsl(const QSslConfiguration &sslConf, const QHostAddres
     m_sslSocket->startClientEncryption();
 
     if (!m_sslSocket->waitForEncrypted()) {
-        Q_EMIT error(tr("Failed to connect TCP socket: %1").arg(m_sslSocket->errorString()));
+        const auto errorString = m_sslSocket->errorString();
+        qDebug() << "SSL error:" << errorString;
+
+        Q_EMIT error(tr("Failed to connect TCP socket: %1").arg(errorString));
         return;
     }
 }
@@ -199,10 +235,17 @@ void NetworkLink::onSslError(const QSslError &error)
     qWarning() << "SSL Connection error occurred: " << error;
 }
 
-void NetworkLink::onConnected()
+void NetworkLink::onUdpConnected()
 {
     qInfo() << "Socket connected";
     Q_EMIT connectionInitialised();
+}
+
+void NetworkLink::onSslConnected()
+{
+    qInfo() << "Socket connected";
+    Q_EMIT connectionInitialised();
+    Q_EMIT connectionReady();
 }
 
 void NetworkLink::onDtlsDisconnected()
@@ -210,7 +253,7 @@ void NetworkLink::onDtlsDisconnected()
     m_udpSocket->close();
     m_buffer.clear();
     m_inactivityTimer.stop();
-    m_jitterBuffer.clear();
+    m_rw.jitterBuffer().clear();
 }
 
 void NetworkLink::onSslDisconnected()
@@ -224,7 +267,8 @@ void NetworkLink::onDtlsDataAvailable()
 
     while (m_udpSocket->hasPendingDatagrams()) {
         QByteArray dgram(m_udpSocket->pendingDatagramSize(), Qt::Uninitialized);
-        const qint64 bytesRead = m_udpSocket->readDatagram(dgram.data(), dgram.size());
+        const auto bytesRead = m_udpSocket->readDatagram(dgram.data(), dgram.size());
+
         if (bytesRead <= 0) {
             qWarning() << "Spurious UDP read";
             return;
@@ -234,9 +278,13 @@ void NetworkLink::onDtlsDataAvailable()
 
         if (!m_dtls->isConnectionEncrypted()) {
             // Continue handshake with incoming datagram
+            qDebug() << "Performing handshake";
             if (!m_dtls->doHandshake(m_udpSocket, dgram)) {
                 if (m_dtls->dtlsError() != QDtlsError::NoError) {
-                    Q_EMIT error(tr("DTLS handshake error: %1").arg(m_dtls->dtlsErrorString()));
+                    const auto errorString = m_dtls->dtlsErrorString();
+                    qDebug() << "DTLS error:" << errorString;
+
+                    Q_EMIT error(tr("DTLS handshake error: %1").arg(errorString));
                 }
 
                 return;
@@ -244,45 +292,14 @@ void NetworkLink::onDtlsDataAvailable()
 
             if (m_dtls->isConnectionEncrypted()) {
                 qInfo() << "DTLS encrypted connection established";
-                Q_EMIT opened();
+                Q_EMIT connectionReady();
             }
 
             continue;
         }
 
         // Decrypt application datagram
-        auto plain = m_dtls->decryptDatagram(m_udpSocket, dgram);
-        if (!plain.isEmpty()) {
-            if (plain.size() < static_cast<qsizetype>(sizeof(Packets::Ordering) * 2 + sizeof(Packets::Timestamp))) {
-                qWarning() << "Invalid DTLS decrypted packet size has been received.";
-                return;
-            }
-
-            const auto ts = qFromBigEndian(*reinterpret_cast<Packets::Timestamp *>(plain.first(sizeof(Packets::Timestamp)).data()));
-            const auto sizing = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
-                plain.slice(static_cast<qsizetype>(sizeof(Packets::Timestamp))).first(sizeof(Packets::Ordering)).data()));
-            const auto order = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
-                plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))).first(sizeof(Packets::Ordering)).data()));
-
-            // We need to slice as the ordering is not part of the information wanted by the application.
-            m_jitterBuffer.pushChunk(ts, order, sizing, plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))));
-
-            while (const auto v = m_jitterBuffer.pullComplete()) {
-                addData(std::move(*v));
-            }
-
-            continue;
-        }
-
-        // If plain is empty, check for shutdown/remote-close
-        if (m_dtls->dtlsError() == QDtlsError::RemoteClosedConnectionError) {
-            qWarning() << "DTLS shutdown received";
-            m_udpSocket->close();
-            Q_EMIT closed();
-            return;
-        }
-
-        qWarning() << "Received zero-length DTLS plaintext or unexpected datagram";
+        m_rw.processDtls(dgram);
     }
 }
 
@@ -290,9 +307,9 @@ void NetworkLink::onSslDataAvailable()
 {
     m_inactivityTimer.start();
 
-    const QByteArray plain = m_sslSocket->readAll();
+    const auto plain = m_sslSocket->readAll();
     if (!plain.isEmpty()) {
-        addData(std::move(plain));
+        pushData(std::move(plain));
         return;
     }
 
@@ -300,7 +317,7 @@ void NetworkLink::onSslDataAvailable()
     // emit disconnected(); treat that as the shutdown path.
     if (m_sslSocket->state() == QAbstractSocket::UnconnectedState) {
         qWarning() << "SSL shutdown received";
-        Q_EMIT closed();
+        m_sslSocket->close();
         return;
     }
 
@@ -310,6 +327,7 @@ void NetworkLink::onSslDataAvailable()
 void NetworkLink::onConnectionTimeout()
 {
     if (m_sslSocket || (m_dtls && m_dtls->handshakeState() == QDtls::HandshakeComplete)) {
+        qDebug() << "Connection timed out";
         Q_EMIT error(tr("Connection timed out."));
         close();
     }
@@ -326,48 +344,7 @@ void NetworkLink::write(const QByteArray &data)
 
 qint64 NetworkLink::writeDtls(const QByteArray &data)
 {
-    static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) - sizeof(Packets::Timestamp);
-    const auto size = data.size();
-
-    Packets::Ordering order = 0;
-    qsizetype offset = 0;
-    while (offset < size) {
-        auto chunk = data.mid(offset, innerSize);
-        const auto ts_be = qToBigEndian(m_ts);
-        const auto order_be = qToBigEndian(order);
-        chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
-        chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
-
-        if (m_dtls->writeDatagramEncrypted(m_udpSocket, chunk) < 0) {
-            const auto err = m_dtls->dtlsError();
-            switch (err) {
-            case QDtlsError::RemoteClosedConnectionError: {
-                close();
-                break;
-            }
-            case QDtlsError::UnderlyingSocketError:
-            case QDtlsError::NoError: {
-                continue;
-            }
-            default: {
-                qWarning() << "DTLS write error on" << m_ts << order << static_cast<int>(err) << m_dtls->dtlsErrorString();
-            }
-            }
-
-            m_ts++;
-            m_ts = m_ts % Settings::simultaneousPendings;
-
-            return -1;
-        }
-
-        offset += chunk.size();
-        order++;
-    }
-
-    m_ts++;
-    m_ts = m_ts % Settings::simultaneousPendings;
-
-    return offset;
+    return m_rw.writeDtls(data);
 }
 
 qint64 NetworkLink::writeSsl(const QByteArray &data)

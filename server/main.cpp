@@ -2,8 +2,8 @@
 #include "commandparser.h"
 #include "displaymanager.h"
 #include "parameters.h"
-#include "sslserver.h"
-#include "dtlsserver.h"
+#include "server.h"
+#include "streamsocket.h"
 
 #include <QCoreApplication>
 
@@ -22,28 +22,45 @@ int main(int argc, char *argv[])
         break;
     }
 
-    if (!Parameters::instance.advertise) {
-        const auto publisher = new AvahiPublisher(Parameters::instance.serviceName,
-                                                  Parameters::instance.streamFormat == Opts::DisplayStreamType::h265 ? "_drming._tcp" : "_drming._udp",
-                                                  static_cast<uint16_t>(Parameters::instance.port),
-                                                  &app);
-        publisher->start();
-    }
+    Server server{};
+    StreamSocket videoSocket{};
+    StreamSocket audioSocket{};
 
-    DisplayManager manager{};
-    Server *server = Parameters::instance.streamFormat == Opts::DisplayStreamType::h265 ? static_cast<Server *>(new SslServer(&app))
-                                                                                        : static_cast<Server *>(new DtlsServer(&app));
+    DisplayManager manager(videoSocket);
 
-    QObject::connect(server, &Server::clientConnected, [&manager](NetworkClient *client) {
+    QObject::connect(&server, &Server::clientConnected, [&manager](NetworkClient *client) {
         // An error occurred.
         if (!manager.registerClient(client)) {
             // If registration failed, drop client
             client->deleteLater();
         }
     });
+    QObject::connect(&videoSocket, &StreamSocket::keyChanged, [&videoSocket, &audioSocket]() {
+        audioSocket.setKey(videoSocket.getKey(), videoSocket.getKeystamp());
+    });
 
-    if (!server->listen(Parameters::instance.serviceHostIp, Parameters::instance.port)) {
+    if (!videoSocket.listen(Parameters::instance.serviceVideoIp,
+                            Parameters::instance.videoPort,
+                            Parameters::instance.serviceIface)) {
         return EXIT_FAILURE;
+    }
+    if (!audioSocket.listen(Parameters::instance.serviceAudioIp,
+                            Parameters::instance.audioPort,
+                            Parameters::instance.serviceIface)) {
+        return EXIT_FAILURE;
+    }
+    audioSocket.setKey(videoSocket.getKey(), videoSocket.getKeystamp());
+
+    if (!server.listen(Parameters::instance.serviceIp, Parameters::instance.serviceIp, Parameters::instance.port)) {
+        return EXIT_FAILURE;
+    }
+
+    if (!Parameters::instance.advertise) {
+        const auto publisher = new AvahiPublisher(Parameters::instance.serviceName,
+                                                  "_drming._udp",
+                                                  static_cast<uint16_t>(Parameters::instance.port),
+                                                  &app);
+        publisher->start();
     }
 
     qInfo() << "Ready!";

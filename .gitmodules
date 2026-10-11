@@ -4,3 +4,6 @@
 [submodule "submodules/ffmpeg-kit-next"]
 	path = submodules/ffmpeg-kit-next
 	url = https://github.com/arthenica/ffmpeg-kit-next.git
+[submodule "submodules/qt-aes"]
+	path = submodules/qt-aes
+	url = https://github.com/bricke/Qt-AES.git

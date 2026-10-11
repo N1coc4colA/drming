@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(drming_client VERSION 0.1 LANGUAGES CXX)
 
 
-set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTOUIC OFF)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
@@ -29,15 +29,22 @@ add_subdirectory(
     ${CMAKE_CURRENT_BINARY_DIR}/ctrack
 )
 
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../submodules/qt-aes
+    ${CMAKE_CURRENT_BINARY_DIR}/qt-aes
+)
+
 set(PROJECT_SOURCES
-    ../certificatesupport.h
-    ../parser.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../net/certificatesupport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../net/parser.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../net/udp.h
     ../settings.h
 
     main.cpp
 
     application.h
     fileprovider.h fileprovider.cpp
+    imagedecoder.h imagedecoder.cpp
     mdns.h mdns.cpp
     networklink.h networklink.cpp
     networkstatus.h networkstatus.cpp
@@ -143,6 +150,7 @@ if (ANDROID)
             Qt6::Quick
             Qt6::QuickControls2
             Qt6::Widgets
+            QtAES::QtAES
             ctrack
             mediandk
             EGL
@@ -160,6 +168,7 @@ else()
             Qt6::QuickControls2
             Qt6::Widgets
             PkgConfig::FFMPEG
+            QtAES::QtAES
             ctrack
     )
 endif()
