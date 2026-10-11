@@ -9,6 +9,7 @@ extern "C" {
 
 struct AVCodec;
 struct AVCodecContext;
+struct AVPacket;
 struct SwsContext;
 struct AVFrame;
 
@@ -39,6 +40,7 @@ private:
 
     const AVCodec *m_codec = nullptr;
     AVCodecContext *m_enc = nullptr;
+    AVPacket *m_pkt = nullptr;
     struct SwsContext *m_sws = nullptr;
     AVFrame *m_yuv = nullptr;
 

@@ -1,5 +1,7 @@
 #include "ffmpeg.h"
 
+#include <algorithm>
+
 #include <QDebug>
 
 #include <drm_fourcc.h>
@@ -218,7 +220,10 @@ int Encoder::init(const int width, const int height, const QImage::Format format
         test_ctx->time_base = (AVRational) {1, m_fps};
         test_ctx->framerate = (AVRational) {m_fps, 1};
         test_ctx->pix_fmt = m_dst_fmt = candidate.setupFunc(nullptr);
-        test_ctx->gop_size = m_fps / 2;
+        // Intra frames are substantially more expensive than predictive
+        // frames. Keep recovery points frequent enough for a live stream,
+        // without forcing one every few frames.
+        test_ctx->gop_size = std::max(m_fps * 2, 1);
         test_ctx->max_b_frames = 0;
         test_ctx->bit_rate = 5 * 1000 * 1000;
 
@@ -264,7 +269,7 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     m_enc->time_base = (AVRational) {1, m_fps};
     m_enc->framerate = (AVRational) {m_fps, 1};
     m_enc->pix_fmt = m_dst_fmt;
-    m_enc->gop_size = m_fps / 2;
+    m_enc->gop_size = std::max(m_fps * 2, 1);
     m_enc->max_b_frames = 0;
     m_enc->thread_count = 0;
     m_enc->thread_type = FF_THREAD_SLICE;
@@ -295,6 +300,11 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     if (ret < 0) {
         qCritical() << "Failed to open encoder:" << avError(ret);
         return ret;
+    }
+
+    m_pkt = av_packet_alloc();
+    if (!m_pkt) {
+        return AVERROR(ENOMEM);
     }
 
     // Scaling context
@@ -356,6 +366,9 @@ void Encoder::release()
     if (m_enc) {
         avcodec_free_context(&m_enc);
     }
+    if (m_pkt) {
+        av_packet_free(&m_pkt);
+    }
 }
 
 int Encoder::flush()
@@ -369,14 +382,13 @@ int Encoder::flush()
         return ret;
     }
 
-    auto pkt = av_packet_alloc();
-    if (!pkt) {
+    if (!m_pkt) {
         return AVERROR(ENOMEM);
     }
 
     int status = 0;
     while (1) {
-        ret = avcodec_receive_packet(m_enc, pkt);
+        ret = avcodec_receive_packet(m_enc, m_pkt);
         if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN)) [[unlikely]] {
             break;
         }
@@ -386,13 +398,12 @@ int Encoder::flush()
         }
 
         if (m_callback) [[likely]] {
-            m_callback(pkt->data, pkt->size, pkt->pts);
+            m_callback(m_pkt->data, m_pkt->size, m_pkt->pts);
         }
 
-        av_packet_unref(pkt);
+        av_packet_unref(m_pkt);
     }
 
-    av_packet_free(&pkt);
     return status;
 }
 
@@ -412,14 +423,13 @@ int Encoder::encode(AVFrame *frame)
         return ret;
     }
 
-    auto pkt = av_packet_alloc();
-    if (!pkt) {
+    if (!m_pkt) {
         return AVERROR(ENOMEM);
     }
 
     int status = 0;
     while (1) {
-        ret = avcodec_receive_packet(m_enc, pkt);
+        ret = avcodec_receive_packet(m_enc, m_pkt);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) [[unlikely]] {
             break;
         }
@@ -429,13 +439,12 @@ int Encoder::encode(AVFrame *frame)
         }
 
         if (m_callback) [[likely]] {
-            m_callback(pkt->data, pkt->size, pkt->pts);
+            m_callback(m_pkt->data, m_pkt->size, m_pkt->pts);
         }
 
-        av_packet_unref(pkt);
+        av_packet_unref(m_pkt);
     }
 
-    av_packet_free(&pkt);
     return status;
 }
 
