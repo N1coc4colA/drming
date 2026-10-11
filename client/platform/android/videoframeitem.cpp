@@ -7,6 +7,7 @@
 
 #include "decode.h"
 #include "oesrendernode.h"
+#include "androidui.h"
 
 namespace Platform {
 
@@ -26,8 +27,13 @@ QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
 
 VideoFrameItem::VideoFrameItem(QQuickItem* parent)
     : QQuickItem(parent)
+    , m_aui(new AndroidUi(this))
 {
     setFlag(ItemHasContents, true);
+
+    connect(this, &VideoFrameItem::visibleChanged, this, [this]() {
+        isVisible() ? m_aui->enterFullScreen() : m_aui->leaveFullScreen();
+    });
 }
 
 void VideoFrameItem::setDecoder(VideoDecoder* decoder)

@@ -13,10 +13,12 @@ class QSGSimpleTextureNode;
 namespace Platform {
 
 class VideoDecoder;
+class AndroidUi;
 
 class VideoFrameItem : public QQuickItem
 {
     Q_OBJECT
+
 public:
     enum TextureMode {
         Invalid,
@@ -45,6 +47,8 @@ private:
     QMutex m_mtx;
     TextureMode m_textureMode = TextureMode::Invalid;
     TextureMode m_previousTextureMode = TextureMode::Invalid;
+
+    AndroidUi *m_aui = nullptr;
 };
 } // namespace Platform
 
