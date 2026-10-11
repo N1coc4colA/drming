@@ -48,6 +48,7 @@ NetworkLink::NetworkLink(QObject *parent)
         switch (rt) {
         case -1: {
             // We're still in handshake.
+            qDebug() << "Handshaking...";
             break;
         }
         case 0: {
@@ -55,6 +56,7 @@ NetworkLink::NetworkLink(QObject *parent)
             break;
         }
         default: {
+            qDebug() << "Handling DTLS timeout";
             m_dtls->handleTimeout(m_udpSocket);
             break;
         }
@@ -106,6 +108,7 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
     m_udpSocket->close();
 
     if (m_sslSocket->state() != QAbstractSocket::UnconnectedState || m_udpSocket->state() != QAbstractSocket::UnconnectedState) {
+        qDebug() << "Invalid socket state";
         return;
     }
 
@@ -143,6 +146,8 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
 
 void NetworkLink::connectDtls(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, const int port)
 {
+    qDebug() << "Connecting over DTLS";
+
     m_protocol = "dtls";
 
     m_dtls->setDtlsConfiguration(sslConf);
@@ -163,11 +168,15 @@ void NetworkLink::connectDtls(const QSslConfiguration &sslConf, const QHostAddre
 
     qDebug() << "Performing handshake";
     if (!m_dtls->doHandshake(m_udpSocket)) {
-        Q_EMIT error(tr("Failed to start DTLS handshake: %1").arg(m_dtls->dtlsErrorString()));
+        const auto errorString = m_dtls->dtlsErrorString();
+        qDebug() << "DTLS error:" << errorString;
+
+        Q_EMIT error(tr("Failed to start DTLS handshake: %1").arg(errorString));
         return;
     }
 
     if (m_dtls->isConnectionEncrypted()) {
+        qDebug() << "DTLS connection ready";
         Q_EMIT connectionReady();
     }
 
@@ -176,6 +185,8 @@ void NetworkLink::connectDtls(const QSslConfiguration &sslConf, const QHostAddre
 
 void NetworkLink::connectSsl(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, const int port)
 {
+    qDebug() << "Connecting over SSL";
+
     m_protocol = "ssl";
 
     // Apply configuration before starting the handshake
@@ -187,7 +198,10 @@ void NetworkLink::connectSsl(const QSslConfiguration &sslConf, const QHostAddres
     m_sslSocket->connectToHost(hostAddress.toString(), static_cast<quint16>(port));
 
     if (!m_sslSocket->waitForConnected()) {
-        Q_EMIT error(tr("Failed to connect TCP socket: %1").arg(m_sslSocket->errorString()));
+        const auto errorString = m_sslSocket->errorString();
+        qDebug() << "SSL error:" << errorString;
+
+        Q_EMIT error(tr("Failed to connect TCP socket: %1").arg(errorString));
         return;
     }
 
@@ -195,7 +209,10 @@ void NetworkLink::connectSsl(const QSslConfiguration &sslConf, const QHostAddres
     m_sslSocket->startClientEncryption();
 
     if (!m_sslSocket->waitForEncrypted()) {
-        Q_EMIT error(tr("Failed to connect TCP socket: %1").arg(m_sslSocket->errorString()));
+        const auto errorString = m_sslSocket->errorString();
+        qDebug() << "SSL error:" << errorString;
+
+        Q_EMIT error(tr("Failed to connect TCP socket: %1").arg(errorString));
         return;
     }
 }
@@ -264,7 +281,10 @@ void NetworkLink::onDtlsDataAvailable()
             qDebug() << "Performing handshake";
             if (!m_dtls->doHandshake(m_udpSocket, dgram)) {
                 if (m_dtls->dtlsError() != QDtlsError::NoError) {
-                    Q_EMIT error(tr("DTLS handshake error: %1").arg(m_dtls->dtlsErrorString()));
+                    const auto errorString = m_dtls->dtlsErrorString();
+                    qDebug() << "DTLS error:" << errorString;
+
+                    Q_EMIT error(tr("DTLS handshake error: %1").arg(errorString));
                 }
 
                 return;
@@ -287,9 +307,9 @@ void NetworkLink::onSslDataAvailable()
 {
     m_inactivityTimer.start();
 
-    const QByteArray plain = m_sslSocket->readAll();
+    const auto plain = m_sslSocket->readAll();
     if (!plain.isEmpty()) {
-        addData(std::move(plain));
+        pushData(std::move(plain));
         return;
     }
 
@@ -307,6 +327,7 @@ void NetworkLink::onSslDataAvailable()
 void NetworkLink::onConnectionTimeout()
 {
     if (m_sslSocket || (m_dtls && m_dtls->handshakeState() == QDtls::HandshakeComplete)) {
+        qDebug() << "Connection timed out";
         Q_EMIT error(tr("Connection timed out."));
         close();
     }
