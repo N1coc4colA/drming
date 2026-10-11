@@ -8,17 +8,19 @@
 #include <algorithm>
 #include <array>
 #include <limits>
+#include <numeric>
 #include <optional>
 #include <set>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace Packets {
 
 using Ordering = quint32;
-using Timestamp = qint16;
+using Timestamp = quint16;
 using Keystamp = qint16;
 
 enum class Type : quint16 {
@@ -41,8 +43,10 @@ enum class Type : quint16 {
     ServerImage,
     ServerStream,
 
+    SpeedInfo,
+
     MINIMUM = HeartBeat,
-    MAXIMUM = ServerStream,
+    MAXIMUM = SpeedInfo,
 
     LOWER = HeartBeat,
     UPPER = MAXIMUM,
@@ -159,14 +163,15 @@ using fields_type = std::remove_reference_t<decltype(PacketType::fields)>;
 
 } // namespace details
 
-template<typename T>
+
+template<typename T, bool IsVariable = false, bool HasLimit = false>
 struct Field
 {
     using data_type = T;
 
     static constexpr bool __is_field = true;
-    static constexpr bool __is_variable = false;
-    static constexpr bool __has_limits = false;
+    static constexpr bool __is_variable = IsVariable;
+    static constexpr bool __has_limits = HasLimit;
 
     T data{};
 
@@ -174,30 +179,27 @@ struct Field
     inline const T &operator->() const { return data; }
 };
 
+// SizedField implies IsVariable = true. Whether it has limits is decided by
+// the concrete variable field templates below.
 template<typename T, typename SizeType>
-struct SizedField : public Field<T>
+struct SizedField : public Field<T, true>
 {
     using size_type = SizeType;
-
-    static constexpr bool __is_variable = true;
-
     SizeType size{};
 };
 
+// Fixed-size, compile-time-bounded field: not variable, has limits.
 template<typename T, typename LimitType, LimitType Min, LimitType Max>
-struct FixedField : Field<T>
+struct FixedField : Field<T, false, true>
 {
-    static constexpr bool __has_limits = true;
-
     static constexpr LimitType min = Min;
     static constexpr LimitType max = Max;
 };
 
-template<typename T, typename LimitType, LimitType DefaultMin = 0, LimitType DefaultMax = std::numeric_limits<LimitType>::max()>
-struct BoundField : public Field<T>
+// Fixed-size, runtime-bounded field: not variable, has limits.
+template<typename T, typename LimitType, LimitType DefaultMin = 0, LimitType DefaultMax = std::numeric_limits<LimitType>::max()>\
+struct BoundField : public Field<T, false, true>
 {
-    static constexpr bool __has_limits = true;
-
     LimitType min = DefaultMin;
     LimitType max = DefaultMax;
 
@@ -208,6 +210,7 @@ struct BoundField : public Field<T>
     }
 };
 
+// Variable-size, compile-time-bounded field: variable, has limits.
 template<typename T, typename LimitType, LimitType Min, LimitType Max>
 struct VariableFixedField : SizedField<T, LimitType>
 {
@@ -217,6 +220,7 @@ struct VariableFixedField : SizedField<T, LimitType>
     static constexpr LimitType max = Max;
 };
 
+// Variable-size, runtime-bounded field: variable, has limits.
 template<typename T, typename LimitType, LimitType DefaultMin = 0, LimitType DefaultMax = std::numeric_limits<LimitType>::max()>
 struct VariableBoundField : public SizedField<T, LimitType>
 {
@@ -263,6 +267,7 @@ template<typename NumericType,
          NumericType DefaultMax = std::numeric_limits<NumericType>::max()>
 struct BoundNumericField : BoundField<NumericType, NumericType, DefaultMin, DefaultMax>
 {};
+
 
 struct HeartBeat
 {
@@ -331,7 +336,7 @@ struct ServerImage
     static constexpr auto type = Type::ServerImage;
 
     VariableFixedField<QByteArray, quint64, 3, 4> format;
-    VariableBoundField<QByteArray, quint64, 1, 1920 * 1080> data;
+    VariableBoundField<QByteArray, quint64, 1, 8 * 1024 * 1024> data;
 
     static constexpr auto fields = std::tuple{&ServerImage::format, &ServerImage::data};
 };
@@ -370,6 +375,15 @@ struct ServerStream
     static constexpr auto fields = std::tuple{&ServerStream::data};
 };
 
+struct SpeedInfo
+{
+    static constexpr auto type = Type::SpeedInfo;
+
+    NumericField<std::int16_t, 0, 200> speed;
+
+    static constexpr auto fields = std::tuple{&SpeedInfo::speed};
+};
+
 using PacketVariant = std::variant<HeartBeat,
                                    Reinit,
                                    RequestKey,
@@ -382,7 +396,8 @@ using PacketVariant = std::variant<HeartBeat,
                                    ClientResolution,
                                    ServerBrightness,
                                    ServerImage,
-                                   ServerStream>;
+                                   ServerStream,
+                                   SpeedInfo>;
 
 class Writer
 {
@@ -456,7 +471,10 @@ public:
     }
 };
 
-template<typename Receiver, const int ErrorLimit = 64 * 1024 * 1024, std::size_t MaxVariableSize = 1024 * 1024, bool DebugParsed = false>
+template<typename Receiver,
+         const int ErrorLimit = 2,
+         std::size_t MaxVariableSize = 8 * 1024 * 1024,
+         bool DebugParsed = false>
 class Parser
 {
     using PacketTypes = typename details::variant_types<PacketVariant>::types;
@@ -480,6 +498,7 @@ class Parser
     size_t m_parsed = 0;
     size_t m_variablesParsed = 0;
     int m_errorCount = 0;
+    bool m_discardCurrent = false;
 
     inline void resetToResync()
     {
@@ -487,9 +506,9 @@ class Parser
         m_parsed = 0;
         m_variablesParsed = 0;
         m_current = PacketVariant{};
+        m_discardCurrent = false;
     }
 
-    // If it is variable and has limits, so we need to get size then bound check.
     template<typename PacketType, size_t Index>
         requires FieldType<PacketType, Index>::__is_variable and FieldType<PacketType, Index>::__has_limits
     inline ParseOutput read()
@@ -515,43 +534,15 @@ class Parser
         return Continue;
     }
 
-    // Not bounded, so just grab the size, the data will be retrieved in readVariable.
-    template<typename PacketType, size_t Index>
-        requires FieldType<PacketType, Index>::__is_variable and (not FieldType<PacketType, Index>::__has_limits)
-    inline ParseOutput read()
-    {
-        using Field = FieldType<PacketType, Index>;
-        auto &packet = std::get<PacketType>(m_current);
-        auto &field = packet.*std::get<Index>(std::get<PacketType>(m_current).fields);
-
-        if (m_array.size() >= static_cast<qsizetype>(sizeof(typename Field::size_type))) {
-            QDataStream stream(m_array);
-            stream.setByteOrder(QDataStream::BigEndian);
-            stream >> field.size;
-
-            m_array.remove(0, sizeof(field.size));
-
-            if (field.size > MaxVariableSize) [[unlikely]] {
-                return False;
-            }
-
-            return True;
-        }
-
-        return Continue;
-    }
-
-    // A simply bounded field.
     template<typename PacketType, size_t Index>
         requires(not FieldType<PacketType, Index>::__is_variable) and FieldType<PacketType, Index>::__has_limits
     inline ParseOutput read()
     {
         using Field = FieldType<PacketType, Index>;
         auto &packet = std::get<PacketType>(m_current);
+        auto &field = packet.*std::get<Index>(std::get<PacketType>(m_current).fields);
 
         if (m_array.size() >= static_cast<qsizetype>(sizeof(typename Field::data_type))) {
-            auto &field = packet.*std::get<Index>(std::get<PacketType>(m_current).fields);
-
             QDataStream stream(m_array);
             stream.setByteOrder(QDataStream::BigEndian);
             stream >> field.data;
@@ -564,17 +555,15 @@ class Parser
         return Continue;
     }
 
-    // Simply a declared field.
     template<typename PacketType, size_t Index>
         requires(not FieldType<PacketType, Index>::__is_variable) and (not FieldType<PacketType, Index>::__has_limits)
     inline ParseOutput read()
     {
         using Field = FieldType<PacketType, Index>;
         auto &packet = std::get<PacketType>(m_current);
+        auto &field = packet.*std::get<Index>(std::get<PacketType>(m_current).fields);
 
         if (m_array.size() >= static_cast<qsizetype>(sizeof(typename Field::data_type))) {
-            auto &field = packet.*std::get<Index>(std::get<PacketType>(m_current).fields);
-
             QDataStream stream(m_array);
             stream.setByteOrder(QDataStream::BigEndian);
             stream >> field.data;
@@ -587,7 +576,6 @@ class Parser
         return Continue;
     }
 
-    // Just normally read the data.
     template<typename FieldType, size_t = 0>
     inline ParseOutput read(FieldType &field)
     {
@@ -613,20 +601,23 @@ class Parser
 
         const auto size = static_cast<qsizetype>(field.size);
         if (m_array.size() >= size) {
-            QDataStream stream(m_array);
-            stream.setByteOrder(QDataStream::BigEndian);
+            if (m_discardCurrent) {
+                m_array.remove(0, size);
+            } else {
+                QDataStream stream(m_array);
+                stream.setByteOrder(QDataStream::BigEndian);
 
-            field.data.resize(static_cast<qsizetype>(size));
-            stream.readRawData(field.data.data(), static_cast<qint64>(size));
-            m_array.remove(0, size);
-
+                field.data.resize(size);
+                stream.readRawData(field.data.data(), static_cast<qint64>(size));
+                m_array.remove(0, size);
+            }
             return True;
         }
-
         return Continue;
     }
 
     template<typename PacketType, size_t Index>
+        requires (not (FieldType<PacketType, Index>::__is_field and FieldType<PacketType, Index>::__is_variable))
     inline constexpr ParseOutput readVariable()
     {
         return True;
@@ -673,8 +664,9 @@ class Parser
             }
         }
 
-        // Call processPacket only if the receiver has an appropriate overload
-        if constexpr (details::has_processPacket<Receiver, T>::value) {
+        if (m_discardCurrent) {
+            m_discardCurrent = false;
+        } else if constexpr (details::has_processPacket<Receiver, T>::value) {
             m_receiver.processPacket(std::as_const(std::get<T>(m_current)));
         }
 
@@ -728,7 +720,7 @@ public:
         : m_receiver(receiver)
     {}
 
-    inline void addData(const QByteArray &additional)
+    inline void pushData(const QByteArray &additional)
     {
         m_array.append(additional);
         parse();
@@ -762,7 +754,6 @@ public:
 
                 quint16 type = static_cast<quint16>(Type::None);
                 if (read<quint16>(type) != True) {
-                    // read for non Field-derived types always return True (read success) or Continue (need more data).
                     return;
                 }
 
@@ -779,17 +770,18 @@ public:
                 }
 
                 const auto converted = static_cast<Type>(type);
+
+                m_discardCurrent = false;
                 if (!m_waitsFor.empty()) [[unlikely]] {
-                    if (!m_waitsFor.contains(converted)) {
-                        continue;
-                    } else {
+                    if (m_waitsFor.contains(converted)) {
                         m_waitsFor.erase(converted);
+                    } else {
+                        m_discardCurrent = true;
                     }
                 }
 
-                // Just walk by if disabled.
                 if (m_disabled.contains(converted)) {
-                    continue;
+                    m_discardCurrent = true;
                 }
 
                 m_state = converted;
@@ -811,7 +803,8 @@ public:
                         }
                     }
 
-                    [[fallthrough]];
+                    resetToResync();
+                    break;
                 }
                 case True: {
                     resetToResync();
@@ -833,7 +826,7 @@ public:
 };
 
 // Limit is the maximum number of TS queues that can be handled simultaneously.
-template<typename OrderType = Ordering, typename TsType = Timestamp, TsType MaxTimestamps = 5, std::size_t PacketsLimit = 200>
+template<typename OrderType = Ordering, typename TsType = Timestamp, TsType MaxTimestamps = 3, std::size_t PacketsLimit = 200>
 class JitterBuffer
 {
     struct ChunkQueue
@@ -842,44 +835,62 @@ class JitterBuffer
 
         inline bool isComplete() const
         {
-            return std::none_of(chunks.cbegin(), chunks.cend(), [](const auto &opt) { return !opt.has_value(); });
+            return !chunks.empty() && std::none_of(chunks.cbegin(), chunks.cend(), [](const auto &opt) { return !opt.has_value(); });
         }
 
         inline QByteArray assemble() const
         {
             const auto total = std::accumulate(chunks.cbegin(), chunks.cend(), qsizetype(0), [](qsizetype sum, const auto &opt) {
-                return sum + opt->size();
+                return sum + (opt ? opt->size() : 0);
             });
 
             QByteArray out;
             out.reserve(total);
             for (const auto &opt : chunks) {
-                out += *opt;
+                if (opt) {
+                    out += *opt;
+                }
             }
 
             return out;
         }
     };
 
-    std::map<TsType, ChunkQueue> m_data{}; // sorted by timestamp, oldest first
+    struct Entry
+    {
+        TsType ts{};
+        ChunkQueue queue{};
+    };
+
+    std::vector<Entry> m_entries{};
 
 public:
     // Insert a chunk for a given timestamp and order.
     // `totalChunks` is the total number of chunks for this timestamp (must be > 0).
-    void pushChunk(const TsType ts, const OrderType order, const OrderType totalChunks, const QByteArray data)
+    void pushChunk(const TsType ts, const OrderType order, const OrderType totalChunks, QByteArray data)
     {
-        // If we already have MaxTimestamps timestamps and this one is not present,
-        // evict the oldest one to make room.
-        auto it = m_data.find(ts);
-        if (it == m_data.end()) {
-            while (m_data.size() >= MaxTimestamps) {
-                m_data.erase(m_data.begin()); // remove oldest
-            }
-
-            it = m_data.emplace(ts, ChunkQueue{}).first;
+        if (totalChunks == 0 || order >= totalChunks) {
+            return;
         }
 
-        auto &queue = it->second;
+        auto it = std::find_if(m_entries.begin(), m_entries.end(), [ts](const Entry &e) { return e.ts == ts; });
+        if (it == m_entries.end()) {
+            while (m_entries.size() >= MaxTimestamps) {
+                m_entries.erase(m_entries.begin()); // remove oldest
+            }
+
+            m_entries.push_back(Entry{ts, ChunkQueue{}});
+            it = std::prev(m_entries.end());
+        }
+
+        auto &queue = it->queue;
+
+        // Guard against a stale queue whose shape doesn't match the incoming
+        // frame (e.g. a reused ts after wrap).
+        if (!queue.chunks.empty() && queue.chunks.size() != totalChunks) {
+            queue.chunks.clear();
+        }
+
         // Ensure the chunks vector is large enough to hold all orders.
         if (queue.chunks.size() < totalChunks) {
             queue.chunks.resize(totalChunks);
@@ -896,12 +907,11 @@ public:
     // otherwise std::nullopt.
     inline std::optional<QByteArray> pullComplete()
     {
-        for (auto it = m_data.begin(); it != m_data.end(); ++it) {
-            auto &queue = it->second;
-            if (queue.isComplete()) {
-                QByteArray assembled = queue.assemble();
+        for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
+            if (it->queue.isComplete()) {
+                QByteArray assembled = it->queue.assemble();
                 // Remove this timestamp and all older ones (they are no longer needed).
-                m_data.erase(m_data.begin(), std::next(it));
+                m_entries.erase(m_entries.begin(), std::next(it));
                 return assembled;
             }
         }
@@ -910,14 +920,13 @@ public:
     }
 
     // Clear all stored data.
-    inline void clear() { m_data.clear(); }
+    inline void clear() { m_entries.clear(); }
 
     // Optional: check if a timestamp is already complete (for debugging).
     inline bool isComplete(const TsType ts) const
     {
-        const auto it = m_data.find(ts);
-
-        return it != m_data.end() && it->second.isComplete();
+        auto it = std::find_if(m_entries.begin(), m_entries.end(), [ts](const Entry &e) { return e.ts == ts; });
+        return it != m_entries.end() && it->queue.isComplete();
     }
 };
 
