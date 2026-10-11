@@ -39,23 +39,19 @@ int main(int argc, char *argv[])
         audioSocket.setKey(videoSocket.getKey(), videoSocket.getKeystamp());
     });
 
-    if (!videoSocket.listen(Parameters::instance.serviceVideoIp4,
-                            Parameters::instance.serviceVideoIp6,
+    if (!videoSocket.listen(Parameters::instance.serviceVideoIp,
                             Parameters::instance.videoPort,
-                            Parameters::instance.serviceIface4,
-                            Parameters::instance.serviceIface6)) {
+                            Parameters::instance.serviceIface)) {
         return EXIT_FAILURE;
     }
-    if (!audioSocket.listen(Parameters::instance.serviceAudioIp4,
-                            Parameters::instance.serviceAudioIp6,
+    if (!audioSocket.listen(Parameters::instance.serviceAudioIp,
                             Parameters::instance.audioPort,
-                            Parameters::instance.serviceIface4,
-                            Parameters::instance.serviceIface6)) {
+                            Parameters::instance.serviceIface)) {
         return EXIT_FAILURE;
     }
     audioSocket.setKey(videoSocket.getKey(), videoSocket.getKeystamp());
 
-    if (!server.listen(Parameters::instance.serviceIp4, Parameters::instance.serviceIp6, Parameters::instance.port)) {
+    if (!server.listen(Parameters::instance.serviceIp, Parameters::instance.serviceIp, Parameters::instance.port)) {
         return EXIT_FAILURE;
     }
 

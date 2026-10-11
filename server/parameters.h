@@ -24,15 +24,10 @@ struct Parameters
     QString targetScreen;
     QString serviceName;
 
-    QHostAddress serviceIp4;
-    QHostAddress serviceAudioIp4;
-    QHostAddress serviceVideoIp4;
-    QNetworkInterface serviceIface4;
-
-    QHostAddress serviceIp6;
-    QHostAddress serviceAudioIp6;
-    QHostAddress serviceVideoIp6;
-    QNetworkInterface serviceIface6;
+    QHostAddress serviceIp;
+    QHostAddress serviceAudioIp;
+    QHostAddress serviceVideoIp;
+    QNetworkInterface serviceIface;
 
     int port;
     int audioPort;

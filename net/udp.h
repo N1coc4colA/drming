@@ -19,6 +19,8 @@
 
 using Endpoint = QPair<QHostAddress, quint16>;
 
+//#define ENABLE_ENCRYPT
+
 class UdpStreamSocket : public QObject
 {
     Q_OBJECT
@@ -28,21 +30,15 @@ public:
     explicit UdpStreamSocket(QObject *parent = nullptr, const bool needsPacketPrint = false)
         : QObject(parent)
         , NeedsPacketPrint(needsPacketPrint)
-        , m_socket4(this)
-        , m_socket6(this)
+        , m_socket(this)
     {
-        connect(&m_socket4, &QUdpSocket::connected, this, &UdpStreamSocket::connected);
-        connect(&m_socket4, &QUdpSocket::disconnected, this, &UdpStreamSocket::disconnected);
-        connect(&m_socket4, &QUdpSocket::errorOccurred, this, &UdpStreamSocket::errorOccurred);
-        connect(&m_socket4, &QUdpSocket::readyRead, this, &UdpStreamSocket::onReadyRead4);
-        connect(&m_socket6, &QUdpSocket::connected, this, &UdpStreamSocket::connected);
-        connect(&m_socket6, &QUdpSocket::disconnected, this, &UdpStreamSocket::disconnected);
-        connect(&m_socket6, &QUdpSocket::errorOccurred, this, &UdpStreamSocket::errorOccurred);
-        connect(&m_socket6, &QUdpSocket::readyRead, this, &UdpStreamSocket::onReadyRead6);
+        connect(&m_socket, &QUdpSocket::connected, this, &UdpStreamSocket::connected);
+        connect(&m_socket, &QUdpSocket::disconnected, this, &UdpStreamSocket::disconnected);
+        connect(&m_socket, &QUdpSocket::errorOccurred, this, &UdpStreamSocket::errorOccurred);
+        connect(&m_socket, &QUdpSocket::readyRead, this, &UdpStreamSocket::onReadyRead4);
 
         const auto bufferSize = 128 * 1024 * 1024;
-        m_socket4.setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, bufferSize);
-        m_socket6.setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, bufferSize);
+        m_socket.setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, bufferSize);
 
         rotateKey();
     }
@@ -50,10 +46,9 @@ public:
     inline Packets::Keystamp getKeystamp() const { return m_ks; }
     inline QByteArray getKey() const { return m_key; }
 
-    inline auto ipv4Address() const { return m_ipv4Address; }
-    inline auto ipv6Address() const { return m_ipv6Address; }
+    inline auto ipv4Address() const { return m_ipAddress; }
 
-    inline auto socket() { return m_socket; }
+    inline auto socket() { return &m_socket; }
 
     inline auto clearJitterBuffer() { m_jitterBuffer.clear(); };
 
@@ -66,35 +61,19 @@ Q_SIGNALS:
 public Q_SLOTS:
     void connectToHost(const QHostAddress &address, const quint16 port)
     {
-        const auto proto = address.protocol();
-        if (proto == QAbstractSocket::IPv4Protocol) {
-            m_socket4.connectToHost(address, port);
-        } else if (proto == QAbstractSocket::IPv6Protocol) {
-            m_socket6.connectToHost(address, port);
-        } else {
-            qWarning() << "Invalid protocol:" << proto;
-        }
+        m_socket.connectToHost(address, port);
     }
 
     void connectToMulticast(const QHostAddress &address, const quint16 port)
     {
-        QUdpSocket *sock = nullptr;
-
         const auto proto = address.protocol();
-        if (proto == QAbstractSocket::IPv4Protocol) {
-            if (!m_socket4.bind(QHostAddress::AnyIPv4, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
-                qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket4.errorString();
+
+        if (proto == QAbstractSocket::IPv4Protocol || proto == QAbstractSocket::IPv6Protocol) {
+            if (!m_socket.bind(proto == QAbstractSocket::IPv4Protocol ? QHostAddress::AnyIPv4 : QHostAddress::AnyIPv6, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
+                qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket.errorString();
                 // [TODO] Propagate the error
                 return;
             }
-            sock = &m_socket4;
-        } else if (proto == QAbstractSocket::IPv6Protocol) {
-            if (!m_socket6.bind(QHostAddress::AnyIPv6, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
-                qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket6.errorString();
-                // [TODO] Propagate the error
-                return;
-            }
-            sock = &m_socket6;
         } else {
             qWarning() << "Invalid protocol:" << proto;
             // [TOOD] Propagate the error
@@ -115,8 +94,8 @@ public Q_SLOTS:
             }
 
             if (iface.isValid()) {
-                sock->setMulticastInterface(iface);
-                if (sock->joinMulticastGroup(address, iface)) {
+                m_socket.setMulticastInterface(iface);
+                if (m_socket.joinMulticastGroup(address, iface)) {
                     qDebug() << "Joined multicast group" << address << "on interface" << iface.name();
                     joined = true;
                 }
@@ -125,88 +104,60 @@ public Q_SLOTS:
 
         if (!joined) {
             // Fallback to default interface
-            if (!sock->joinMulticastGroup(address)) {
-                qDebug() << "Failed to join multicast group:" << address << sock->errorString();
+            if (!m_socket.joinMulticastGroup(address)) {
+                qDebug() << "Failed to join multicast group:" << address << m_socket.errorString();
             }
         }
-
-        m_socket = sock;
     }
 
     void connectToMulticast(const QHostAddress &address, const quint16 port, const QNetworkInterface &iface)
     {
-        QUdpSocket *sock = nullptr;
-
         const auto proto = address.protocol();
-        if (proto == QAbstractSocket::IPv4Protocol) {
-            if (!m_socket4.bind(QHostAddress::AnyIPv4, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
-                qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket4.errorString();
+        if (proto == QAbstractSocket::IPv4Protocol || proto == QAbstractSocket::IPv6Protocol) {
+            if (!m_socket.bind(proto == QAbstractSocket::IPv4Protocol ? QHostAddress::AnyIPv4 : QHostAddress::AnyIPv6, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
+                qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket.errorString();
                 // [TODO] Propagate the error
                 return;
             }
-            sock = &m_socket4;
-        } else if (proto == QAbstractSocket::IPv6Protocol) {
-            if (!m_socket6.bind(QHostAddress::AnyIPv6, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
-                qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket6.errorString();
-                // [TODO] Propagate the error
-                return;
-            }
-            sock = &m_socket6;
         } else {
             qWarning() << "Invalid protocol:" << proto;
             // [TOOD] Propagate the error
             return;
         }
 
-        sock->setMulticastInterface(iface);
+        m_socket.setMulticastInterface(iface);
 
-        if (!sock->joinMulticastGroup(address)) {
-            qDebug() << "Failed to join multicast group:" << address << sock->errorString();
+        if (!m_socket.joinMulticastGroup(address)) {
+            qDebug() << "Failed to join multicast group:" << address << m_socket.errorString();
         }
-
-        m_socket = sock;
     }
 
-    bool listen(const QHostAddress &address4,
-                const QHostAddress &address6,
-                const quint16 port,
-                const QNetworkInterface &iface4,
-                const QNetworkInterface &iface6)
+    bool listen(const QHostAddress &address, const quint16 port, const QNetworkInterface &iface)
     {
-        if (!address4.isNull() && !listen(m_socket4, QHostAddress::AnyIPv4, address4, port, iface4)) {
+        if (!address.isNull() && !listen(m_socket, QHostAddress::AnyIPv4, address, port, iface)) {
             return false;
         }
 
-        if (!address6.isNull() && !listen(m_socket6, QHostAddress::AnyIPv6, address6, port, iface6)) {
-            return false;
-        }
-
-        m_ipv4Address = address4;
-        m_ipv6Address = address6;
+        m_ipAddress = address;
 
         return true;
     }
 
     void close()
     {
-        m_socket4.close();
-        m_socket6.close();
+        m_socket.close();
     }
 
     bool write(const QByteArray &data)
     {
-        if (m_socket4.state() == QAbstractSocket::BoundState && !write(data, m_socket4, m_ipv4Address, m_socket4.localPort())) {
-            return false;
-        }
-        if (m_socket6.state() == QAbstractSocket::BoundState && !write(data, m_socket6, m_ipv6Address, m_socket6.localPort())) {
+        if (m_socket.state() == QAbstractSocket::BoundState && !write(data, m_socket, m_ipAddress, m_socket.localPort())) {
             return false;
         }
 
         return true;
     }
 
-    void onReadyRead4() { onReadyRead(m_socket4); }
-    void onReadyRead6() { onReadyRead(m_socket6); }
+    void onReadyRead4() { onReadyRead(m_socket); }
 
     void setKey(const QByteArray &key, const Packets::Keystamp ks)
     {
@@ -236,11 +187,9 @@ protected:
     virtual void addData(QByteArray additional) = 0;
 
 private:
-    QHostAddress m_ipv4Address{};
-    QHostAddress m_ipv6Address{};
+    QHostAddress m_ipAddress{};
 
-    QUdpSocket m_socket4{this};
-    QUdpSocket m_socket6{this};
+    QUdpSocket m_socket{this};
 
     Packets::JitterBuffer<> m_jitterBuffer;
     Packets::Timestamp m_ts = 0;
@@ -249,8 +198,6 @@ private:
     Packets::Keystamp m_ks = 0;
     QByteArray m_key;
     QAESEncryption m_aes = {QAESEncryption::AES_256, QAESEncryption::CBC, QAESEncryption::PKCS7};
-
-    QUdpSocket *m_socket = nullptr;
 
     static QByteArray generate(const qsizetype len)
     {

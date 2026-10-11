@@ -38,10 +38,11 @@ void NetworkClient::processPacket(const Packets::RequestAudioSource &)
 {
     Packets::AudioSource src{};
 
-    const auto v4 = Parameters::instance.serviceAudioIp4.toIPv4Address();
-    const auto v6 = Parameters::instance.serviceAudioIp6.toIPv6Address();
+    const auto ip = Parameters::instance.serviceAudioIp;
+    const auto v4 = ip.toIPv4Address();
+    const auto v6 = ip.toIPv6Address();
 
-    const auto isV4 = m_address.protocol() == QAbstractSocket::IPv4Protocol;
+    const auto isV4 = ip.protocol() == QAbstractSocket::IPv4Protocol;
     const auto size = isV4 ? 4 : 16;
 
     src.isV4.data = isV4;
@@ -56,10 +57,11 @@ void NetworkClient::processPacket(const Packets::RequestVideoSource &)
 {
     Packets::VideoSource src{};
 
-    const auto v4 = Parameters::instance.serviceVideoIp4.toIPv4Address();
-    const auto v6 = Parameters::instance.serviceVideoIp6.toIPv6Address();
+    const auto ip = Parameters::instance.serviceVideoIp;
+    const auto v4 = ip.toIPv4Address();
+    const auto v6 = ip.toIPv6Address();
 
-    const auto isV4 = m_address.protocol() == QAbstractSocket::IPv4Protocol;
+    const auto isV4 = ip.protocol() == QAbstractSocket::IPv4Protocol;
     const auto size = isV4 ? 4 : 16;
 
     src.isV4.data = isV4;
@@ -141,6 +143,8 @@ void NetworkClient::notifyKey()
     Packets::KeyUpdate ku{};
     ku.key.data = ss.getKey();
     ku.keyStamp.data = ss.getKeystamp();
+
+    qDebug() << "Sending key" << ku.keyStamp.data << ku.key.data;
 
     write(std::move(Packets::Writer::generate(ku)));
 }

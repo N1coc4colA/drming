@@ -4,12 +4,15 @@
 #include <QDtls>
 #include <QtEndian>
 
+#include <chrono>
+
 #include "../net/parser.h"
 #include "../settings.h"
 
 #include "ffmpeg.h"
 #include "parameters.h"
 #include "streamsocket.h"
+
 
 Display::Display(const QString &connectorName, StreamSocket &ss, QObject *parent)
     : QObject(parent)
@@ -182,6 +185,7 @@ public:
 
 private:
     const QByteArray m_format;
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_last = std::chrono::high_resolution_clock::now();
 
     void processImage(const QImage &result) override
     {
@@ -194,7 +198,12 @@ private:
             buf.close();
         }
 
-        qDebug() << "Sending IMG";
+        const auto curr = std::chrono::high_resolution_clock::now();
+        const auto duration = duration_cast<std::chrono::microseconds>(curr - m_last);
+        // [CHRONO]
+        qDebug() << duration;
+        m_last = curr;
+
         sendData(std::move(Packets::Writer::generate(servImg)));
     }
 };

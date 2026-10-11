@@ -37,14 +37,10 @@ CommandParser::CommandParser()
          {{"pa", "audio-port"}, QObject::tr("Port on which to expose the audio."), QObject::tr("audio-port", "Port on which to expose the audio"), "80"},
          {{"pv", "video-port"}, QObject::tr("Port on which to expose the video."), QObject::tr("video-port", "Port on which to expose the audio"), "80"},
 
-         {{"i4", "ipv4"}, QObject::tr("IP address on which to expose the service for IPv4."), QObject::tr("ip-address-4"), "0.0.0.0"},
-         {{"i6", "ipv6"}, QObject::tr("IP address on which to expose the service for IPv6."), QObject::tr("ip-address-6"), "::"},
-         {{"ia4", "ipv4-audio"}, QObject::tr("IP address on which to expose the audio service for IPv4."), QObject::tr("ip-address-audio-4"), "239.255.1.1"},
-         {{"ia6", "ipv6-audio"}, QObject::tr("IP address on which to expose the audio service for IPv6."), QObject::tr("ip-address-audio-6"), "ff02::1:1"},
-         {{"iv4", "ipv4-video"}, QObject::tr("IP address on which to expose the video service for IPv4."), QObject::tr("ip-address-video-4"), "239.255.1.2"},
-         {{"iv6", "ipv6-video"}, QObject::tr("IP address on which to expose the video service for IPv6."), QObject::tr("ip-address-video-6"), "ff02::1:2"},
-         {{"if4", "iface4"}, QObject::tr("Network interface on which to expose the service for IPv4."), QObject::tr("net-iface-4"), ""},
-         {{"if6", "iface6"}, QObject::tr("Network interface on which to expose the service for IPv6."), QObject::tr("net-iface-6"), ""},
+         {{"i", "ip"}, QObject::tr("IP address on which to expose the service."), QObject::tr("ip-address"), "0.0.0.0"},
+         {{"ia", "ip-audio"}, QObject::tr("IP address on which to expose the audio service."), QObject::tr("ip-address-audio"), "239.255.1.1"},
+         {{"iv", "ip-video"}, QObject::tr("IP address on which to expose the video service."), QObject::tr("ip-address-video"), "239.255.1.2"},
+         {{"if", "iface"}, QObject::tr("Network interface on which to expose the service."), QObject::tr("net-iface"), ""},
 
          {{"q", "quality"}, QObject::tr("Sets the WEBP quality level. 0 to 100, 100 meaning best quality. You can set to -1 to use default quality level."), QObject::tr("quality"), "70"},
          {{"f", "format"}, QObject::tr("Stream format to use. Must be one of: %1.").arg(possibleValues<Opts::DisplayStreamType>().join(", ")), QObject::tr("format"), "h265"},
@@ -72,6 +68,20 @@ CommandParser::Exit validatePort(const QString &port, int &out)
     return CommandParser::Continue;
 }
 
+
+bool validateIpProto(const QHostAddress &addr)
+{
+    const auto proto = addr.protocol();
+
+    if (proto == QAbstractSocket::IPv4Protocol ||
+        proto == QAbstractSocket::IPv6Protocol ||
+        proto == QAbstractSocket::AnyIPProtocol) {
+        return true;
+    }
+
+    return false;
+}
+
 CommandParser::Exit CommandParser::parse()
 {
     if (!m_parser.parse(qApp->arguments())) {
@@ -95,14 +105,10 @@ CommandParser::Exit CommandParser::parse()
     const auto audioPortName = m_parser.value("audio-port");
     const auto videoPortName = m_parser.value("video-port");
 
-    const auto serviceIp4 = QHostAddress(m_parser.value("ipv4"));
-    const auto serviceIp6 = QHostAddress(m_parser.value("ipv6"));
-    const auto serviceAudioIp4 = QHostAddress(m_parser.value("ipv4-audio"));
-    const auto serviceAudioIp6 = QHostAddress(m_parser.value("ipv6-audio"));
-    const auto serviceVideoIp4 = QHostAddress(m_parser.value("ipv4-video"));
-    const auto serviceVideoIp6 = QHostAddress(m_parser.value("ipv6-video"));
-    const auto serviceIface4 = QNetworkInterface::interfaceFromName(m_parser.value("iface4"));
-    const auto serviceIface6 = QNetworkInterface::interfaceFromName(m_parser.value("iface6"));
+    const auto serviceIp = QHostAddress(m_parser.value("ip"));
+    const auto serviceAudioIp = QHostAddress(m_parser.value("ip-audio"));
+    const auto serviceVideoIp = QHostAddress(m_parser.value("ip-video"));
+    const auto serviceIface = QNetworkInterface::interfaceFromName(m_parser.value("iface"));
 
     const auto compressionLevel = m_parser.value("quality");
     const auto streamFormat = m_parser.value("format");
@@ -135,76 +141,23 @@ CommandParser::Exit CommandParser::parse()
         return Failure;
     }
 
-    const auto noV4 = serviceIp4.isNull(), noV6 = serviceIp6.isNull();
-    if (noV4 && noV6) {
-        qCritical()  << "You need to at least provide ipv4 or ipv6 arguments to run this program.";
+    if (!serviceIface.isValid() && !m_parser.value("iface").isEmpty()) {
+        qCritical() << "The IPv4/IPv6 interface is invalid:" << m_parser.value("iface");
         return Failure;
     }
 
-    if (!serviceIface4.isValid() && !m_parser.value("iface4").isEmpty()) {
-        qCritical() << "The IPv4 interface is invalid:" << m_parser.value("iface4");
-        return Failure;
-    } else {
-        qDebug() << "Iface ipv4:" << m_parser.value("iface4") << ':' << serviceIface4.isValid();
-    }
-
-    if (!serviceIface6.isValid() && !m_parser.value("iface6").isEmpty()) {
-        qCritical() << "The IPv4 interface is invalid:" << m_parser.value("iface6");
-        return Failure;
-    } else {
-        qDebug() << "Iface ipv6:" << m_parser.value("iface6") << ':' << serviceIface6.isValid();
-    }
-
-    if (noV4 != serviceAudioIp4.isNull() || noV4 != serviceVideoIp4.isNull()) {
-        qCritical() << "Specifying either ipv4 requires ipv4-audio & ipv4-audio to be set.";
-        return Failure;
-    }
-    if (noV6 != serviceAudioIp6.isNull() || noV6 != serviceVideoIp6.isNull()) {
-        qCritical() << "Specifying either ipv6 requires ipv6-audio & ipv6-video to be set.";
+    if (serviceIp.isNull() || !validateIpProto(serviceIp)) {
+        qCritical() << "The argument ip must be a valid IPv4/IPv6 address.";
         return Failure;
     }
 
-    if (!noV4 && serviceIp4.protocol() != QAbstractSocket::IPv4Protocol) {
-        qCritical() << "The argument ipv4 must be an IPv4 address.";
-        return Failure;
-    }
-    if (!noV4 && serviceAudioIp4.protocol() != QAbstractSocket::IPv4Protocol) {
-        qCritical() << "The argument ipv4-audio must be an IPv4 address.";
-        return Failure;
-    }
-    if (!noV4 && serviceVideoIp4.protocol() != QAbstractSocket::IPv4Protocol) {
-        qCritical() << "The argument ipv4-video must be an IPv4 address.";
+    if (serviceAudioIp.isNull() || !serviceAudioIp.isMulticast() || !validateIpProto(serviceAudioIp)) {
+        qCritical() << "The argument ip-audio needs to be a multicast IPv6/IPv4 address, and be set." << validateIpProto(serviceAudioIp);
         return Failure;
     }
 
-    if (!noV6 && serviceIp6.protocol() != QAbstractSocket::IPv6Protocol) {
-        qCritical() << "The argument ipv6 must be an IPv6 address.";
-        return Failure;
-    }
-    if (!noV6 && serviceAudioIp6.protocol() != QAbstractSocket::IPv6Protocol) {
-        qCritical() << "The argument ipv6-audio must be an IPv6 address.";
-        return Failure;
-    }
-    if (!noV6 && serviceVideoIp6.protocol() != QAbstractSocket::IPv6Protocol) {
-        qCritical() << "The argument ipv6-video must be an IPv6 address.";
-        return Failure;
-    }
-
-    if (!serviceAudioIp4.isNull() && !serviceAudioIp4.isMulticast()) {
-        qCritical() << "The argument ipv4-audio needs to be a multicast address.";
-        return Failure;
-    }
-    if (!serviceAudioIp6.isNull() && !serviceAudioIp6.isMulticast()) {
-        qCritical() << "The argument ipv6-audio needs to be a multicast address.";
-        return Failure;
-    }
-
-    if (!serviceVideoIp4.isNull() && !serviceVideoIp4.isMulticast()) {
-        qCritical() << "The argument ipv4-audio needs to be a multicast address.";
-        return Failure;
-    }
-    if (!serviceVideoIp6.isNull() && !serviceVideoIp6.isMulticast()) {
-        qCritical() << "The argument ipv6-audio needs to be a multicast address.";
+    if (serviceVideoIp.isNull() || !serviceVideoIp.isMulticast() || !validateIpProto(serviceVideoIp)) {
+        qCritical() << "The argument ip-video needs to be a multicast IPv6/IPv4 address, and be set.";
         return Failure;
     }
 
@@ -212,15 +165,10 @@ CommandParser::Exit CommandParser::parse()
         .targetScreen = targetScreen,
         .serviceName = serviceName,
 
-        .serviceIp4 = serviceIp4,
-        .serviceAudioIp4 = serviceAudioIp4,
-        .serviceVideoIp4 = serviceVideoIp4,
-        .serviceIface4 = serviceIface4,
-
-        .serviceIp6 = serviceIp6,
-        .serviceAudioIp6 = serviceAudioIp6,
-        .serviceVideoIp6 = serviceVideoIp6,
-        .serviceIface6 = serviceIface6,
+        .serviceIp = serviceIp,
+        .serviceAudioIp = serviceAudioIp,
+        .serviceVideoIp = serviceVideoIp,
+        .serviceIface = serviceIface,
 
         .port = port,
         .audioPort = audioPort,
