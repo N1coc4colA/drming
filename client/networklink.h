@@ -22,7 +22,7 @@ public:
 
     static NetworkLink *createForPlatform(QObject *parent = nullptr);
 
-    virtual void addData(QByteArray additional) = 0;
+    virtual void pushData(QByteArray additional) = 0;
 
 Q_SIGNALS:
     void error(const QString &explanation);
@@ -53,6 +53,9 @@ private Q_SLOTS:
     void onError(QAbstractSocket::SocketError error);
     void onSslError(const QSslError &error);
 
+protected:
+    QTimer m_inactivityTimer{};
+
 private:
     QString m_protocol;
     QByteArray m_buffer{};
@@ -62,7 +65,6 @@ private:
 
     DtlsReaderWriter<NetworkLink> m_rw;
 
-    QTimer m_inactivityTimer{};
     quint16 m_format = 0;
     quint32 m_width = 0;
     quint32 m_height = 0;
