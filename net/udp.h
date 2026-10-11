@@ -28,6 +28,8 @@ public:
     explicit UdpStreamSocket(QObject *parent = nullptr, const bool needsPacketPrint = false)
         : QObject(parent)
         , NeedsPacketPrint(needsPacketPrint)
+        , m_socket4(this)
+        , m_socket6(this)
     {
         connect(&m_socket4, &QUdpSocket::connected, this, &UdpStreamSocket::connected);
         connect(&m_socket4, &QUdpSocket::disconnected, this, &UdpStreamSocket::disconnected);
@@ -38,6 +40,10 @@ public:
         connect(&m_socket6, &QUdpSocket::errorOccurred, this, &UdpStreamSocket::errorOccurred);
         connect(&m_socket6, &QUdpSocket::readyRead, this, &UdpStreamSocket::onReadyRead6);
 
+        const auto bufferSize = 128 * 1024 * 1024;
+        m_socket4.setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, bufferSize);
+        m_socket6.setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, bufferSize);
+
         rotateKey();
     }
 
@@ -46,6 +52,10 @@ public:
 
     inline auto ipv4Address() const { return m_ipv4Address; }
     inline auto ipv6Address() const { return m_ipv6Address; }
+
+    inline auto socket() { return m_socket; }
+
+    inline auto clearJitterBuffer() { m_jitterBuffer.clear(); };
 
 Q_SIGNALS:
     void connected();
@@ -72,14 +82,14 @@ public Q_SLOTS:
 
         const auto proto = address.protocol();
         if (proto == QAbstractSocket::IPv4Protocol) {
-            if (!m_socket4.bind(QHostAddress::AnyIPv4, port, QAbstractSocket::ReuseAddressHint)) {
+            if (!m_socket4.bind(QHostAddress::AnyIPv4, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
                 qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket4.errorString();
                 // [TODO] Propagate the error
                 return;
             }
             sock = &m_socket4;
         } else if (proto == QAbstractSocket::IPv6Protocol) {
-            if (!m_socket6.bind(QHostAddress::AnyIPv6, port, QAbstractSocket::ReuseAddressHint)) {
+            if (!m_socket6.bind(QHostAddress::AnyIPv6, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
                 qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket6.errorString();
                 // [TODO] Propagate the error
                 return;
@@ -94,8 +104,17 @@ public Q_SLOTS:
         bool joined = false;
         for (const auto &iface : QNetworkInterface::allInterfaces()) {
             const auto flags = iface.flags();
-            if (iface.isValid() && flags.testFlag(QNetworkInterface::CanMulticast) && iface.flags().testFlag(QNetworkInterface::IsUp)
-                && !flags.testFlag(QNetworkInterface::IsLoopBack)) {
+            const auto name = iface.name();
+
+            if (!flags.testFlags(QNetworkInterface::CanMulticast | QNetworkInterface::IsUp | QNetworkInterface::IsLoopBack)) {
+                continue;
+            }
+
+            if (name.startsWith("tailscale") || name.startsWith("docker") || name.startsWith("tun") || name.startsWith("tap")) {
+                continue;
+            }
+
+            if (iface.isValid()) {
                 sock->setMulticastInterface(iface);
                 if (sock->joinMulticastGroup(address, iface)) {
                     qDebug() << "Joined multicast group" << address << "on interface" << iface.name();
@@ -110,6 +129,8 @@ public Q_SLOTS:
                 qDebug() << "Failed to join multicast group:" << address << sock->errorString();
             }
         }
+
+        m_socket = sock;
     }
 
     void connectToMulticast(const QHostAddress &address, const quint16 port, const QNetworkInterface &iface)
@@ -118,14 +139,14 @@ public Q_SLOTS:
 
         const auto proto = address.protocol();
         if (proto == QAbstractSocket::IPv4Protocol) {
-            if (!m_socket4.bind(QHostAddress::AnyIPv4, port, QAbstractSocket::ReuseAddressHint)) {
+            if (!m_socket4.bind(QHostAddress::AnyIPv4, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
                 qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket4.errorString();
                 // [TODO] Propagate the error
                 return;
             }
             sock = &m_socket4;
         } else if (proto == QAbstractSocket::IPv6Protocol) {
-            if (!m_socket6.bind(QHostAddress::AnyIPv6, port, QAbstractSocket::ReuseAddressHint)) {
+            if (!m_socket6.bind(QHostAddress::AnyIPv6, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
                 qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket6.errorString();
                 // [TODO] Propagate the error
                 return;
@@ -142,6 +163,8 @@ public Q_SLOTS:
         if (!sock->joinMulticastGroup(address)) {
             qDebug() << "Failed to join multicast group:" << address << sock->errorString();
         }
+
+        m_socket = sock;
     }
 
     bool listen(const QHostAddress &address4,
@@ -187,6 +210,10 @@ public Q_SLOTS:
 
     void setKey(const QByteArray &key, const Packets::Keystamp ks)
     {
+        if (key == m_key && ks == m_ks) {
+            return;
+        }
+
         m_key = key;
         m_ks = ks;
         Q_EMIT keyChanged();
@@ -212,8 +239,8 @@ private:
     QHostAddress m_ipv4Address{};
     QHostAddress m_ipv6Address{};
 
-    QUdpSocket m_socket4{};
-    QUdpSocket m_socket6{};
+    QUdpSocket m_socket4{this};
+    QUdpSocket m_socket6{this};
 
     Packets::JitterBuffer<> m_jitterBuffer;
     Packets::Timestamp m_ts = 0;
@@ -222,6 +249,8 @@ private:
     Packets::Keystamp m_ks = 0;
     QByteArray m_key;
     QAESEncryption m_aes = {QAESEncryption::AES_256, QAESEncryption::CBC, QAESEncryption::PKCS7};
+
+    QUdpSocket *m_socket = nullptr;
 
     static QByteArray generate(const qsizetype len)
     {
@@ -237,7 +266,7 @@ private:
 
     bool listen(QUdpSocket &socket, const QHostAddress &bindAddr, const QHostAddress &address, const quint16 port, const QNetworkInterface &iface)
     {
-        if (!socket.bind(bindAddr, port, QAbstractSocket::ReuseAddressHint)) {
+        if (!socket.bind(bindAddr, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
             qCritical() << "Failed to bind UDP socket" << address << ':' << port << ':' << socket.errorString();
             return false;
         }
@@ -263,8 +292,6 @@ private:
             return;
         }
 
-        // We need to slice as the ordering is not part of the information wanted by the application.
-        //m_jitterBuffer.pushChunk(ts, order, sizing, std::move(plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering)))));
         m_jitterBuffer.pushChunk(ts, order, sizing, std::move(plain));
 
         while (const auto v = m_jitterBuffer.pullComplete()) {
@@ -274,8 +301,8 @@ private:
 
     void onReadyRead(QUdpSocket &socket)
     {
-        static constexpr qsizetype headerSize = sizeof(Packets::Keystamp) + Settings::ivSize + sizeof(Packets::Timestamp)
-                                                + sizeof(Packets::Ordering) * 2;
+        static constexpr qsizetype headerSize = sizeof(Packets::Keystamp) + Settings::ivSize +
+                                                sizeof(Packets::Timestamp) + sizeof(Packets::Ordering) * 2;
 
         while (socket.hasPendingDatagrams()) {
             QByteArray dgram(socket.pendingDatagramSize(), Qt::Uninitialized);
@@ -287,34 +314,23 @@ private:
 
             dgram.resize(bytesRead);
 
-            /*const auto ks = qFromBigEndian(*reinterpret_cast<Packets::Timestamp *>(dgram.first(sizeof(Packets::Keystamp)).data()));
-            if (ks != m_ks) {
-                continue;
-            }
-
-            const auto iv = dgram.slice(static_cast<qsizetype>(sizeof(Packets::Keystamp))).first(Settings::ivSize);
-
-            const auto ts = qFromBigEndian(
-                *reinterpret_cast<Packets::Timestamp *>(dgram.slice(Settings::ivSize).first(sizeof(Packets::Timestamp)).data()));
-            const auto sizing = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
-                dgram.slice(static_cast<qsizetype>(sizeof(Packets::Timestamp))).first(sizeof(Packets::Ordering)).data()));
-            const auto order = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
-                dgram.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))).first(sizeof(Packets::Ordering)).data()));
-
-            bool ok = false;
-            const auto plain = m_aes.decode(dgram.slice(sizeof(Packets::Ordering)), m_key, iv, &ok);
-            if (!ok) {
-                qDebug() << "Failed to decode";
-                continue;
-            }
-
-            processPlain(std::move(plain), ts, order, sizing);*/
-
             if (NeedsPacketPrint) {
                 qDebug() << "Received packet";
             }
 
             qsizetype offset = 0;
+
+            const auto order = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(dgram.constData() + offset));
+            offset += sizeof(Packets::Ordering);
+
+            const auto sizing = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(dgram.constData() + offset));
+            offset += sizeof(Packets::Ordering);
+
+            const auto ts = qFromBigEndian(*reinterpret_cast<const Packets::Timestamp *>(dgram.constData() + offset));
+            offset += sizeof(Packets::Timestamp);
+
+            const auto iv = dgram.mid(offset, Settings::ivSize);
+            offset += Settings::ivSize;
 
             const auto ks = qFromBigEndian(*reinterpret_cast<const Packets::Keystamp *>(dgram.constData() + offset));
             offset += sizeof(Packets::Keystamp);
@@ -324,24 +340,16 @@ private:
                 continue;
             }
 
-            const auto iv = dgram.mid(offset, Settings::ivSize);
-            offset += Settings::ivSize;
-
-            const auto ts = qFromBigEndian(*reinterpret_cast<const Packets::Timestamp *>(dgram.constData() + offset));
-            offset += sizeof(Packets::Timestamp);
-
-            const auto sizing = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(dgram.constData() + offset));
-            offset += sizeof(Packets::Ordering);
-
-            const auto order = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(dgram.constData() + offset));
-            offset += sizeof(Packets::Ordering);
-
+#ifdef ENABLE_ENCRYPT
             bool ok = false;
             const auto plain = m_aes.decode(dgram.sliced(offset), m_key, iv, &ok);
             if (!ok) {
                 qDebug() << "Failed to decode";
                 continue;
             }
+#else
+            auto plain = dgram.sliced(offset);
+#endif
 
             processPlain(std::move(plain), ts, order, sizing);
         }
@@ -353,8 +361,12 @@ private:
             return true;
         }
 
+        // Reserve one AES block for PKCS#7 padding, otherwise an incompressible
+        // chunk whose plaintext length is a multiple of the block size will
+        // grow by a full block and exceed dtlsChunkSize after encryption.
+        static constexpr qsizetype aesBlock = 16;
         static constexpr auto innerSize = Settings::dtlsChunkSize - Settings::ivSize - sizeof(Packets::Keystamp) - sizeof(Packets::Ordering) * 2
-                                          - sizeof(Packets::Timestamp);
+                                          - sizeof(Packets::Timestamp) - aesBlock;
         const auto size = data.size();
         const Packets::Ordering sizing = size / innerSize + (size % innerSize ? 1 : 0);
         const auto iv = generateIV();
@@ -368,24 +380,29 @@ private:
             const auto order_be = qToBigEndian(order);
             const auto chunkSize = std::min<qsizetype>(innerSize, size - offset);
 
+#ifdef ENABLE_ENCRYPT
             bool ok = false;
-            auto chunk = m_aes.encode(data.mid(offset, innerSize), m_key, iv, &ok);
+            auto chunk = m_aes.encode(data.mid(offset, chunkSize), m_key, iv, &ok);
             if (!ok) {
                 qDebug() << "Failed to encode.";
                 return false;
             }
+#else
+            auto chunk = data.mid(offset, chunkSize);
+#endif
 
-            chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
-            chunk.prepend(reinterpret_cast<const char *>(&sizing_be), sizeof(sizing_be));
-            chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
-            chunk.prepend(iv);
             chunk.prepend(reinterpret_cast<const char *>(&ks_be), sizeof(ks_be));
+            chunk.prepend(iv);
+            chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
+            chunk.prepend(reinterpret_cast<const char *>(&sizing_be), sizeof(sizing_be));
+            chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
 
             QNetworkDatagram dgram(chunk, address, port);
             dgram.setHopLimit(5);
             dgram.setInterfaceIndex(socket.multicastInterface().index());
 
             if (socket.writeDatagram(dgram) < 0) {
+                qWarning() << "Failed to send ts=" << m_ts << "order=" << order;
                 const auto err = socket.error();
                 switch (err) {
                 case QAbstractSocket::RemoteHostClosedError:
@@ -409,7 +426,6 @@ private:
                 }
 
                 m_ts++;
-                m_ts = m_ts % Settings::simultaneousPendings;
 
                 return false;
             }
@@ -419,7 +435,6 @@ private:
         }
 
         m_ts++;
-        m_ts = m_ts % Settings::simultaneousPendings;
 
         return true;
     }
@@ -503,7 +518,6 @@ public:
                 }
 
                 m_ts++;
-                m_ts = m_ts % Settings::simultaneousPendings;
 
                 return -1;
             }
@@ -513,7 +527,6 @@ public:
         }
 
         m_ts++;
-        m_ts = m_ts % Settings::simultaneousPendings;
 
         return offset;
     }
@@ -541,22 +554,29 @@ public:
         }
 
         if (!plain.isEmpty()) {
-            if (plain.size() < static_cast<qsizetype>(sizeof(Packets::Ordering) * 2 + sizeof(Packets::Timestamp))) {
+            if (plain.size() < static_cast<qsizetype>(sizeof(Packets::Timestamp) + sizeof(Packets::Ordering) * 2)) {
                 qWarning() << "Invalid DTLS decrypted packet size has been received:" << plain.size();
                 return;
             }
 
-            const auto ts = qFromBigEndian(*reinterpret_cast<Packets::Timestamp *>(plain.first(sizeof(Packets::Timestamp)).data()));
-            const auto sizing = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
-                plain.slice(static_cast<qsizetype>(sizeof(Packets::Timestamp))).first(sizeof(Packets::Ordering)).data()));
-            const auto order = qFromBigEndian(*reinterpret_cast<Packets::Ordering *>(
-                plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))).first(sizeof(Packets::Ordering)).data()));
+            // Wire layout produced by DtlsWriterImpl:
+            //   [ ts (Timestamp) ][ sizing (Ordering) ][ order (Ordering) ][ payload ]
+            qsizetype offset = 0;
 
-            // We need to slice as the ordering is not part of the information wanted by the application.
-            m_jitterBuffer.pushChunk(ts, order, sizing, plain.slice(static_cast<qsizetype>(sizeof(Packets::Ordering))));
+            const auto ts = qFromBigEndian(*reinterpret_cast<const Packets::Timestamp *>(plain.constData() + offset));
+            offset += sizeof(Packets::Timestamp);
+
+            const auto sizing = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(plain.constData() + offset));
+            offset += sizeof(Packets::Ordering);
+
+            const auto order = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(plain.constData() + offset));
+            offset += sizeof(Packets::Ordering);
+
+            // Strip the ordering headers — they are transport metadata, not payload.
+            m_jitterBuffer.pushChunk(ts, order, sizing, plain.mid(offset));
 
             while (const auto v = m_jitterBuffer.pullComplete()) {
-                m_storage.m_owner.addData(std::move(*v));
+                m_storage.m_owner.pushData(std::move(*v));
             }
             return;
         }
