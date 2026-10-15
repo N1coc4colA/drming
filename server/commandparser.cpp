@@ -82,9 +82,9 @@ bool validateIpProto(const QHostAddress &addr)
     return false;
 }
 
-CommandParser::Exit CommandParser::parse()
+CommandParser::Exit CommandParser::parse(const QStringList &args)
 {
-    if (!m_parser.parse(qApp->arguments())) {
+    if (!m_parser.parse(args)) {
         qCritical() << m_parser.errorText();
         return Failure;
     }

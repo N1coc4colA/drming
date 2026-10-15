@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName("drming");
     QCoreApplication::setApplicationVersion("1.0");
 
-    switch (CommandParser().parse()) {
+    switch (CommandParser().parseApp()) {
     case CommandParser::Failure:
         return EXIT_FAILURE;
     case CommandParser::Stop:

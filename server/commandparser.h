@@ -14,7 +14,10 @@ public:
 
     CommandParser();
 
-    Exit parse();
+    Exit parse(const QStringList &args);
+    inline Exit parseApp() {
+        return parse(qApp->arguments());
+    }
 
 private:
     QCommandLineParser m_parser{};
