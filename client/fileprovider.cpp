@@ -1,7 +1,5 @@
 #include "fileprovider.h"
 
-#include <QCoreApplication>
-
 #ifdef Q_OS_ANDROID
 #include "platform/android/fileprovider.h"
 #else
@@ -10,10 +8,10 @@
 
 FileProvider *FileProvider::m_instance = nullptr;
 
-FileProvider *FileProvider::instance()
+FileProvider *FileProvider::instance(QObject *parent)
 {
     if (!m_instance) {
-        m_instance = new Platform::FileProvider(qApp);
+        m_instance = new Platform::FileProvider(parent);
     }
 
     return m_instance;
@@ -26,4 +24,11 @@ FileProvider::FileProvider(QObject *parent)
 {
     assert(!m_instance);
     m_instance = this;
+}
+
+FileProvider::~FileProvider()
+{
+    if (m_instance == this) {
+        m_instance = nullptr;
+    }
 }

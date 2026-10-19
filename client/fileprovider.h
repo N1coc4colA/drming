@@ -1,7 +1,7 @@
 #ifndef FILEPROVIDER_H
 #define FILEPROVIDER_H
 
-#include <QObject>
+#include <QCoreApplication>
 #include <QSslCertificate>
 #include <QSslKey>
 
@@ -13,8 +13,9 @@ class FileProvider : public QObject
 
 public:
     explicit FileProvider(QObject *parent);
+    virtual ~FileProvider();
 
-    static FileProvider *instance();
+    static FileProvider *instance(QObject *parent = qApp);
 
     Q_INVOKABLE virtual void loadServerCerts() = 0;
     Q_INVOKABLE virtual void loadClients() = 0;
