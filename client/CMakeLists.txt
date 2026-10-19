@@ -6,12 +6,8 @@ project(drming_client VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_AUTOUIC OFF)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 23)
-
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -O0")
-set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -g -O0")
 
 option(ANDROID_MULTI_MODE "Build for all supported Android architectures." ON)
 if (ANDROID_MULTI_MODE)
@@ -34,13 +30,12 @@ add_subdirectory(
     ${CMAKE_CURRENT_BINARY_DIR}/qt-aes
 )
 
-set(PROJECT_SOURCES
+# ---- Core library ------------------------------------------------------------
+set(DRMING_CLIENT_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/certificatesupport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/parser.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/udp.h
     ../settings.h
-
-    main.cpp
 
     application.h
     fileprovider.h fileprovider.cpp
@@ -78,11 +73,68 @@ endif()
 
 qt_standard_project_setup(REQUIRES 6.10)
 
+add_library(
+drming_client_core
+    STATIC
+        ${DRMING_CLIENT_CORE_SOURCES}
+        ${PROJECT_PLATFORM_HEADERS}
+        ${PROJECT_PLATFORM_SOURCES}
+)
+
+target_include_directories(
+drming_client_core
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+
+target_link_libraries(
+drming_client_core
+    PUBLIC
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Network
+        Qt6::Quick
+        Qt6::QuickControls2
+        Qt6::Widgets
+        QtAES::QtAES
+        ctrack
+)
+
+if (ANDROID)
+    target_link_libraries(
+    drming_client_core
+        PRIVATE
+            mediandk
+            EGL
+            GLESv2
+            android
+    )
+else()
+    target_link_libraries(
+    drming_client_core
+        PRIVATE
+            PkgConfig::FFMPEG
+    )
+endif()
+
+target_compile_definitions(
+drming_client_core
+    PRIVATE
+        QT_NO_SIGNALS_SLOTS_KEYWORDS
+        QT_NO_EMIT
+)
+
+# ---- Executable --------------------------------------------------------------
 qt_add_executable(
 drming_client
-    ${PROJECT_SOURCES}
-    ${PROJECT_PLATFORM_HEADERS}
-    ${PROJECT_PLATFORM_SOURCES}
+    MANUAL_FINALIZATION
+        main.cpp
+)
+target_link_libraries(
+drming_client
+    PRIVATE
+        drming_client_core
 )
 
 set_source_files_properties(
@@ -140,39 +192,6 @@ drming_client
         QT_NO_EMIT
 )
 
-if (ANDROID)
-    target_link_libraries(
-    drming_client
-        PRIVATE
-            Qt6::Core
-            Qt6::Gui
-            Qt6::Network
-            Qt6::Quick
-            Qt6::QuickControls2
-            Qt6::Widgets
-            QtAES::QtAES
-            ctrack
-            mediandk
-            EGL
-            GLESv2
-            android
-    )
-else()
-    target_link_libraries(
-    drming_client
-        PRIVATE
-            Qt6::Core
-            Qt6::Gui
-            Qt6::Network
-            Qt6::Quick
-            Qt6::QuickControls2
-            Qt6::Widgets
-            PkgConfig::FFMPEG
-            QtAES::QtAES
-            ctrack
-    )
-endif()
-
 if(ANDROID)
     set_target_properties(
     drming_client
@@ -187,4 +206,13 @@ if (NOT ANDROID)
     pkg_check_modules(AVAHI REQUIRED avahi-client)
 
     target_link_libraries(drming_client PRIVATE ${AVAHI_LIBRARIES})
+endif()
+
+# ---- Tests -------------------------------------------------------------------
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests
+        ${CMAKE_CURRENT_BINARY_DIR}/tests
+    )
 endif()
