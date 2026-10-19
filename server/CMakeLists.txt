@@ -69,6 +69,13 @@ drming_server_core
         Libdrm::Libdrm
 )
 
+target_compile_definitions(
+drming_server_core
+    PRIVATE
+        QT_NO_SIGNALS_SLOTS_KEYWORDS
+        QT_NO_EMIT
+)
+
 # ---- Executable --------------------------------------------------------------
 qt_add_executable(
 drming_server
@@ -87,6 +94,13 @@ drming_server
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+target_compile_definitions(
+drming_server
+    PRIVATE
+        QT_NO_SIGNALS_SLOTS_KEYWORDS
+        QT_NO_EMIT
+)
 
 qt_finalize_executable(drming_server)
 
