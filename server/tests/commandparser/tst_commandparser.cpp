@@ -40,6 +40,34 @@ private slots:
         QCOMPARE(p.parse({"drming", "-q", "high"}), CommandParser::Failure);
     }
 
+    void qualityBoundariesAccepted()
+    {
+        CommandParser p;
+        QCOMPARE(p.parse({"drming", "-q", "-1"}), CommandParser::Continue);
+        QCOMPARE(Parameters::instance.qualityLevel, -1);
+        QCOMPARE(p.parse({"drming", "-q", "100"}), CommandParser::Continue);
+        QCOMPARE(Parameters::instance.qualityLevel, 100);
+    }
+
+    void qualityOutsideRangeRejected()
+    {
+        CommandParser p;
+        QCOMPARE(p.parse({"drming", "-q", "-2"}), CommandParser::Failure);
+        QCOMPARE(p.parse({"drming", "-q", "101"}), CommandParser::Failure);
+    }
+
+    void invalidAddressRejected()
+    {
+        CommandParser p;
+        QCOMPARE(p.parse({"drming", "--ip", "not-an-address"}), CommandParser::Failure);
+    }
+
+    void invalidInterfaceRejected()
+    {
+        CommandParser p;
+        QCOMPARE(p.parse({"drming", "--iface", "does-not-exist"}), CommandParser::Failure);
+    }
+
     void invalidStreamFormatRejected()
     {
         CommandParser p;
