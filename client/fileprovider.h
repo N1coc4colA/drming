@@ -7,6 +7,12 @@
 
 #include "models/filesmodel.h"
 
+/**
+ * Platform-neutral certificate and key storage interface.
+ *
+ * Concrete providers expose the same model and operations to QML while
+ * choosing filesystem locations and native file pickers per platform.
+ */
 class FileProvider : public QObject
 {
     Q_OBJECT
@@ -42,7 +48,9 @@ public:
     [[nodiscard]] bool hasError() const { return m_dirCreationError; }
     [[nodiscard]] QString errorMessage() const { return m_errorMessage; }
 
+    /// Lists client certificate/key pairs currently available to the user.
     Q_INVOKABLE FilesModel *clientCertsModel() { return m_clientFiles; }
+    /// Lists certificates that can be used to authenticate the server.
     Q_INVOKABLE FilesModel *serverCertsModel() { return m_serverFiles; }
 
 protected:

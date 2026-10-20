@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 
+/// Metadata and mapped memory for a primary VKMS framebuffer.
 struct VkmsFrameBuffer
 {
     int fd = -1;
@@ -19,6 +20,7 @@ struct VkmsFrameBuffer
     uint32_t format = 0;
 };
 
+/// Metadata and mapped memory for the cursor plane framebuffer.
 struct CursorFrameBuffer
 {
     int fd = -1;

@@ -2,7 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-
+// Application shell: keeps navigation in one stack while lazily constructing
+// the heavier certificate, service, and streaming pages.
 Window {
     id: window
     color: palette.window

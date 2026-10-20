@@ -3,6 +3,7 @@
 
 #include <QCommandLineParser>
 
+/// Parses server command-line options into the shared Parameters snapshot.
 class CommandParser
 {
 public:
@@ -14,6 +15,7 @@ public:
 
     CommandParser();
 
+    /// Returns whether startup should fail, stop after help/version, or continue.
     Exit parse(const QStringList &args);
     inline Exit parseApp() {
         return parse(qApp->arguments());

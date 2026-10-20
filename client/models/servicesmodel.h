@@ -6,6 +6,12 @@
 
 #include "../mdns.h"
 
+/**
+ * Adapts mDNS discovery signals into a list model suitable for QML views.
+ *
+ * Entries are keyed by the discovery backend's service key so repeated
+ * resolve events update an existing row instead of creating duplicates.
+ */
 class ServicesModel : public QAbstractListModel
 {
     Q_OBJECT

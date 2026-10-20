@@ -12,6 +12,12 @@
 
 class QDtls;
 
+/**
+ * Accepts secure client connections over IPv4 and IPv6.
+ *
+ * Each peer first completes a DTLS handshake and is then promoted to a
+ * NetworkClient that owns heartbeat and packet processing for that peer.
+ */
 class Server : public QObject
 {
     Q_OBJECT
@@ -19,7 +25,9 @@ class Server : public QObject
 public:
     explicit Server(QObject *parent = nullptr);
 
+    /// Binds both UDP sockets and begins accepting DTLS handshakes.
     bool listen(const QHostAddress &address4, const QHostAddress &address6, quint16 port = 0);
+    /// Stops accepting peers and closes all active connections.
     void close();
 
     [[nodiscard]] virtual bool hasClient() const { return !m_clients.isEmpty(); }

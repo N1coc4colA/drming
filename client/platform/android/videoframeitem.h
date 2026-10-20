@@ -15,6 +15,12 @@ namespace Platform {
 class VideoDecoder;
 class AndroidUi;
 
+/**
+ * Android video item supporting either zero-copy OES textures or QImage frames.
+ *
+ * The selected texture mode can change when the decoder is recreated, so the
+ * previous scene-graph node is not assumed to remain valid.
+ */
 class VideoFrameItem : public QQuickItem
 {
     Q_OBJECT
@@ -28,7 +34,7 @@ public:
 
     explicit VideoFrameItem(QQuickItem* parent = nullptr);
 
-    // Set the decoder to use for zero‑copy texture rendering
+    /// Sets the decoder used by the zero-copy texture rendering path.
     void setDecoder(VideoDecoder* decoder);
 
     Q_INVOKABLE void setImage(const QImage& image);

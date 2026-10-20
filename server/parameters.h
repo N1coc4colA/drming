@@ -19,6 +19,12 @@ Q_ENUM_NS(DisplayStreamType);
 
 } // namespace Opts
 
+/**
+ * Process-wide server configuration populated by command-line parsing.
+ *
+ * Runtime components read this immutable-after-startup snapshot to agree on
+ * ports, certificates, display selection, and stream encoding.
+ */
 struct Parameters
 {
     QString targetScreen;

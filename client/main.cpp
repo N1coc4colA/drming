@@ -14,12 +14,16 @@
 
 int main(int argc, char *argv[])
 {
+    // The QApplication owns the services exposed to QML and closes transports
+    // and discovery before the event loop is torn down.
     Application app(argc, argv);
 
 #ifdef Q_OS_ANDROID
     QQuickWindow::setSceneGraphBackend("opengl");
 #endif
 
+    // VideoFrame is implemented separately because Android and Linux use
+    // different rendering paths.
     qmlRegisterType<Platform::VideoFrameItem>("VideoStream", 1, 0, "VideoFrame");
 
     QQmlApplicationEngine engine(&app);

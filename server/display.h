@@ -8,6 +8,12 @@
 
 class StreamSocket;
 
+/**
+ * Captures one virtual DRM connector and distributes its frames to clients.
+ *
+ * Subclasses only provide the output encoding; capture, cursor composition,
+ * client membership, and display reinitialization live here.
+ */
 class Display : public QObject
 {
     Q_OBJECT
@@ -21,8 +27,11 @@ Q_SIGNALS:
     void nowFree();
 
 public Q_SLOTS:
+    /// Adds a client to the display and sends its initial stream metadata.
     void addClient(NetworkClient *client);
+    /// Rebuilds capture state after the virtual display changes.
     void reinit();
+    /// Requests the client to report the resolution it can display.
     void requireResolutionInformation();
 
 protected:

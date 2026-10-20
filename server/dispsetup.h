@@ -3,6 +3,12 @@
 
 #include <QString>
 
+/**
+ * Creates and configures one VKMS connector through the kernel configfs API.
+ *
+ * Construction performs the setup transaction; isSetup reports whether the
+ * connector is ready for DisplayReader to capture.
+ */
 class DispSetup
 {
 public:

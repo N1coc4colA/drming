@@ -30,6 +30,12 @@
 
 namespace Platform {
 
+/**
+ * MediaCodec decoder backed by an AImageReader/EGL zero-copy pipeline.
+ *
+ * Decoding and rendering use separate threads: the decoder publishes an
+ * available hardware buffer and the scene graph consumes it on demand.
+ */
 class VideoDecoder : public QObject
 {
     Q_OBJECT
@@ -49,7 +55,7 @@ public:
     int flush();
     int decode(const uint8_t* data, size_t size);
 
-    // Texture‑based rendering (called from render thread)
+    // Texture-based rendering (called from the render thread).
     bool consumeFrame(); // returns true if new frame was consumed
     GLuint oesTextureId() const { return m_oesTextureId; }
 

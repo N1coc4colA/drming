@@ -6,6 +6,12 @@
 #include "sse.h"
 #include "vkmsfb.h"
 
+/**
+ * Reads primary and cursor buffers exposed by the VKMS DRM connector.
+ *
+ * The static helpers make ownership explicit: every successful framebuffer
+ * acquisition must be paired with its corresponding release function.
+ */
 class DisplayReader
 {
 public:
@@ -19,6 +25,7 @@ public:
 
     static void compositeWithCursor(QImage &primary, const CursorFrameBuffer &cursor, const DrmFormat::FormatDescriptor &fmtDesc);
 
+    /// Wraps a DRM buffer in a QImage and applies any required channel swizzle.
     static QImage imageFromFrameBuffer(
         const uint8_t *data, uint32_t width, uint32_t height, uint32_t stride, const DrmFormat::FormatDescriptor &fmtDesc);
 

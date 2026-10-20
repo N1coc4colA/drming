@@ -11,6 +11,13 @@
 #include <mutex>
 #include <thread>
 
+/**
+ * Decodes compressed stream frames away from the UI thread.
+ *
+ * The bounded queue deliberately favors recent frames so rendering remains
+ * responsive when decoding cannot keep up with the incoming stream. This
+ * class only processes *IMAGE* stream data, not video stream data.
+ */
 class ImageDecoder : public QObject
 {
     Q_OBJECT
@@ -20,11 +27,13 @@ public:
     explicit ImageDecoder(QObject *parent = nullptr);
     ~ImageDecoder() override;
 
+    /// Sets the callback invoked by the decoder thread for each decoded frame.
     void setFrameCallback(FrameCallback callback);
 
     // Thread-safe: queues a new compressed frame, keeping at most 2 frames and dropping oldest
     void queueFrame(QByteArray data, QByteArray format);
 
+    /// Discards queued work and restores the decoder to its idle state.
     void reset();
 
 private:

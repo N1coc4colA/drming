@@ -3,6 +3,12 @@
 
 #include "../net/udp.h"
 
+/**
+ * UDP stream endpoint shared by displays.
+ *
+ * The socket handles packet transport and encryption; Display supplies the
+ * encoded frame payloads through the inherited stream interface.
+ */
 class StreamSocket : public UdpStreamSocket
 {
     Q_OBJECT

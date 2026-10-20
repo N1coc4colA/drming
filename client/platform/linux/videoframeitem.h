@@ -11,6 +11,7 @@ class QSGSimpleTextureNode;
 
 namespace Platform {
 
+/// QML item that presents the most recent decoded frame on the scene graph.
 class VideoFrameItem : public QQuickItem
 {
     Q_OBJECT

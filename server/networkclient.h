@@ -18,6 +18,12 @@ class QDtls;
 class QTimer;
 class Display;
 
+/**
+ * Represents one authenticated client and its encrypted UDP session.
+ *
+ * NetworkClient translates packet-parser callbacks into server actions and
+ * drops idle peers when their heartbeat deadline expires.
+ */
 class NetworkClient : public QObject, public Packets::Parser<NetworkClient>
 {
     Q_OBJECT
@@ -32,6 +38,7 @@ public:
     explicit NetworkClient(QDtls *dtls, const QHostAddress &address, quint16 port, QPair<QUdpSocket, QMutex> &sharedSocket, QObject *parent = nullptr);
     ~NetworkClient();
 
+    /// Sends an encrypted datagram through the shared server socket.
     qint64 write(const QByteArray &data);
     void close();
 
@@ -51,9 +58,10 @@ public:
 
     void notifyHeartBeat();
 
+    /// Associates this client with the virtual display that serves its frames.
     void setDisplay(Display *disp);
 
-    // Feed an encrypted datagram received from this peer
+    /// Feeds an encrypted datagram received from this peer into DTLS.
     void incomingEncryptedData(const QByteArray &encrypted);
 
 Q_SIGNALS:

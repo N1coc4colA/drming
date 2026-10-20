@@ -6,6 +6,7 @@ import QtQuick
 QtObject {
     id: root
 
+    // Shared UI state and device-scaled metrics used by every page.
     property var shaderBlurSource: null
 
     property var screen: null

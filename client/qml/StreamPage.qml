@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import VideoStream
 
+// Full-screen playback view. The header is revealed temporarily on pointer
+// activity so the video remains unobstructed during normal use.
 EasyPage {
     id: root
 

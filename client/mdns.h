@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QString>
 
+/// Description of a service advertised by the server over mDNS.
 struct ServiceInfo
 {
     using hash_type = QString;
@@ -30,6 +31,12 @@ struct std::hash<ServiceInfo>
     std::size_t operator()(const ServiceInfo &s) const noexcept { return qHash(s.toHashable()); }
 };
 
+/**
+ * Normalizes platform mDNS callbacks into a Qt signal-based service registry.
+ *
+ * Discovery backends call the onService* slots; consumers observe the
+ * corresponding signals without depending on platform-specific APIs directly.
+ */
 class Mdns : public QObject
 {
     Q_OBJECT
@@ -41,7 +48,9 @@ public:
 
     static Mdns *instance();
 
+    /// Starts asynchronous discovery using the current platform backend.
     Q_INVOKABLE virtual void startDiscovery() = 0;
+    /// Stops discovery and releases backend resources.
     Q_INVOKABLE virtual void stopDiscovery() = 0;
 
     Q_INVOKABLE [[nodiscard]] int count() const { return static_cast<int>(m_services.count()); }

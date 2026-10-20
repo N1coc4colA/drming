@@ -3,6 +3,7 @@
 
 #include <QObject>
 
+/// Exposes the platform network link state as a QML-friendly singleton.
 class NetworkState : public QObject
 {
     Q_OBJECT

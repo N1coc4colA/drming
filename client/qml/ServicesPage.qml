@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+// Discovers servers, lets the user authenticate, and starts a stream session.
 StandardPage {
     id: root
 

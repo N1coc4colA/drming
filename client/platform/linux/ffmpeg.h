@@ -17,6 +17,7 @@ struct AVPacket;
 
 namespace Platform {
 
+/// Reuses decoded AVFrames to reduce allocations during continuous playback.
 class DecoderFramePool
 {
 public:
@@ -31,6 +32,7 @@ private:
     qsizetype m_allocated = 0;
 };
 
+/// FFmpeg-based Linux decoder that converts stream packets into QImages.
 class FfmpegDecoder : public QObject
 {
     Q_OBJECT

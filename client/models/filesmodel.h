@@ -5,6 +5,12 @@
 #include <QDateTime>
 #include <QVariantMap>
 
+/**
+ * Presents certificate metadata to QML using stable role names.
+ *
+ * The model owns a snapshot supplied by a FileProvider; callers should replace
+ * the snapshot through setData rather than mutate internal entries.
+ */
 class FilesModel : public QAbstractListModel
 {
     Q_OBJECT
@@ -24,6 +30,7 @@ public:
     Q_INVOKABLE [[nodiscard]] int count() const { return static_cast<int>(m_files.count()); }
     Q_INVOKABLE [[nodiscard]] QVariantMap get(int index) const;
 
+    /// Replaces the visible file snapshot and emits the required model changes.
     void setData(const MapType &newData);
 
     [[nodiscard]] const MapType &internalData() const { return m_files; }

@@ -10,6 +10,13 @@
 #include "../net/parser.h"
 #include "../net/udp.h"
 
+/**
+ * Client-side secure transport for control packets and video frames.
+ *
+ * TLS carries the reliable control channel. DTLS/UDP is used for frame data
+ * when the negotiated protocol requests it; platform subclasses consume the
+ * decoded image payload through setItem/pushData.
+ */
 class NetworkLink : public QObject
 {
     Q_OBJECT
@@ -22,6 +29,7 @@ public:
 
     static NetworkLink *createForPlatform(QObject *parent = nullptr);
 
+    /// Supplies additional bytes to the platform-specific frame decoder.
     virtual void pushData(QByteArray additional) = 0;
 
 Q_SIGNALS:
@@ -32,7 +40,9 @@ Q_SIGNALS:
     void connectionReady();
 
 public Q_SLOTS:
+    /// Closes both transport channels and resets negotiated frame state.
     void close();
+    /// Starts the TLS/DTLS handshake with a discovered server.
     void connect(const QString &address, int port, const QString &clientName, const QString &protocolName);
     virtual void setItem(QObject *item) = 0;
 

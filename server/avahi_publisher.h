@@ -11,6 +11,12 @@
 typedef struct AvahiEntryGroup AvahiEntryGroup;
 typedef struct AvahiSimplePoll AvahiSimplePoll;
 
+/**
+ * Publishes the server's stream endpoint through Avahi in a worker thread.
+ *
+ * The Qt signals report readiness while the Avahi poll loop remains isolated
+ * from the main event loop.
+ */
 class AvahiPublisher : public QObject
 {
     Q_OBJECT
@@ -19,7 +25,9 @@ public:
     explicit AvahiPublisher(QString serviceName, QString protocol, uint16_t port, QObject *parent = nullptr);
     ~AvahiPublisher() override;
 
+    /// Starts the Avahi client and advertises the configured service.
     void start();
+    /// Stops the poll loop and removes the service advertisement.
     void stop();
 
 Q_SIGNALS:

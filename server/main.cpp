@@ -9,6 +9,7 @@
 
 int main(int argc, char *argv[])
 {
+    // Keep the server headless: all UI-facing work is performed by the client.
     QCoreApplication app(argc, argv);
     QCoreApplication::setApplicationName("drming");
     QCoreApplication::setApplicationVersion("1.0");
@@ -22,6 +23,8 @@ int main(int argc, char *argv[])
         break;
     }
 
+    // The control server authenticates clients; the two stream sockets carry
+    // audio and video and share the video session key.
     Server server{};
     StreamSocket videoSocket{};
     StreamSocket audioSocket{};

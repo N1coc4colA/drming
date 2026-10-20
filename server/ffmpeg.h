@@ -17,6 +17,12 @@ namespace Ffmpeg {
 
 QString avError(int err);
 
+/**
+ * Converts captured DRM images into the negotiated compressed stream format.
+ *
+ * The encoder is initialized lazily from the first frame because the display
+ * dimensions and pixel format are properties of the active connector.
+ */
 class Encoder
 {
 public:
@@ -28,6 +34,7 @@ public:
     static AVPixelFormat formatFromFcc(uint32_t format);
     static AVPixelFormat formatFromQt(QImage::Format format);
 
+    /// Encodes one frame and invokes the callback for each produced packet.
     void push_image(const uint8_t *data, int width, int height, QImage::Format format, uint32_t stride);
 
 private:
