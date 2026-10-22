@@ -17,6 +17,11 @@
 #include <variant>
 #include <vector>
 
+#ifndef Q_MOC_RUN
+#include <ctrack.hpp>
+#endif
+
+
 namespace Packets {
 
 using Ordering = quint32;
@@ -447,6 +452,8 @@ public:
     template<typename T>
     static QByteArray generate(T &t)
     {
+        CTRACK;
+
         constexpr auto fields = T::fields;
 
         QByteArray output;
@@ -611,8 +618,10 @@ class Parser
                 stream.readRawData(field.data.data(), static_cast<qint64>(size));
                 m_array.remove(0, size);
             }
+
             return True;
         }
+
         return Continue;
     }
 
@@ -626,6 +635,8 @@ class Parser
     template<typename T>
     inline ParseOutput instanceParsing()
     {
+        CTRACK;
+
         if (m_parsed == 0) {
             m_current = std::get<details::Index<T, decltype(m_bounds)>::value>(m_bounds);
         }
@@ -679,6 +690,8 @@ class Parser
 
     ParseOutput dispatch(const Type state)
     {
+        CTRACK;
+
         using Types = typename details::variant_types<PacketVariant>::types;
         constexpr size_t N = std::tuple_size_v<Types>;
         constexpr size_t TABLE_SIZE = static_cast<size_t>(Type::MAXIMUM) + 1;
@@ -746,6 +759,8 @@ public:
     void parse()
     {
         while (true) {
+            CTRACK;
+
             switch (m_state) {
             case Type::None: {
                 if (m_array.size() < static_cast<qsizetype>(sizeof(quint16))) {
@@ -840,6 +855,8 @@ class JitterBuffer
 
         inline QByteArray assemble() const
         {
+            CTRACK;
+
             const auto total = std::accumulate(chunks.cbegin(), chunks.cend(), qsizetype(0), [](qsizetype sum, const auto &opt) {
                 return sum + (opt ? opt->size() : 0);
             });
@@ -872,6 +889,8 @@ public:
         if (totalChunks == 0 || order >= totalChunks) {
             return;
         }
+
+        CTRACK;
 
         auto it = std::find_if(m_entries.begin(), m_entries.end(), [ts](const Entry &e) { return e.ts == ts; });
         if (it == m_entries.end()) {
@@ -907,9 +926,11 @@ public:
     // otherwise std::nullopt.
     inline std::optional<QByteArray> pullComplete()
     {
+        CTRACK;
+
         for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
             if (it->queue.isComplete()) {
-                QByteArray assembled = it->queue.assemble();
+                const QByteArray assembled = it->queue.assemble();
                 // Remove this timestamp and all older ones (they are no longer needed).
                 m_entries.erase(m_entries.begin(), std::next(it));
                 return assembled;

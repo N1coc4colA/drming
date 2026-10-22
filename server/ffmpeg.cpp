@@ -6,11 +6,16 @@
 
 #include <drm_fourcc.h>
 
+#ifndef Q_MOC_RUN
+#include <ctrack.hpp>
+#endif
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/opt.h>
 #include <libswscale/swscale.h>
 }
+
 
 namespace Ffmpeg {
 QString avError(const int err)
@@ -409,6 +414,8 @@ int Encoder::flush()
 
 int Encoder::encode(AVFrame *frame)
 {
+    CTRACK;
+
     int ret = av_frame_make_writable(m_yuv);
     if (ret < 0) {
         return ret;
@@ -450,6 +457,8 @@ int Encoder::encode(AVFrame *frame)
 
 void Encoder::push_image(const uint8_t *data, const int width, const int height, const QImage::Format format, const uint32_t stride)
 {
+    CTRACK;
+
     if (m_width != width || m_height != height || m_format != format || m_stride != stride) [[unlikely]] {
         if (flush() < 0) [[unlikely]] {
             qWarning() << "Failed to flush encoder";

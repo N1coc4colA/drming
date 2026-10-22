@@ -9,6 +9,11 @@
 #include "../net/certificatesupport.h"
 #include "../settings.h"
 
+#ifndef Q_MOC_RUN
+#include <ctrack.hpp>
+#endif
+
+
 static QString keyFor(const QHostAddress &a, quint16 p)
 {
     return QStringLiteral("%1:%2").arg(a.toString()).arg(p);
@@ -68,6 +73,8 @@ void Server::close()
 
 void Server::broadcast(const QByteArray &data)
 {
+    CTRACK;
+
     for (auto *client : m_clients) {
         if (client->state() == QAbstractSocket::ConnectedState) {
             client->write(data);
@@ -90,6 +97,8 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
     auto &socket = pair.first;
 
     while (socket.hasPendingDatagrams()) {
+        CTRACK;
+
         QByteArray dgram(socket.pendingDatagramSize(), Qt::Uninitialized);
         QHostAddress sender;
         quint16 senderPort;

@@ -7,7 +7,7 @@
 class TestDrmFormat : public QObject
 {
     Q_OBJECT
-private slots:
+private Q_SLOTS:
     void directLayoutsHaveNoConvertFn()
     {
         for (uint32_t fourcc : {DRM_FORMAT_ARGB8888, DRM_FORMAT_XRGB8888,

@@ -5,7 +5,7 @@
 class TestJitterBuffer : public QObject
 {
     Q_OBJECT
-private slots:
+private Q_SLOTS:
     void outOfOrderAssembly();
     void duplicateChunksAreIgnored();
     void evictsOldTimestamps();

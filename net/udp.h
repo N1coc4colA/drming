@@ -17,6 +17,11 @@
 
 #include "../settings.h"
 
+#ifndef Q_MOC_RUN
+#include <ctrack.hpp>
+#endif
+
+
 using Endpoint = QPair<QHostAddress, quint16>;
 
 //#define ENABLE_ENCRYPT
@@ -234,6 +239,8 @@ private:
 
     void processPlain(QByteArray plain, const Packets::Timestamp ts, const Packets::Ordering order, const Packets::Ordering sizing)
     {
+        CTRACK;
+
         if (plain.isEmpty()) {
             qDebug() << "invalid plain size:" << plain.size();
             return;
@@ -252,6 +259,8 @@ private:
                                                 sizeof(Packets::Timestamp) + sizeof(Packets::Ordering) * 2;
 
         while (socket.hasPendingDatagrams()) {
+            CTRACK;
+
             QByteArray dgram(socket.pendingDatagramSize(), Qt::Uninitialized);
             const auto bytesRead = socket.readDatagram(dgram.data(), dgram.size());
             if (bytesRead <= headerSize) {
@@ -307,6 +316,8 @@ private:
         if (data.isEmpty()) [[unlikely]] {
             return true;
         }
+
+        CTRACK;
 
         // Reserve one AES block for PKCS#7 padding, otherwise an incompressible
         // chunk whose plaintext length is a multiple of the block size will
@@ -425,6 +436,8 @@ public:
 
     inline qint64 writeDtls(const QByteArray &data)
     {
+        CTRACK;
+
         static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) * 2 - sizeof(Packets::Timestamp);
         const auto size = data.size();
         const Packets::Ordering sizing = size / innerSize + (size % innerSize ? 1 : 0);
@@ -493,6 +506,8 @@ public:
 
     inline void processDtls(const QByteArray &dgram)
     {
+        CTRACK;
+
         // Decrypt application datagram
         QByteArray plain;
         {

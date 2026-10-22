@@ -20,7 +20,7 @@ class TestServerCore : public QObject
 {
     Q_OBJECT
 
-private slots:
+private Q_SLOTS:
     void fourccSplitting()
     {
         uint8_t a = 0, b = 0, c = 0, d = 0;

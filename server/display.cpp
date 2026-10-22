@@ -13,6 +13,10 @@
 #include "parameters.h"
 #include "streamsocket.h"
 
+#ifndef Q_MOC_RUN
+#include <ctrack.hpp>
+#endif
+
 
 Display::Display(const QString &connectorName, StreamSocket &ss, QObject *parent)
     : QObject(parent)
@@ -72,6 +76,8 @@ void Display::requireResolutionInformation()
 
 void Display::forward()
 {
+    CTRACK;
+
     VkmsFrameBuffer fb{};
     if (!m_reader.getVkmsFrameBuffer(fb)) [[unlikely]] {
         if (!primaryFailureNotice) {
@@ -189,6 +195,8 @@ private:
 
     void processImage(const QImage &result) override
     {
+        CTRACK;
+
         Packets::ServerImage servImg{};
         servImg.format.data = m_format;
         {
@@ -220,11 +228,15 @@ public:
 private:
     void processImage(const QImage &result) override
     {
+        CTRACK;
+
         m_encoder.push_image(result.bits(), result.width(), result.height(), result.format(), result.bytesPerLine());
     }
 
     void h265dataForward(const uint8_t *data, const size_t size, const int64_t pts)
     {
+        CTRACK;
+
         Q_UNUSED(pts);
 
         QByteArray payload;

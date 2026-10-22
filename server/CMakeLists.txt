@@ -17,12 +17,15 @@ FFMPEG REQUIRED IMPORTED_TARGET
     libavformat libavcodec libavutil libswscale
 )
 
-if(NOT TARGET QtAES)
-    add_subdirectory(
-        ${CMAKE_CURRENT_SOURCE_DIR}/../submodules/qt-aes
-        ${CMAKE_CURRENT_BINARY_DIR}/qt-aes
-    )
-endif()
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../submodules/ctrack
+    ${CMAKE_CURRENT_BINARY_DIR}/ctrack
+)
+
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../submodules/qt-aes
+    ${CMAKE_CURRENT_BINARY_DIR}/qt-aes
+)
 
 # ---- Core library ------------------------------------------------------------
 set(DRMING_SERVER_CORE_SOURCES
@@ -69,6 +72,7 @@ drming_server_core
         PkgConfig::FFMPEG
         QtAES::QtAES
         Libdrm::Libdrm
+        ctrack
 )
 
 target_compile_definitions(
@@ -88,6 +92,7 @@ target_link_libraries(
 drming_server
     PRIVATE
         drming_server_core
+        ctrack
 )
 
 include(GNUInstallDirs)

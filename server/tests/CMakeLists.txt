@@ -10,6 +10,13 @@ function(drming_add_test name)
             Qt6::Test Qt6::Core Qt6::Gui Qt6::Network Qt6::DBus
             Libdrm::Libdrm
     )
+    target_compile_definitions(
+    test_${name}
+        PRIVATE
+            QT_NO_SIGNALS_SLOTS_KEYWORDS
+            QT_NO_EMIT
+    )
+
     add_test(NAME ${name} COMMAND test_${name})
 
     # Quiet, parseable output when run from CTest

@@ -6,6 +6,22 @@
 #include "streamsocket.h"
 
 #include <QCoreApplication>
+#include <QTimer>
+
+#include <ctrack.hpp>
+
+#include <csignal>
+
+namespace {
+
+volatile std::sig_atomic_t shutdownRequested = 0;
+
+void requestShutdown(int)
+{
+    shutdownRequested = 1;
+}
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
@@ -13,6 +29,9 @@ int main(int argc, char *argv[])
     QCoreApplication app(argc, argv);
     QCoreApplication::setApplicationName("drming");
     QCoreApplication::setApplicationVersion("1.0");
+
+    std::signal(SIGINT, requestShutdown);
+    std::signal(SIGTERM, requestShutdown);
 
     switch (CommandParser().parseApp()) {
     case CommandParser::Failure:
@@ -68,5 +87,18 @@ int main(int argc, char *argv[])
 
     qInfo() << "Ready!";
 
-    return QCoreApplication::exec();
+    QTimer *shutdownTimer = new QTimer(&app);
+    QObject::connect(shutdownTimer, &QTimer::timeout, &app, [&app]() {
+        if (shutdownRequested) {
+            app.quit();
+        }
+    });
+    shutdownTimer->setTimerType(Qt::VeryCoarseTimer);
+    shutdownTimer->start(1000);
+
+    const auto ret_code = QCoreApplication::exec();
+
+    ctrack::result_print();
+
+    return ret_code;
 }

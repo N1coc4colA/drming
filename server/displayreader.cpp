@@ -14,6 +14,11 @@
 
 #include "sse.h"
 
+#ifndef Q_MOC_RUN
+#include <ctrack.hpp>
+#endif
+
+
 namespace Drm {
 
 struct DrmResourcesDeleter
@@ -120,6 +125,8 @@ using DrmPropertyPtr = std::unique_ptr<drmModePropertyRes, DrmPropertyDeleter>;
 // e.g. "card0-Virtual-1" → "/dev/dri/card0"
 QString drmDeviceForConnector(const QString &connectorName)
 {
+    CTRACK;
+
     const QDir drmDir(QStringLiteral("/dev/dri"));
     const auto cards = drmDir.entryInfoList({QStringLiteral("card[0-9]*")}, QDir::Files | QDir::Readable | QDir::System, QDir::Name);
 
@@ -161,6 +168,8 @@ QString drmDeviceForConnector(const QString &connectorName)
 
 bool mapFramebuffer(VkmsFrameBuffer &fb, const uint32_t handle)
 {
+    CTRACK;
+
     if (handle == 0 || fb.fd < 0 || fb.size == 0) [[unlikely]] {
         return false;
     }
@@ -195,6 +204,8 @@ bool mapFramebuffer(VkmsFrameBuffer &fb, const uint32_t handle)
 
 bool mapCursorFramebuffer(CursorFrameBuffer &cursor, const int drmFd, const uint32_t handle)
 {
+    CTRACK;
+
     if (handle == 0 || drmFd < 0 || cursor.size == 0) [[unlikely]] {
         return false;
     }
@@ -237,6 +248,8 @@ DisplayReader::DisplayReader(QString connectorName)
 
 bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb) const
 {
+    CTRACK;
+
     using namespace Drm;
 
     fb = {};
@@ -334,6 +347,8 @@ err:
 
 void DisplayReader::releaseVkmsFrameBuffer(VkmsFrameBuffer &fb)
 {
+    CTRACK;
+
     if (fb.data && fb.size > 0) [[likely]] {
         munmap(fb.data, fb.size);
         fb.data = nullptr;
@@ -352,6 +367,8 @@ void DisplayReader::releaseVkmsFrameBuffer(VkmsFrameBuffer &fb)
 
 bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFrameBuffer &primary)
 {
+    CTRACK;
+
     using namespace Drm;
 
     cursor = {};
@@ -442,6 +459,8 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
 
 void DisplayReader::releaseCursorFrameBuffer(CursorFrameBuffer &cursor)
 {
+    CTRACK;
+
     if (cursor.data && cursor.size > 0) [[likely]] {
         munmap(cursor.data, cursor.size);
         cursor.data = nullptr;
@@ -457,6 +476,8 @@ void DisplayReader::releaseCursorFrameBuffer(CursorFrameBuffer &cursor)
 
 void DisplayReader::compositeWithCursor(QImage &primary, const CursorFrameBuffer &cursor, const DrmFormat::FormatDescriptor &fmtDesc)
 {
+    CTRACK;
+
     if (!cursor.data || cursor.width == 0 || cursor.height == 0 || cursor.stride == 0) [[unlikely]] {
         return;
     }

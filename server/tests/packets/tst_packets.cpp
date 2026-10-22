@@ -16,7 +16,7 @@ struct CollectingReceiver
 class TestPackets : public QObject
 {
     Q_OBJECT
-private slots:
+private Q_SLOTS:
     void emptyPacketRoundTrip();
     void keyUpdateRoundTrip();
     void audioSourceRoundTrip();

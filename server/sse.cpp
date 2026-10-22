@@ -6,6 +6,10 @@
 #include <array>
 #include <cstring>
 
+#ifndef Q_MOC_RUN
+#include <ctrack.hpp>
+#endif
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Compile-time swizzle engine — 32-bit pixels
 //
@@ -308,10 +312,14 @@ namespace DrmFormat {
 
 std::optional<FormatDescriptor> resolve(const uint32_t drmFourcc)
 {
+    CTRACK;
+
     for (const auto &e : kTable) {
-        if (e.drmFourcc == drmFourcc)
+        if (e.drmFourcc == drmFourcc) {
             return FormatDescriptor{e.qtFormat, e.convert};
+        }
     }
+
     return std::nullopt;
 }
 
