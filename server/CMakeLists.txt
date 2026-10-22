@@ -17,10 +17,12 @@ FFMPEG REQUIRED IMPORTED_TARGET
     libavformat libavcodec libavutil libswscale
 )
 
-add_subdirectory(
-    ${CMAKE_CURRENT_SOURCE_DIR}/../submodules/qt-aes
-    ${CMAKE_CURRENT_BINARY_DIR}/qt-aes
-)
+if(NOT TARGET QtAES)
+    add_subdirectory(
+        ${CMAKE_CURRENT_SOURCE_DIR}/../submodules/qt-aes
+        ${CMAKE_CURRENT_BINARY_DIR}/qt-aes
+    )
+endif()
 
 # ---- Core library ------------------------------------------------------------
 set(DRMING_SERVER_CORE_SOURCES

@@ -128,8 +128,7 @@ drming_client_core
 # ---- Executable --------------------------------------------------------------
 qt_add_executable(
 drming_client
-    MANUAL_FINALIZATION
-        main.cpp
+    main.cpp
 )
 target_link_libraries(
 drming_client
@@ -209,10 +208,12 @@ if (NOT ANDROID)
 endif()
 
 # ---- Tests -------------------------------------------------------------------
-include(CTest)
-if(BUILD_TESTING)
-    add_subdirectory(
-        ${CMAKE_CURRENT_SOURCE_DIR}/tests
-        ${CMAKE_CURRENT_BINARY_DIR}/tests
-    )
+if (NOT ANDROID)
+    include(CTest)
+    if(BUILD_TESTING)
+        add_subdirectory(
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests
+            ${CMAKE_CURRENT_BINARY_DIR}/tests
+        )
+    endif()
 endif()
