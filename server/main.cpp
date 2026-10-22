@@ -14,11 +14,10 @@
 
 namespace {
 
-volatile std::sig_atomic_t shutdownRequested = 0;
-
-void requestShutdown(int)
+void requestShutdown(const int sig)
 {
-    shutdownRequested = 1;
+    std::signal(sig, SIG_DFL);
+    qApp->quit();
 }
 
 } // namespace
@@ -31,7 +30,6 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationVersion("1.0");
 
     std::signal(SIGINT, requestShutdown);
-    std::signal(SIGTERM, requestShutdown);
 
     switch (CommandParser().parseApp()) {
     case CommandParser::Failure:
@@ -86,15 +84,6 @@ int main(int argc, char *argv[])
     }
 
     qInfo() << "Ready!";
-
-    QTimer *shutdownTimer = new QTimer(&app);
-    QObject::connect(shutdownTimer, &QTimer::timeout, &app, [&app]() {
-        if (shutdownRequested) {
-            app.quit();
-        }
-    });
-    shutdownTimer->setTimerType(Qt::VeryCoarseTimer);
-    shutdownTimer->start(1000);
 
     const auto ret_code = QCoreApplication::exec();
 
