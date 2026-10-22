@@ -246,7 +246,7 @@ DisplayReader::DisplayReader(QString connectorName)
     : m_connectorName(std::move(connectorName))
 {}
 
-bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb) const
+bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
 {
     CTRACK;
 
@@ -254,12 +254,18 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb) const
 
     fb = {};
 
-    const QString drmDevicePath = drmDeviceForConnector(m_connectorName);
-    if (drmDevicePath.isEmpty()) [[unlikely]] {
+    if (m_connectorPath.isEmpty()) [[unlikely]] {
+        m_connectorPath = drmDeviceForConnector(m_connectorName);
+        if (m_connectorPath.isEmpty()) {
+            return false;
+        }
+    }
+
+    if (m_connectorPath.isEmpty()) [[unlikely]] {
         return false;
     }
 
-    const QByteArray drmPathBytes = QFile::encodeName(drmDevicePath);
+    const QByteArray drmPathBytes = QFile::encodeName(m_connectorPath);
     fb.fd = open(drmPathBytes.constData(), O_RDWR | O_CLOEXEC);
     if (fb.fd < 0) [[unlikely]] {
         return false;
@@ -282,7 +288,7 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb) const
         }
 
         const QString sysfsName = QStringLiteral("%1-%2-%3")
-                                      .arg(QFileInfo(drmDevicePath).fileName(),
+                                      .arg(QFileInfo(m_connectorPath).fileName(),
                                            QString::fromLatin1(drmModeGetConnectorTypeName(connector->connector_type)),
                                            QString::number(connector->connector_type_id));
 

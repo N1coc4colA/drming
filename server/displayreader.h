@@ -17,7 +17,7 @@ class DisplayReader
 public:
     explicit DisplayReader(QString connectorName);
 
-    bool getVkmsFrameBuffer(VkmsFrameBuffer &fb) const;
+    bool getVkmsFrameBuffer(VkmsFrameBuffer &fb);
     static void releaseVkmsFrameBuffer(VkmsFrameBuffer &fb);
 
     static bool getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFrameBuffer &primary);
@@ -31,6 +31,7 @@ public:
 
 private:
     const QString m_connectorName{};
+    QString m_connectorPath{};
 };
 
 namespace Drm {
