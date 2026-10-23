@@ -478,9 +478,15 @@ void DisplayReader::compositeWithCursor(const QImage &primary, const CursorFrame
             output = QImage(primary.size(), primary.format());
         }
 
-        const int rowBytes = output.bytesPerLine();
-        for (int y = 0; y < primary.height(); ++y) {
-            std::memcpy(output.scanLine(y), primary.constScanLine(y), rowBytes);
+        if (output.bytesPerLine() == primary.bytesPerLine()) {
+            // Most likely case: same stride, contiguous buffer, only one memcpy needed.
+            std::memcpy(output.bits(), primary.constBits(), output.sizeInBytes());
+        } else {
+            // Unlikely: fall back to row-wise.
+            const int rowBytes = std::min(output.bytesPerLine(), primary.bytesPerLine());
+            for (int y = 0; y < primary.height(); ++y) {
+                std::memcpy(output.scanLine(y), primary.constScanLine(y), rowBytes);
+            }
         }
     }
 
