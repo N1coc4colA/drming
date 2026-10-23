@@ -180,12 +180,16 @@ public Q_SLOTS:
         m_keyCount++;
         m_keyCount %= std::numeric_limits<Packets::Keystamp>::max() - 1;
 
-        setKey(QPasswordDigestor::deriveKeyPbkdf2(QCryptographicHash::Sha256,
-                                                  generate(sizeof(quint32) * 10),
-                                                  generate(Settings::saltLen),
-                                                  Settings::keyIterations,
-                                                  Settings::dkLen),
-               m_keyCount);
+        setKey(
+            QPasswordDigestor::deriveKeyPbkdf2(
+                QCryptographicHash::Sha256,
+                generate(sizeof(quint32) * 10),
+                generate(Settings::saltLen),
+                Settings::keyIterations,
+                Settings::dkLen
+            ),
+            m_keyCount
+        );
     }
 
 protected:
@@ -324,12 +328,15 @@ private:
 
         CTRACK;
 
-        // Reserve one AES block for PKCS#7 padding, otherwise an incompressible
-        // chunk whose plaintext length is a multiple of the block size will
-        // grow by a full block and exceed dtlsChunkSize after encryption.
         static constexpr qsizetype aesBlock = 16;
-        static constexpr auto innerSize = Settings::dtlsChunkSize - Settings::ivSize - sizeof(Packets::Keystamp) - sizeof(Packets::Ordering) * 2
+        static constexpr auto innerSize = Settings::dtlsChunkSize - Settings::ivSize
+                                          - sizeof(Packets::Keystamp) - sizeof(Packets::Ordering) * 2
                                           - sizeof(Packets::Timestamp) - aesBlock;
+        static constexpr auto headerSize = sizeof(Packets::Ordering) * 2
+                                           + sizeof(Packets::Timestamp)
+                                           + Settings::ivSize
+                                           + sizeof(Packets::Keystamp);
+
         const auto size = data.size();
         const Packets::Ordering sizing = size / innerSize + (size % innerSize ? 1 : 0);
         const auto iv = generateIV();
@@ -337,32 +344,52 @@ private:
         const auto ts_be = qToBigEndian(m_ts);
         const auto sizing_be = qToBigEndian(sizing);
 
+        const auto ifaceIdx = socket.multicastInterface().index();
+
         Packets::Ordering order = 0;
         qsizetype offset = 0;
         while (offset < size) {
-            const auto order_be = qToBigEndian(order);
+            const auto order_be  = qToBigEndian(order);
             const auto chunkSize = std::min<qsizetype>(innerSize, size - offset);
 
+            QByteArray ciphertext{};
+            const char *payload = nullptr;
+            qsizetype payloadSize = 0;
+
 #ifdef ENABLE_ENCRYPT
-            bool ok = false;
-            auto chunk = m_aes.encode(data.mid(offset, chunkSize), m_key, iv, &ok);
-            if (!ok) {
-                qDebug() << "Failed to encode.";
-                return false;
+            {
+                bool ok = false;
+                ciphertext = m_aes.encode(data.sliced(offset, chunkSize), m_key, iv, &ok);
+                if (!ok) {
+                    qDebug() << "Failed to encode.";
+                    return false;
+                }
+                payload = ciphertext.constData();
+                payloadSize = ciphertext.size();
             }
 #else
-            auto chunk = data.mid(offset, chunkSize);
+            payload = data.constData() + offset;
+            payloadSize = chunkSize;
 #endif
 
-            chunk.prepend(reinterpret_cast<const char *>(&ks_be), sizeof(ks_be));
-            chunk.prepend(iv);
-            chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
-            chunk.prepend(reinterpret_cast<const char *>(&sizing_be), sizeof(sizing_be));
-            chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
+            // Build the full datagram with only one allocation
+            QByteArray chunk(headerSize + payloadSize, Qt::Uninitialized);
+            char *p = chunk.data();
+            std::memcpy(p, &order_be, sizeof(order_be));
+            p += sizeof(order_be);
+            std::memcpy(p, &sizing_be, sizeof(sizing_be));
+            p += sizeof(sizing_be);
+            std::memcpy(p, &ts_be, sizeof(ts_be));
+            p += sizeof(ts_be);
+            std::memcpy(p, iv.constData(), Settings::ivSize);
+            p += Settings::ivSize;
+            std::memcpy(p, &ks_be, sizeof(ks_be));
+            p += sizeof(ks_be);
+            std::memcpy(p, payload, payloadSize);
 
-            QNetworkDatagram dgram(chunk, address, port);
+            QNetworkDatagram dgram(std::move(chunk), address, port);
             dgram.setHopLimit(5);
-            dgram.setInterfaceIndex(socket.multicastInterface().index());
+            dgram.setInterfaceIndex(ifaceIdx);
 
             if (socket.writeDatagram(dgram) < 0) {
                 qWarning() << "Failed to send ts=" << m_ts << "order=" << order;
@@ -376,20 +403,16 @@ private:
                 case QAbstractSocket::ProxyConnectionTimeoutError:
                 case QAbstractSocket::OperationError:
                 case QAbstractSocket::UnknownSocketError:
-                case QAbstractSocket::NetworkError: {
+                case QAbstractSocket::NetworkError:
                     close();
                     break;
-                }
-                case QAbstractSocket::TemporaryError: {
+                case QAbstractSocket::TemporaryError:
                     continue;
-                }
-                default: {
+                default:
                     qWarning() << "Write error on" << m_ts << order << static_cast<int>(err) << socket.errorString();
-                }
                 }
 
                 m_ts++;
-
                 return false;
             }
 
@@ -398,7 +421,6 @@ private:
         }
 
         m_ts++;
-
         return true;
     }
 };
@@ -443,21 +465,32 @@ public:
     {
         CTRACK;
 
-        static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) * 2 - sizeof(Packets::Timestamp);
+        static constexpr auto innerSize = Settings::dtlsChunkSize
+                                          - sizeof(Packets::Ordering) * 2
+                                          - sizeof(Packets::Timestamp);
+        static constexpr auto headerSize = sizeof(Packets::Timestamp)
+                                           + sizeof(Packets::Ordering) * 2;
+
         const auto size = data.size();
-        const Packets::Ordering sizing = size / innerSize + (size % innerSize ? 1 : 0);
+        const auto sizing = Packets::Ordering(size / innerSize + (size % innerSize ? 1 : 0));
         const auto sizing_be = qToBigEndian(sizing);
 
         Packets::Ordering order = 0;
         qsizetype offset = 0;
         while (offset < size) {
-            auto chunk = data.mid(offset, innerSize);
-            const auto chunkSize = chunk.size();
+            const auto chunkSize = std::min<qsizetype>(innerSize, size - offset);
             const auto ts_be = qToBigEndian(m_ts);
             const auto order_be = qToBigEndian(order);
-            chunk.prepend(reinterpret_cast<const char *>(&order_be), sizeof(order_be));
-            chunk.prepend(reinterpret_cast<const char *>(&sizing_be), sizeof(sizing_be));
-            chunk.prepend(reinterpret_cast<const char *>(&ts_be), sizeof(ts_be));
+
+            QByteArray chunk(headerSize + chunkSize, Qt::Uninitialized);
+            char *p = chunk.data();
+            std::memcpy(p, &ts_be, sizeof(ts_be));
+            p += sizeof(ts_be);
+            std::memcpy(p, &sizing_be, sizeof(sizing_be));
+            p += sizeof(sizing_be);
+            std::memcpy(p, &order_be, sizeof(order_be));
+            p += sizeof(order_be);
+            std::memcpy(p, data.constData() + offset, chunkSize);
 
             qint64 written;
             {
@@ -483,7 +516,6 @@ public:
                 }
 
                 m_ts++;
-
                 return -1;
             }
 
@@ -492,7 +524,6 @@ public:
         }
 
         m_ts++;
-
         return offset;
     }
 
@@ -526,7 +557,7 @@ public:
                 return;
             }
 
-            // Wire layout produced by DtlsWriterImpl:
+            // Layout produced by DtlsWriterImpl:
             //   [ ts (Timestamp) ][ sizing (Ordering) ][ order (Ordering) ][ payload ]
             qsizetype offset = 0;
 
@@ -539,7 +570,7 @@ public:
             const auto order = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(plain.constData() + offset));
             offset += sizeof(Packets::Ordering);
 
-            // Strip the ordering headers — they are transport metadata, not payload.
+            // Strip transport metadata
             m_jitterBuffer.pushChunk(ts, order, sizing, plain.mid(offset));
 
             while (const auto v = m_jitterBuffer.pullComplete()) {
