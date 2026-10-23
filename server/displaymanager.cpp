@@ -16,6 +16,10 @@ DisplayManager::DisplayManager(StreamSocket &ss, QObject *parent)
 DisplayManager::~DisplayManager()
 {
     // Let Qt ownership take care of the children.
+    if (m_thread) {
+        m_thread->exit();
+        m_thread->wait();
+    }
 }
 
 bool DisplayManager::registerClient(NetworkClient *client)
