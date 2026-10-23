@@ -87,4 +87,10 @@ EasyListView {
             }
         }
     }
+
+    onVisibleChanged: function() {
+        if (!root.visible) {
+            root.model.clear();
+        }
+    }
 }
