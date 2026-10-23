@@ -49,9 +49,11 @@ private:
     QPair<QUdpSocket, QMutex> m_socket6{};
 
     // Active clients: peer key -> NetworkClientDtls*
-    QMap<QString, NetworkClient *> m_clients;
+    QMap<QString, NetworkClient *> m_clients{};
     // Pending handshakes: peer key -> QDtls*
-    QMap<QString, QDtls *> m_pendingHandshakes;
+    QMap<QString, QDtls *> m_pendingHandshakes{};
+
+    QSslConfiguration m_sslConfig{};
 
     QString peerKey(const QHostAddress &addr, quint16 port) const;
     void removeClient(NetworkClient *client);

@@ -14,7 +14,7 @@
 #endif
 
 
-static QString keyFor(const QHostAddress &a, quint16 p)
+static QString keyFor(const QHostAddress &a, const quint16 p)
 {
     return QStringLiteral("%1:%2").arg(a.toString()).arg(p);
 }
@@ -26,10 +26,9 @@ Server::Server(QObject *parent)
     connect(&m_socket6.first, &QUdpSocket::readyRead, this, &Server::onDatagramReceived6);
 }
 
-bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, quint16 port)
+bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, const quint16 port)
 {
-    QSslConfiguration sslConfig;
-    if (!loadServerCertsConfig(sslConfig, "dtls", Parameters::instance.serverCertPath, Parameters::instance.serverKeyPath)) {
+    if (!loadServerCertsConfig(m_sslConfig, "dtls", Parameters::instance.serverCertPath, Parameters::instance.serverKeyPath)) {
         qCritical() << "SSL config not loaded; DTLS connections may not use server certificate.";
         return false;
     }
@@ -104,27 +103,28 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
         quint16 senderPort;
 
         {
+            // Lock covers readDatagram: writes from Display's
+            // thread (DtlsWriterImpl::writeDtls) lock the same mutex, and
+            // QAbstractSocket isn't thread-safe for concurrent read+write.
+            QMutexLocker lock(&pair.second);
             const auto read = socket.readDatagram(dgram.data(), dgram.size(), &sender, &senderPort);
             if (read <= 0) {
                 continue;
             }
+
             dgram.resize(read);
-            QMutexLocker lock(&pair.second);
         }
 
         const auto key = keyFor(sender, senderPort);
 
-        // 1. Check if we already have an active client for this peer
+        // Active client?
         if (auto client = m_clients.value(key, nullptr)) {
             client->incomingEncryptedData(dgram);
             continue;
         }
 
-        // 2. Check if a handshake is in progress
+        // Handshake in progress?
         if (auto dtls = m_pendingHandshakes.value(key, nullptr)) {
-            qDebug() << "Pending DTLS already present";
-
-            // Process handshake message
             if (!dtls->doHandshake(&socket, dgram)) {
                 qWarning() << "DTLS handshake error for" << sender << senderPort << ":" << dtls->dtlsErrorString();
                 m_pendingHandshakes.remove(key);
@@ -133,7 +133,6 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
             }
 
             if (dtls->isConnectionEncrypted()) {
-                // Handshake completed – create client
                 qDebug() << "DTLS encryption established for" << sender << senderPort;
                 auto client = new NetworkClient(dtls, sender, senderPort, pair, this);
                 m_pendingHandshakes.remove(key);
@@ -144,13 +143,10 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
             continue;
         }
 
-        // 3. New peer – start handshake
+        // New peer, start handshake.
         qDebug() << "New DTLS handshake from" << sender << senderPort;
         auto dtls = new QDtls(QSslSocket::SslServerMode, this);
-        auto conf = QSslConfiguration::defaultDtlsConfiguration();
-        if (loadServerCertsConfig(conf, "dtls", Parameters::instance.serverCertPath, Parameters::instance.serverKeyPath)) {
-            dtls->setDtlsConfiguration(conf);
-        }
+        dtls->setDtlsConfiguration(m_sslConfig);
         dtls->setMtuHint(Settings::dtlsChunkSize);
         dtls->setPeer(sender, senderPort);
 
@@ -160,7 +156,6 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
             continue;
         }
 
-        // If handshake completed immediately (rare), create client; otherwise store pending
         if (dtls->isConnectionEncrypted()) {
             qDebug() << "DTLS encryption established immediately for" << sender << senderPort;
             auto client = new NetworkClient(dtls, sender, senderPort, pair, this);
