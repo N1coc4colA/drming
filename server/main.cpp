@@ -6,11 +6,11 @@
 #include "streamsocket.h"
 
 #include <QCoreApplication>
-#include <QTimer>
 
 #include <ctrack.hpp>
 
 #include <csignal>
+
 
 namespace {
 
@@ -76,10 +76,12 @@ int main(int argc, char *argv[])
     }
 
     if (!Parameters::instance.advertise) {
-        const auto publisher = new AvahiPublisher(Parameters::instance.serviceName,
-                                                  "_drming._udp",
-                                                  static_cast<uint16_t>(Parameters::instance.port),
-                                                  &app);
+        const auto publisher = new AvahiPublisher(
+            Parameters::instance.serviceName,
+            "_drming._udp",
+            static_cast<uint16_t>(Parameters::instance.port),
+            &app
+        );
         publisher->start();
     }
 

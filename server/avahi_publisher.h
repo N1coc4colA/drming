@@ -1,7 +1,7 @@
 #ifndef AVAHI_PUBLISHER_H
 #define AVAHI_PUBLISHER_H
 
-#include <QObject>
+#include <QNetworkInterface>
 
 #include <atomic>
 #include <thread>
@@ -22,7 +22,7 @@ class AvahiPublisher : public QObject
     Q_OBJECT
 
 public:
-    explicit AvahiPublisher(QString serviceName, QString protocol, uint16_t port, QObject *parent = nullptr);
+    explicit AvahiPublisher(const QNetworkInterface &iface, bool isIpV6, QString serviceName, QString protocol, uint16_t port, QObject *parent = nullptr);
     ~AvahiPublisher() override;
 
     /// Starts the Avahi client and advertises the configured service.
@@ -35,6 +35,8 @@ Q_SIGNALS:
     void started();
 
 private:
+    QNetworkInterface m_iface;
+    const bool m_isIpV6;
     QString m_serviceName{};
     QString m_protocol{};
     std::thread m_thread{};

@@ -7,6 +7,8 @@
 #include <avahi-common/error.h>
 #include <avahi-common/simple-watch.h>
 
+#include <net/if.h>
+
 void AvahiPublisher::group_callback(const AvahiEntryGroup *g, const AvahiEntryGroupState state, const AvahiPublisher *c)
 {
     Q_UNUSED(g);
@@ -21,6 +23,18 @@ void AvahiPublisher::group_callback(const AvahiEntryGroup *g, const AvahiEntryGr
         avahi_simple_poll_quit(c->m_poll);
         break;
     }
+    case AVAHI_ENTRY_GROUP_UNCOMMITED: {
+        qDebug() << "Avahi group is uncommitted.";
+        break;
+    }
+    case AVAHI_ENTRY_GROUP_REGISTERING: {
+        qDebug() << "Avahi group is registering.";
+        break;
+    }
+    case AVAHI_ENTRY_GROUP_COLLISION: {
+        qDebug() << "Avahi group collided.";
+        break;
+    }
     default: {
         break;
     }
@@ -33,10 +47,17 @@ void AvahiPublisher::client_callback(AvahiClient *client, const AvahiClientState
         return;
     }
 
+    const auto ifaceName = c->m_iface.name().toLocal8Bit();
+    auto iface = ifaceName.isEmpty() ? AVAHI_IF_UNSPEC : if_nametoindex(ifaceName.constData());
+    if (!ifaceName.isEmpty() && iface == 0) {
+        qCritical() << "Interface not found for mDNS:" << c->m_iface.name();
+        return;
+    }
+
     c->m_group = avahi_entry_group_new(client, reinterpret_cast<AvahiEntryGroupCallback>(&group_callback), c);
     const auto ret = avahi_entry_group_add_service(c->m_group,
-                                                   AVAHI_IF_UNSPEC,
-                                                   AVAHI_PROTO_UNSPEC,
+                                                   iface,
+                                                   c->m_isIpV6 ? AVAHI_PROTO_INET6 : AVAHI_PROTO_INET,
                                                    (AvahiPublishFlags) 0,
                                                    c->m_serviceName.toLocal8Bit(),
                                                    c->m_protocol.toLocal8Bit(),
@@ -46,14 +67,16 @@ void AvahiPublisher::client_callback(AvahiClient *client, const AvahiClientState
                                                    nullptr);
 
     if (ret < 0) {
-        qCritical() << "Avahi Group creation error: " << avahi_strerror(ret);
+        qCritical() << "Avahi group creation error: " << avahi_strerror(ret);
     } else {
         avahi_entry_group_commit(c->m_group);
     }
 }
 
-AvahiPublisher::AvahiPublisher(QString serviceName, QString protocol, const uint16_t port, QObject *parent)
+AvahiPublisher::AvahiPublisher(const QNetworkInterface &iface, bool isIpV6, QString serviceName, QString protocol, const uint16_t port, QObject *parent)
     : QObject(parent)
+    , m_iface(iface)
+    , m_isIpV6(isIpV6)
     , m_serviceName(std::move(serviceName))
     , m_protocol(std::move(protocol))
     , m_port(port)
