@@ -6,18 +6,26 @@
 #include "streamsocket.h"
 
 #include <QCoreApplication>
+#include <QSocketNotifier>
 
 #include <ctrack.hpp>
 
 #include <csignal>
+#include <sys/socket.h>
+#include <unistd.h>
 
 
 namespace {
 
+int sigFd[2] = { -1, -1 };
+
 void requestShutdown(const int sig)
 {
+    const char byte = 1;
+    // write() and signal() are async-signal-safe; qApp->quit() is not.
+    ::write(sigFd[0], &byte, sizeof(byte));
+    // second Ctrl+C gets the default (hard) action
     std::signal(sig, SIG_DFL);
-    qApp->quit();
 }
 
 } // namespace
@@ -29,7 +37,21 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName("drming");
     QCoreApplication::setApplicationVersion("1.0");
 
-    std::signal(SIGINT, requestShutdown);
+    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, sigFd) != 0) {
+        return EXIT_FAILURE;
+    }
+
+    QSocketNotifier sigNotifier(sigFd[1], QSocketNotifier::Read);
+    QObject::connect(&sigNotifier, &QSocketNotifier::activated, [&sigNotifier]() {
+        char byte;
+        (void)::read(sigFd[1], &byte, sizeof(byte));
+        sigNotifier.setEnabled(false);
+        QCoreApplication::quit();
+    });
+
+    std::signal(SIGINT,  requestShutdown);
+    std::signal(SIGTERM, requestShutdown);   // needed by systemd / containers
+
 
     switch (CommandParser().parseApp()) {
     case CommandParser::Failure:
@@ -77,11 +99,13 @@ int main(int argc, char *argv[])
 
     if (!Parameters::instance.advertise) {
         const auto publisher = new AvahiPublisher(
+            Parameters::instance.serviceIface,
+            Parameters::instance.serviceIp.protocol() == QAbstractSocket::IPv6Protocol,
             Parameters::instance.serviceName,
             "_drming._udp",
             static_cast<uint16_t>(Parameters::instance.port),
             &app
-        );
+            );
         publisher->start();
     }
 
