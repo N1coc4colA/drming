@@ -134,6 +134,7 @@ target_link_libraries(
 drming_client
     PRIVATE
         drming_client_core
+        ctrack
 )
 
 set_source_files_properties(
