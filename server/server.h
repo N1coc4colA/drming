@@ -10,7 +10,36 @@
 
 #include "networkclient.h"
 
+
 class QDtls;
+
+struct PeerKey
+{
+    QAbstractSocket::NetworkLayerProtocol proto = QAbstractSocket::UnknownNetworkLayerProtocol;
+    quint32 v4 = 0;
+    Q_IPV6ADDR v6{};
+    quint16 port = 0;
+    QString scopeId{};
+
+    inline bool operator==(const PeerKey &o) const noexcept
+    {
+        return proto == o.proto
+               && port == o.port
+               && v4 == o.v4
+               && scopeId == o.scopeId
+               && std::memcmp(&v6, &o.v6, sizeof v6) == 0;
+    }
+
+    inline bool operator!=(const PeerKey &o) const noexcept { return !(*this == o); }
+
+    friend inline auto qHash(const PeerKey &k, const size_t seed = 0) noexcept
+    {
+        return qHashMulti(
+            seed, k.proto, k.v4, k.port, k.scopeId,
+            qFromBigEndian<quint64>(k.v6.c), qFromBigEndian<quint64>(k.v6.c + 8)
+        );
+    }
+};
 
 /**
  * Accepts secure client connections over IPv4 and IPv6.
@@ -49,13 +78,13 @@ private:
     QPair<QUdpSocket, QMutex> m_socket6{};
 
     // Active clients: peer key -> NetworkClientDtls*
-    QMap<QString, NetworkClient *> m_clients{};
+    QHash<PeerKey, NetworkClient *> m_clients{};
     // Pending handshakes: peer key -> QDtls*
-    QMap<QString, QDtls *> m_pendingHandshakes{};
+    QHash<PeerKey, QDtls *> m_pendingHandshakes{};
 
     QSslConfiguration m_sslConfig{};
 
-    QString peerKey(const QHostAddress &addr, quint16 port) const;
+    PeerKey peerKey(const QHostAddress &addr, quint16 port) const;
     void removeClient(NetworkClient *client);
 
     void processSocketPendings(QPair<QUdpSocket, QMutex> &pair);

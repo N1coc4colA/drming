@@ -8,15 +8,38 @@
 
 #include "../net/certificatesupport.h"
 #include "../settings.h"
+#include "../ctrack_wrap.h"
 
 #ifndef Q_MOC_RUN
 #include <ctrack.hpp>
 #endif
 
 
-static QString keyFor(const QHostAddress &a, const quint16 p)
+static PeerKey keyFor(const QHostAddress &a, const quint16 p)
 {
-    return QStringLiteral("%1:%2").arg(a.toString()).arg(p);
+    PeerKey k;
+    k.port  = p;
+    k.proto = a.protocol();
+
+    switch (k.proto) {
+    case QAbstractSocket::IPv4Protocol: {
+        k.v4 = a.toIPv4Address();
+        break;
+    }
+    case QAbstractSocket::IPv6Protocol: {
+        k.v6 = a.toIPv6Address();
+        // link-local addresses need this
+        k.scopeId = a.scopeId();
+        break;
+    }
+    default: {
+        // Null / Any shouldn't reach here from readDatagram(), but leave
+        // the zeroes in place so the key's still valid.
+        break;
+    }
+    }
+
+    return k;
 }
 
 Server::Server(QObject *parent)
@@ -93,16 +116,20 @@ void Server::onDatagramReceived6()
 
 void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
 {
+    CTRACK;
+
     auto &socket = pair.first;
 
     while (socket.hasPendingDatagrams()) {
-        CTRACK;
+        CTRACK_NAME("processSocketPendings.inner_loop");
 
         QByteArray dgram(socket.pendingDatagramSize(), Qt::Uninitialized);
         QHostAddress sender;
         quint16 senderPort;
 
         {
+            CTRACK_NAME("processSocketPendings.inner_lock");
+
             // Lock covers readDatagram: writes from Display's
             // thread (DtlsWriterImpl::writeDtls) lock the same mutex, and
             // QAbstractSocket isn't thread-safe for concurrent read+write.
@@ -125,7 +152,7 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
 
         // Handshake in progress?
         if (auto dtls = m_pendingHandshakes.value(key, nullptr)) {
-            if (!dtls->doHandshake(&socket, dgram)) {
+            if (!track<&QDtls::doHandshake>(dtls, &socket, dgram)) {
                 qWarning() << "DTLS handshake error for" << sender << senderPort << ":" << dtls->dtlsErrorString();
                 m_pendingHandshakes.remove(key);
                 delete dtls;
@@ -138,8 +165,13 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
                 m_pendingHandshakes.remove(key);
                 m_clients.insert(key, client);
                 connect(client, &NetworkClient::disconnected, this, &Server::onClientDisconnected);
-                Q_EMIT clientConnected(client);
+
+                // Defer because we are in the datagram-processing loop.
+                QMetaObject::invokeMethod(this, [this, client] {
+                    Q_EMIT clientConnected(client);
+                }, Qt::QueuedConnection);
             }
+
             continue;
         }
 
@@ -150,18 +182,23 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
         dtls->setMtuHint(Settings::dtlsChunkSize);
         dtls->setPeer(sender, senderPort);
 
-        if (!dtls->doHandshake(&socket, dgram)) {
+        if (!track<&QDtls::doHandshake>(dtls, &socket, dgram)) {
             qWarning() << "Failed to start DTLS handshake for" << sender << senderPort << ":" << dtls->dtlsErrorString();
             delete dtls;
             continue;
         }
 
         if (dtls->isConnectionEncrypted()) {
-            qDebug() << "DTLS encryption established immediately for" << sender << senderPort;
+            qDebug() << "DTLS encryption established for" << sender << senderPort;
             auto client = new NetworkClient(dtls, sender, senderPort, pair, this);
+            m_pendingHandshakes.remove(key);
             m_clients.insert(key, client);
             connect(client, &NetworkClient::disconnected, this, &Server::onClientDisconnected);
-            Q_EMIT clientConnected(client);
+
+            // Defer because we are in the datagram-processing loop.
+            QMetaObject::invokeMethod(this, [this, client] {
+                Q_EMIT clientConnected(client);
+            }, Qt::QueuedConnection);
         } else {
             m_pendingHandshakes.insert(key, dtls);
         }
@@ -181,6 +218,7 @@ void Server::removeClient(NetworkClient *client)
     if (m_clients.remove(key) > 0) {
         client->deleteLater();
         qDebug() << "Client removed" << client->peerAddress() << client->peerPort();
+
         if (m_clients.isEmpty()) {
             Q_EMIT noClient();
         }
