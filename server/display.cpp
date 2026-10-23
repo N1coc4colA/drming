@@ -18,10 +18,10 @@
 #endif
 
 
-Display::Display(const QString &connectorName, StreamSocket &ss, QObject *parent)
+Display::Display(const QString &connectorName, StreamSocket &ss, const bool inPlaceComposite, QObject *parent)
     : QObject(parent)
     , m_ss(ss)
-    , m_reader(connectorName)
+    , m_reader(connectorName, inPlaceComposite)
 {
     connect(&m_timer, &QTimer::timeout, this, &Display::forward);
     m_timer.setInterval(Settings::frameMSecsInterval);
@@ -87,60 +87,79 @@ void Display::forward()
 
         return;
     }
-
     primaryFailureNotice = false;
 
     CursorFrameBuffer cursorFb{};
-    const auto hasCursor = DisplayReader::getCursorFrameBuffer(cursorFb, fb);
+    const auto hasCursor = m_reader.getCursorFrameBuffer(cursorFb, fb);
 
     if (!m_vkmsFrameDescriptor.has_value()) [[unlikely]] {
         m_vkmsFrameDescriptor = DrmFormat::resolve(fb.format);
-
         if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
             char a, b, c, d;
             Drm::split_fourcc(fb.format, a, b, c, d);
-
             qWarning() << "Image format for frame is invalid:" << fb.format << ";" << a << b << c << d;
+            if (hasCursor) {
+                DisplayReader::releaseCursorFrameBuffer(cursorFb);
+            }
 
             disconnectAllClients();
             return;
         }
     }
-
     if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
+        if (hasCursor) DisplayReader::releaseCursorFrameBuffer(cursorFb);
         return;
     }
 
-    auto result = DisplayReader::imageFromFrameBuffer(static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride, m_vkmsFrameDescriptor.value());
+    // A native format (convert == nullptr) — swizzles are one-way and would corrupt the cached mapping if run in-place.
+    const bool useInPlace = m_reader.supportsInPlaceComposite() && m_vkmsFrameDescriptor->convert == nullptr;
+
+    QImage result = DisplayReader::imageFromFrameBuffer(
+        static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride,
+        m_vkmsFrameDescriptor.value(), useInPlace
+    );
+
+    const QImage *finalImage = &result;
+
     if (hasCursor) [[likely]] {
         if (!m_cursorFrameDescriptor.has_value()) [[unlikely]] {
             m_cursorFrameDescriptor = DrmFormat::resolve(cursorFb.format);
-
             if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
                 char a, b, c, d;
                 Drm::split_fourcc(cursorFb.format, a, b, c, d);
-
                 qWarning() << "Image format for frame is invalid:" << cursorFb.format << ";" << a << b << c << d;
 
+                DisplayReader::releaseCursorFrameBuffer(cursorFb);
                 disconnectAllClients();
                 return;
             }
         }
-
         if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
+            DisplayReader::releaseCursorFrameBuffer(cursorFb);
             return;
         }
 
-        DisplayReader::compositeWithCursor(result, cursorFb, m_cursorFrameDescriptor.value());
+        if (useInPlace) {
+            DisplayReader::compositeWithCursorInPlace(result, cursorFb, m_cursorFrameDescriptor.value());
+        } else {
+            DisplayReader::compositeWithCursor(result, cursorFb, m_cursorFrameDescriptor.value(), m_compositeBuffer);
+            finalImage = &m_compositeBuffer;
+        }
+
+        DisplayReader::releaseCursorFrameBuffer(cursorFb);
     }
 
-    if (m_prevSize != result.size()) [[unlikely]] {
-        m_prevSize = result.size();
-        const Packets::ClientResolution res{.width = {static_cast<quint32>(result.width())}, .height = {static_cast<quint32>(result.height())}};
+    if (m_prevSize != finalImage->size()) [[unlikely]] {
+        m_prevSize = finalImage->size();
+        const Packets::ClientResolution res{
+            .width  = {static_cast<quint32>(finalImage->width())},
+            .height = {static_cast<quint32>(finalImage->height())},
+        };
+
         sendData(std::move(Packets::Writer::generate(res)));
     }
 
-    processImage(result);
+    processImage(*finalImage);
     DisplayReader::releaseVkmsFrameBuffer(fb);
 }
 
@@ -184,8 +203,8 @@ void Display::disconnectAllClients()
 class DisplayImage : public Display
 {
 public:
-    DisplayImage(const QString &connectorName, StreamSocket &ss, const QString &format, QObject *parent = nullptr)
-        : Display(connectorName, ss, parent)
+    DisplayImage(const QString &connectorName, StreamSocket &ss, const QString &format, const bool inPlaceComposite, QObject *parent = nullptr)
+        : Display(connectorName, ss, inPlaceComposite, parent)
         , m_format(format.toLocal8Bit())
     {}
 
@@ -219,8 +238,8 @@ private:
 class DisplayH265 : public Display
 {
 public:
-    DisplayH265(const QString &connectorName, StreamSocket &ss, QObject *parent = nullptr)
-        : Display(connectorName, ss, parent)
+    DisplayH265(const QString &connectorName, StreamSocket &ss, const bool inPlaceComposite, QObject *parent = nullptr)
+        : Display(connectorName, ss, inPlaceComposite, parent)
         , m_encoder([this](const uint8_t *data, size_t size, int64_t pts) { this->h265dataForward(data, size, pts); },
                     1000 / Settings::frameMSecsInterval)
     {}
@@ -253,18 +272,20 @@ private:
 
 Display *generateNewDisplay(const QString &connectorName, StreamSocket &ss, QObject *parent)
 {
+    constexpr bool inPlaceComposite = false;
+
     switch (Parameters::instance.streamFormat) {
     case Opts::DisplayStreamType::h265: {
-        return new DisplayH265(connectorName, ss, parent);
+        return new DisplayH265(connectorName, ss, inPlaceComposite, parent);
     }
     case Opts::DisplayStreamType::jpg: {
-        return new DisplayImage(connectorName, ss, "JPG", parent);
+        return new DisplayImage(connectorName, ss, "JPG", inPlaceComposite, parent);
     }
     case Opts::DisplayStreamType::png: {
-        return new DisplayImage(connectorName, ss, "PNG", parent);
+        return new DisplayImage(connectorName, ss, "PNG", inPlaceComposite, parent);
     }
     case Opts::DisplayStreamType::webp: {
-        return new DisplayImage(connectorName, ss, "WEBP", parent);
+        return new DisplayImage(connectorName, ss, "WEBP", inPlaceComposite, parent);
     }
     }
 

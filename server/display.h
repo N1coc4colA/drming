@@ -19,7 +19,7 @@ class Display : public QObject
     Q_OBJECT
 
 public:
-    explicit Display(const QString &connectorName, StreamSocket &ss, QObject *parent = nullptr);
+    explicit Display(const QString &connectorName, StreamSocket &ss, bool inPlaceComposite, QObject *parent = nullptr);
 
     StreamSocket &streamSocket() { return m_ss; }
 
@@ -44,6 +44,7 @@ private:
 
     StreamSocket &m_ss;
     DisplayReader m_reader;
+    QImage m_compositeBuffer{};
 
     std::optional<DrmFormat::FormatDescriptor> m_cursorFrameDescriptor{};
     std::optional<DrmFormat::FormatDescriptor> m_vkmsFrameDescriptor{};

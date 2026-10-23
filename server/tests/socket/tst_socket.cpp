@@ -67,12 +67,15 @@ private Q_SLOTS:
     {
         QImage primary(2, 2, QImage::Format_ARGB32);
         primary.fill(Qt::black);
+
+        auto composite = primary.copy();
         CursorFrameBuffer invalid{};
         const auto descriptor = DrmFormat::resolve(DRM_FORMAT_ARGB8888);
         QVERIFY(descriptor.has_value());
-        DisplayReader::compositeWithCursor(primary, invalid, *descriptor);
+        DisplayReader::compositeWithCursor(primary, invalid, *descriptor, composite);
         QCOMPARE(primary.pixelColor(0, 0), QColor(Qt::black));
 
+        composite = primary.copy();
         uchar cursorPixel[4] = {0x00, 0x00, 0xff, 0xff};
         CursorFrameBuffer cursor{};
         cursor.data = cursorPixel;
@@ -81,7 +84,7 @@ private Q_SLOTS:
         cursor.stride = 4;
         cursor.crtc_x = 1;
         cursor.crtc_y = 1;
-        DisplayReader::compositeWithCursor(primary, cursor, *descriptor);
+        DisplayReader::compositeWithCursor(primary, cursor, *descriptor, composite);
         QCOMPARE(primary.pixelColor(1, 1), QColor(Qt::red));
     }
 
