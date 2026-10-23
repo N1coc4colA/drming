@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
 
     DisplayManager manager(videoSocket);
 
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &server, &Server::close);
     QObject::connect(&server, &Server::clientConnected, [&manager](NetworkClient *client) {
         // An error occurred.
         if (!manager.registerClient(client)) {

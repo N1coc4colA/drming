@@ -53,6 +53,7 @@ class Server : public QObject
 
 public:
     explicit Server(QObject *parent = nullptr);
+    ~Server();
 
     /// Binds both UDP sockets and begins accepting DTLS handshakes.
     bool listen(const QHostAddress &address4, const QHostAddress &address6, quint16 port = 0);

@@ -49,6 +49,11 @@ Server::Server(QObject *parent)
     connect(&m_socket6.first, &QUdpSocket::readyRead, this, &Server::onDatagramReceived6);
 }
 
+Server::~Server()
+{
+    close();
+}
+
 bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, const quint16 port)
 {
     if (!loadServerCertsConfig(m_sslConfig, "dtls", Parameters::instance.serverCertPath, Parameters::instance.serverKeyPath)) {
