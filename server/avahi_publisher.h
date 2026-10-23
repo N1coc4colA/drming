@@ -4,9 +4,9 @@
 #include <QNetworkInterface>
 
 #include <atomic>
-#include <thread>
 
 #include <avahi-client/client.h>
+#include <avahi-common/thread-watch.h>
 
 typedef struct AvahiEntryGroup AvahiEntryGroup;
 typedef struct AvahiSimplePoll AvahiSimplePoll;
@@ -39,9 +39,8 @@ private:
     const bool m_isIpV6;
     QString m_serviceName{};
     QString m_protocol{};
-    std::thread m_thread{};
     AvahiEntryGroup *m_group = nullptr;
-    AvahiSimplePoll *m_poll = nullptr;
+    AvahiThreadedPoll *m_poll = nullptr;
     AvahiClient *m_client = nullptr;
     std::atomic<bool> m_running = false;
     std::atomic<bool> m_ready = false;
