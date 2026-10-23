@@ -7,7 +7,6 @@
 #include <QTimer>
 #include <QUdpSocket>
 
-#include "../net/parser.h"
 #include "../net/udp.h"
 
 /**
@@ -51,6 +50,7 @@ protected:
 
 private Q_SLOTS:
     void onSslConnected();
+    void onSslEncrypted();
     void onUdpConnected();
 
     void onDtlsDisconnected();
@@ -87,6 +87,7 @@ private:
     void connectSsl(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, int port);
     qint64 writeDtls(const QByteArray &data);
     qint64 writeSsl(const QByteArray &data);
+    void resetSessionState();
 
     friend class DtlsReader<NetworkLink>;
 };
