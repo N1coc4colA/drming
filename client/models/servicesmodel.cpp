@@ -73,7 +73,7 @@ QVariantMap ServicesModel::get(const int index) const
 int ServicesModel::findServiceIndex(const QString &key) const
 {
     for (int i = 0; i < m_services.size(); ++i) {
-        if (m_services.at(i).first == key || m_services.at(i).second.name == key) {
+        if (m_services.at(i).first == key) {
             return i;
         }
     }
