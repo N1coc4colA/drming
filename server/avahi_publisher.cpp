@@ -73,7 +73,7 @@ void AvahiPublisher::client_callback(AvahiClient *client, const AvahiClientState
     }
 }
 
-AvahiPublisher::AvahiPublisher(const QNetworkInterface &iface, bool isIpV6, QString serviceName, QString protocol, const uint16_t port, QObject *parent)
+AvahiPublisher::AvahiPublisher(const QNetworkInterface &iface, const bool isIpV6, QString serviceName, QString protocol, const uint16_t port, QObject *parent)
     : QObject(parent)
     , m_iface(iface)
     , m_isIpV6(isIpV6)
