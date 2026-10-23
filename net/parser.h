@@ -448,6 +448,19 @@ class Writer
         stream.writeRawData(field.data.constData(), static_cast<qint64>(field.size));
     }
 
+    template<typename FieldType>
+        requires FieldType::__is_field and FieldType::__is_variable
+    static qsizetype estimateFieldSize(const FieldType &f) {
+        return sizeof(typename FieldType::size_type) + f.data.size();
+    }
+
+    template<typename FieldType>
+        requires FieldType::__is_field and (not FieldType::__is_variable)
+    static qsizetype estimateFieldSize(const FieldType &)
+    {
+        return sizeof(typename FieldType::data_type);
+    }
+
 public:
     template<typename T>
     static QByteArray generate(T &t)
@@ -456,8 +469,18 @@ public:
 
         constexpr auto fields = T::fields;
 
+        // Pre-size the output to avoid QByteArray growth reallocations.
+        // Base + variable field sizes.
+        qsizetype estimate = sizeof(quint16);   // type prefix
+        [&]<size_t... Is>(std::index_sequence<Is...>) {
+            ((estimate += estimateFieldSize(t.*std::get<Is>(fields))), ...);
+        }(std::make_index_sequence<std::tuple_size_v<decltype(fields)>>{});
+
         QByteArray output;
+        output.reserve(estimate);
+
         QDataStream stream(&output, QIODeviceBase::WriteOnly);
+
         stream.setByteOrder(QDataStream::BigEndian);
 
         stream << static_cast<quint16>(T::type);
