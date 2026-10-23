@@ -209,7 +209,10 @@ private:
         assert(len % sizeof(quint32) == 0);
 
         QByteArray d(len, Qt::Uninitialized);
+
+#ifdef ENABLE_ENCRYPT
         QRandomGenerator::system()->fillRange(reinterpret_cast<quint32 *>(d.data()), d.size() / sizeof(quint32));
+#endif
 
         return d;
     }
@@ -285,7 +288,9 @@ private:
             const auto ts = qFromBigEndian(*reinterpret_cast<const Packets::Timestamp *>(dgram.constData() + offset));
             offset += sizeof(Packets::Timestamp);
 
+#ifdef ENABLE_ENCRYPT
             const auto iv = dgram.mid(offset, Settings::ivSize);
+#endif
             offset += Settings::ivSize;
 
             const auto ks = qFromBigEndian(*reinterpret_cast<const Packets::Keystamp *>(dgram.constData() + offset));
