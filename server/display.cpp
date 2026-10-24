@@ -236,11 +236,14 @@ void Display::forward()
     const auto encodeEnd = std::chrono::steady_clock::now();
     m_encodeSumNs += std::chrono::duration_cast<std::chrono::nanoseconds>(encodeEnd - encodeStart).count();
     if (++m_encodeSamples >= 50) {
+#ifdef TELEMETRY_OUTPUT
         qInfo().nospace() << "Encode avg: "
                           << (m_encodeSumNs / m_encodeSamples / 1'000'000) << " ms"
                           << " (frames=" << m_encodeSamples
                           << ", targetFps=" << targetFps
                           << ", encode time budget=" << (minIntervalNs / 1'000'000) << " ms)";
+#endif
+
         m_encodeSumNs   = 0;
         m_encodeSamples = 0;
     }

@@ -77,6 +77,7 @@ void NetworkClient::processPacket(const Packets::ClientTelemetry &t)
     // Telemetry is advisory; we don't need to keep the whole packet, just
     // pass it to the display currently owning this client.
 
+#ifdef TELEMETRY_OUTPUT
     qDebug() << "Telemetry from" << m_address << ":" << m_port
              << "fps=" << (t.fpsX10.data / 10.0)
              << "avg=" << t.latencyMsAvg.data << "ms"
@@ -85,6 +86,7 @@ void NetworkClient::processPacket(const Packets::ClientTelemetry &t)
              << "kbps=" << t.recvRateKbps.data
              << "dQ=" << t.decodeQueueDepth.data
              << "rQ=" << t.renderQueueDepth.data;
+#endif
 
     if (m_display) {
         m_display->applyClientTelemetry(t);

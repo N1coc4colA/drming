@@ -381,6 +381,7 @@ void NetworkLink::onTelemetryTimeout()
     t.decodeQueueDepth.data = snap.decodeQueueDepth;
     t.renderQueueDepth.data = snap.renderQueueDepth;
 
+#ifdef TELEMETRY_OUTPUT
     qDebug() << "Sending telemetry:"
              << "fps=" << (snap.fpsX10 / 10.0)
              << "avg=" << snap.latencyMsAvg << "ms"
@@ -389,6 +390,7 @@ void NetworkLink::onTelemetryTimeout()
              << "kbps=" << snap.recvRateKbps
              << "dQ=" << snap.decodeQueueDepth
              << "rQ=" << snap.renderQueueDepth;
+#endif
 
     write(Packets::Writer::generate(t));
 }
