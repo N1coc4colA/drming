@@ -11,6 +11,13 @@
 #include <QUdpSocket>
 #include <QtEndian>
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#include <cerrno>
+#include <cstring>
+
 #include "qaesencryption.h"
 
 #include "parser.h"
@@ -240,6 +247,14 @@ private:
             return false;
         }
 
+        // Set TTL directly on the socket instead of using Qt's datagram classes and repeatedly set it.
+        const int sockFd = static_cast<int>(socket.socketDescriptor());
+        constexpr int ttl = 5;
+        setsockopt(sockFd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
+        setsockopt(sockFd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
+        setsockopt(sockFd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof(ttl));
+        setsockopt(sockFd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &ttl, sizeof(ttl));
+
         qDebug() << "Joined multicast" << address << ':' << port;
         return true;
     }
@@ -337,6 +352,32 @@ private:
                                            + Settings::ivSize
                                            + sizeof(Packets::Keystamp);
 
+        const int fd = static_cast<int>(socket.socketDescriptor());
+        if (fd < 0) [[unlikely]] {
+            return false;
+        }
+
+        // Destination sockaddr, filled once per write() call & reused by all datagrams in the batch.
+        sockaddr_storage dst{};
+        socklen_t dstLen = 0;
+
+        if (address.protocol() == QAbstractSocket::IPv4Protocol) {
+            auto *sin = reinterpret_cast<sockaddr_in *>(&dst);
+            sin->sin_family = AF_INET;
+            sin->sin_port = htons(port);
+            sin->sin_addr.s_addr = htonl(address.toIPv4Address());
+            dstLen = sizeof(sockaddr_in);
+        } else if (address.protocol() == QAbstractSocket::IPv6Protocol) {
+            auto *sin6 = reinterpret_cast<sockaddr_in6 *>(&dst);
+            sin6->sin6_family = AF_INET6;
+            sin6->sin6_port   = htons(port);
+            const auto v6 = address.toIPv6Address();
+            std::memcpy(&sin6->sin6_addr, v6.c, sizeof(sin6->sin6_addr));
+            dstLen = sizeof(sockaddr_in6);
+        } else [[unlikely]] {
+            return false;
+        }
+
         const auto size = data.size();
         const Packets::Ordering sizing = size / innerSize + (size % innerSize ? 1 : 0);
         const auto iv = generateIV();
@@ -344,7 +385,30 @@ private:
         const auto ts_be = qToBigEndian(m_ts);
         const auto sizing_be = qToBigEndian(sizing);
 
-        const auto ifaceIdx = socket.multicastInterface().index();
+        // Batch 32 datagrams per syscall. Everything below is stack-allocated
+        // so there's no per-write heap churn beyond the payload buffers.
+        static constexpr int kBatch = 32;
+        struct mmsghdr  mmsgs[kBatch];
+        struct iovec    iovs[kBatch];
+        QByteArray      buffers[kBatch];
+        int inFlight = 0;
+
+        auto flush = [&]() -> bool {
+            if (inFlight == 0) return true;
+            int sent = 0;
+            while (sent < inFlight) {
+                const int n = ::sendmmsg(fd, mmsgs + sent, inFlight - sent, 0);
+                if (n < 0) {
+                    if (errno == EINTR) continue;
+                    qWarning() << "sendmmsg:" << strerror(errno);
+                    inFlight = 0;
+                    return false;
+                }
+                sent += n;
+            }
+            inFlight = 0;
+            return true;
+        };
 
         Packets::Ordering order = 0;
         qsizetype offset = 0;
@@ -372,8 +436,8 @@ private:
             payloadSize = chunkSize;
 #endif
 
-            // Build the full datagram with only one allocation
-            QByteArray chunk(headerSize + payloadSize, Qt::Uninitialized);
+            QByteArray &chunk = buffers[inFlight];
+            chunk = QByteArray(headerSize + payloadSize, Qt::Uninitialized);
             char *p = chunk.data();
             std::memcpy(p, &order_be, sizeof(order_be));
             p += sizeof(order_be);
@@ -387,37 +451,30 @@ private:
             p += sizeof(ks_be);
             std::memcpy(p, payload, payloadSize);
 
-            QNetworkDatagram dgram(std::move(chunk), address, port);
-            dgram.setHopLimit(5);
-            dgram.setInterfaceIndex(ifaceIdx);
+            iovs[inFlight].iov_base = chunk.data();
+            iovs[inFlight].iov_len = static_cast<size_t>(chunk.size());
 
-            if (socket.writeDatagram(dgram) < 0) {
-                qWarning() << "Failed to send ts=" << m_ts << "order=" << order;
-                const auto err = socket.error();
-                switch (err) {
-                case QAbstractSocket::RemoteHostClosedError:
-                case QAbstractSocket::SocketAccessError:
-                case QAbstractSocket::SocketResourceError:
-                case QAbstractSocket::SocketTimeoutError:
-                case QAbstractSocket::ProxyConnectionClosedError:
-                case QAbstractSocket::ProxyConnectionTimeoutError:
-                case QAbstractSocket::OperationError:
-                case QAbstractSocket::UnknownSocketError:
-                case QAbstractSocket::NetworkError:
-                    close();
-                    break;
-                case QAbstractSocket::TemporaryError:
-                    continue;
-                default:
-                    qWarning() << "Write error on" << m_ts << order << static_cast<int>(err) << socket.errorString();
+            std::memset(&mmsgs[inFlight], 0, sizeof(mmsghdr));
+            mmsgs[inFlight].msg_hdr.msg_name = &dst;
+            mmsgs[inFlight].msg_hdr.msg_namelen = dstLen;
+            mmsgs[inFlight].msg_hdr.msg_iov = &iovs[inFlight];
+            mmsgs[inFlight].msg_hdr.msg_iovlen = 1;
+
+            ++inFlight;
+            if (inFlight == kBatch) {
+                if (!flush()) {
+                    m_ts++;
+                    return false;
                 }
-
-                m_ts++;
-                return false;
             }
 
             offset += chunkSize;
             order++;
+        }
+
+        if (!flush()) {
+            m_ts++;
+            return false;
         }
 
         m_ts++;
