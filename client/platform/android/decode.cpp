@@ -4,7 +4,11 @@
 
 #include "videoframeitem.h"
 
+#include "../net/telemetry.h"
+
+
 namespace Platform {
+
 namespace {
 bool nextAnnexBNal(const uint8_t *data, const size_t size, size_t &cursor, size_t &nalStart, size_t &nalSize)
 {
@@ -102,7 +106,7 @@ int VideoDecoder::init(const int width, const int height)
     media_status_t status = AImageReader_new(width,
                                              height,
                                              AIMAGE_FORMAT_YUV_420_888, // most common
-                                             3,
+                                             kMaxCachedImages,
                                              &m_imageReader);
     switch (status) {
     case AMEDIA_OK: {
@@ -246,8 +250,11 @@ int VideoDecoder::flush()
     return -1;
 }
 
-int VideoDecoder::decode(const uint8_t* data, const size_t size)
+int VideoDecoder::decode(const uint8_t *data, const size_t size)
 {
+    // No dequeue, no m_codec guard: init() sets m_codec, and it must run
+    // BEFORE we try to touch the codec. Dequeue happens in decode_frame().
+
     const bool needNalScan = m_needResync || !m_csdReady;
     const bool isKeyFrame = needNalScan ? isKeyFrameH265(data, size) : false;
 
@@ -259,7 +266,6 @@ int VideoDecoder::decode(const uint8_t* data, const size_t size)
             qDebug() << "Failed to reinit (1).";
             return ret;
         }
-
         m_needResync = false;
     }
 
@@ -304,10 +310,13 @@ int VideoDecoder::decode_frame(const uint8_t* data, const size_t size, const boo
     const auto inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 10000);
     if (inputIndex >= 0) [[likely]] {
         // Most likely case, we have a buffer, just continue.
-
     } else if (inputIndex == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
         qDebug() << "Dequeue input TAL";
-        // Just got to wait longer.
+        // MediaCodec's input queue was full for the whole 10 ms timeout.
+        // The frame is gone; count it so the server-side policy can react.
+        if (m_telemetry) {
+            m_telemetry->recordDropped();
+        }
         return 0;
     } else {
         qWarning() << "Failed to dequeue input buffer, unexpected error occurred:" << inputIndex;
@@ -334,7 +343,8 @@ int VideoDecoder::decode_frame(const uint8_t* data, const size_t size, const boo
         0,
         size,
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
-        flags);
+        flags
+    );
     if (status != AMEDIA_OK) [[unlikely]] {
         qWarning() << "MC Failed to queue input buffer:" << status;
         return -1;
@@ -346,7 +356,7 @@ int VideoDecoder::decode_frame(const uint8_t* data, const size_t size, const boo
         if (outIdx >= 0) [[likely]] {
             // render = true: hands the buffer to the ANativeWindow/AImageReader.
             AMediaCodec_releaseOutputBuffer(m_codec, outIdx, true);
-            continue; // more than one frame may be ready
+            continue; //more than one frame may be ready
         } else if (outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
             break;
         } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
@@ -388,7 +398,11 @@ bool VideoDecoder::consumeFrame()
     case AMEDIA_OK:
         [[likely]]
         {
-            // Most likely case, just continue.
+            const auto renderNs = steadyNowNs();
+            const auto recvNs   = m_lastInputNs.load(std::memory_order_relaxed);
+            if (recvNs > 0 && m_latencyCallback) {
+                m_latencyCallback(renderNs - recvNs);
+            }
 
             break;
         }

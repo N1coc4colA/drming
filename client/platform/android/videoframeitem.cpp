@@ -9,6 +9,8 @@
 #include "oesrendernode.h"
 #include "androidui.h"
 
+#include "../net/telemetry.h"
+
 namespace Platform {
 
 QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
@@ -50,7 +52,7 @@ void VideoFrameItem::setDecoder(VideoDecoder* decoder)
     }
 }
 
-void VideoFrameItem::setImage(const QImage& image)
+void VideoFrameItem::setImage(const QImage &image, const qint64 receiveNs)
 {
     if (image.isNull()) [[unlikely]] {
         return;
@@ -58,7 +60,7 @@ void VideoFrameItem::setImage(const QImage& image)
 
     {
         QMutexLocker locker(&m_mtx);
-        m_frameQueue.push_back(image);
+        m_frameQueue.push_back({image, receiveNs});
         while (m_frameQueue.size() > MaxPresentationQueue) {
             m_frameQueue.pop_front(); // drop oldest frame
         }
@@ -140,11 +142,16 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
         {
             QMutexLocker locker(&m_mtx);
             if (!m_frameQueue.empty()) {
-                localImage = m_frameQueue.front();
+                auto entry = std::move(m_frameQueue.front());
                 m_frameQueue.pop_front();
+                localImage = std::move(entry.image);
                 m_imageSize = localImage.size();
                 textureChanged = true;
                 hasMore = !m_frameQueue.empty();
+
+                if (entry.receiveNs > 0 && m_latencyCallback) {
+                    m_latencyCallback(steadyNowNs() - entry.receiveNs);
+                }
             }
         }
 

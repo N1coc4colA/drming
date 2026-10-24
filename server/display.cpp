@@ -29,6 +29,53 @@ Display::Display(const QString &connectorName, StreamSocket &ss, const bool inPl
     m_pollTimer.stop();
 }
 
+void Display::applyClientTelemetry(const Packets::ClientTelemetry &t)
+{
+    const int current = m_targetFps.load(std::memory_order_relaxed);
+    int next = current;
+
+    // Overload is sustained. A drop or a 60 ms p95 is normal jitter at 10-40 fps.
+    // 3 consecutive samples (6 s) shows a capacity issue.
+    const bool overloaded =
+        t.droppedFrames.data >= 3 ||
+        t.latencyMsP95.data > 60 ||
+        t.decodeQueueDepth.data > 4 ||
+        t.renderQueueDepth.data > 4;
+
+    const bool healthy =
+        t.droppedFrames.data == 0 &&
+        t.latencyMsP95.data < 30 &&
+        t.decodeQueueDepth.data < 2 &&
+        t.renderQueueDepth.data < 2;
+
+    if (overloaded) {
+        if (++m_overloadStreak >= 3) {
+            next = std::max(10, current - 5);
+            m_overloadStreak = 0;
+        }
+        m_healthyStreak = 0;
+    } else if (healthy) {
+        if (++m_healthyStreak >= 3) {
+            next = std::min(Settings::maxForwardFps, current + 5);
+            m_healthyStreak = 0;
+        }
+        m_overloadStreak = 0;
+    } else {
+        // Mixed signals: reset both streak counters and leave target alone.
+        m_overloadStreak = 0;
+        m_healthyStreak  = 0;
+    }
+
+    if (next != current) {
+        qInfo().nospace()
+        << "Telemetry: fps=" << (t.fpsX10.data / 10.0)
+        << " p95=" << t.latencyMsP95.data << "ms"
+        << " drops=" << t.droppedFrames.data
+        << " target " << current << "→" << next;
+        m_targetFps.store(next, std::memory_order_relaxed);
+    }
+}
+
 void Display::addClient(NetworkClient *client)
 {
     if (!client) [[unlikely]] {
@@ -47,6 +94,8 @@ void Display::addClient(NetworkClient *client)
     connect(client, &NetworkClient::disconnected, this, &Display::onDisconnected);
 
     qDebug() << "Client connected" << client->peerAddress() << client->peerPort();
+
+    m_targetFps.store(Settings::maxForwardFps, std::memory_order_relaxed);
 
     client->setDisplay(this);
     onConnected();
@@ -75,95 +124,6 @@ void Display::requireResolutionInformation()
     m_prevSize = {};
 }
 
-/*void Display::forward()
-{
-    CTRACK;
-
-    VkmsFrameBuffer fb{};
-    if (!m_reader.getVkmsFrameBuffer(fb)) [[unlikely]] {
-        if (!primaryFailureNotice) {
-            primaryFailureNotice = true;
-            qCritical() << "Failed to get primary";
-        }
-
-        return;
-    }
-    primaryFailureNotice = false;
-
-    CursorFrameBuffer cursorFb{};
-    const auto hasCursor = m_reader.getCursorFrameBuffer(cursorFb, fb);
-
-    if (!m_vkmsFrameDescriptor.has_value()) [[unlikely]] {
-        m_vkmsFrameDescriptor = DrmFormat::resolve(fb.format);
-        if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
-            char a, b, c, d;
-            Drm::split_fourcc(fb.format, a, b, c, d);
-            qWarning() << "Image format for frame is invalid:" << fb.format << ";" << a << b << c << d;
-            if (hasCursor) {
-                DisplayReader::releaseCursorFrameBuffer(cursorFb);
-            }
-
-            disconnectAllClients();
-            return;
-        }
-    }
-    if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
-        if (hasCursor) DisplayReader::releaseCursorFrameBuffer(cursorFb);
-        return;
-    }
-
-    // A native format (convert == nullptr) — swizzles are one-way and would corrupt the cached mapping if run in-place.
-    const bool useInPlace = m_reader.supportsInPlaceComposite() && m_vkmsFrameDescriptor->convert == nullptr;
-
-    QImage result = DisplayReader::imageFromFrameBuffer(
-        static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride,
-        m_vkmsFrameDescriptor.value(), useInPlace
-    );
-
-    const QImage *finalImage = &result;
-
-    if (hasCursor) [[unlikely]] {
-        if (!m_cursorFrameDescriptor.has_value()) [[unlikely]] {
-            m_cursorFrameDescriptor = DrmFormat::resolve(cursorFb.format);
-            if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
-                char a, b, c, d;
-                Drm::split_fourcc(cursorFb.format, a, b, c, d);
-                qWarning() << "Image format for frame is invalid:" << cursorFb.format << ";" << a << b << c << d;
-
-                DisplayReader::releaseCursorFrameBuffer(cursorFb);
-                disconnectAllClients();
-                return;
-            }
-        }
-        if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
-            DisplayReader::releaseCursorFrameBuffer(cursorFb);
-            return;
-        }
-
-        if (useInPlace) {
-            DisplayReader::compositeWithCursorInPlace(result, cursorFb, m_cursorFrameDescriptor.value());
-        } else {
-            DisplayReader::compositeWithCursor(result, cursorFb, m_cursorFrameDescriptor.value(), m_compositeBuffer);
-            finalImage = &m_compositeBuffer;
-        }
-
-        DisplayReader::releaseCursorFrameBuffer(cursorFb);
-    }
-
-    if (m_prevSize != finalImage->size()) [[unlikely]] {
-        m_prevSize = finalImage->size();
-        const Packets::ClientResolution res{
-            .width  = {static_cast<quint32>(finalImage->width())},
-            .height = {static_cast<quint32>(finalImage->height())},
-        };
-
-        sendData(std::move(Packets::Writer::generate(res)));
-    }
-
-    processImage(*finalImage);
-    DisplayReader::releaseVkmsFrameBuffer(fb);
-}*/
-
 void Display::forward()
 {
     CTRACK;
@@ -171,24 +131,10 @@ void Display::forward()
     const auto nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
                            std::chrono::steady_clock::now().time_since_epoch()).count();
 
-    // ---- idle keepalive ----------------------------------------------
-    // If nothing has been forwarded for idleKeepAliveMSecs, emit a
-    // HeartBeat so the client's inactivity timer never expires.
-    if (m_lastForwardNs != 0
-        && (nowNs - m_lastForwardNs) >= Settings::idleKeepAliveMSecs * 1'000'000LL
-        && (nowNs - m_lastKeepAliveNs) >= Settings::idleKeepAliveMSecs * 1'000'000LL) {
+    const auto targetFps = std::max(1, m_targetFps.load(std::memory_order_relaxed));
+    const auto minIntervalNs = 1'000'000'000LL / targetFps;
 
-        const Packets::HeartBeat hb{};
-        sendData(Packets::Writer::generate(hb));
-        m_lastKeepAliveNs = nowNs;
-    }
-
-    // ---- rate limiter --------------------------------------------------
-    // Cap encodes at Settings::maxForwardFps. Does NOT touch m_lastFbId,
-    // so a change observed while rate-limited is picked up on the next
-    // eligible poll.
-    if (m_lastForwardNs != 0
-        && (nowNs - m_lastForwardNs) < Settings::minForwardIntervalNs) {
+    if (m_lastForwardNs != 0 && (nowNs - m_lastForwardNs) < minIntervalNs) {
         return;
     }
 
@@ -229,16 +175,19 @@ void Display::forward()
         }
     }
     if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
-        if (hasCursor) DisplayReader::releaseCursorFrameBuffer(cursorFb);
+        if (hasCursor) {
+            DisplayReader::releaseCursorFrameBuffer(cursorFb);
+        }
+
         return;
     }
 
-    const bool useInPlace = m_reader.supportsInPlaceComposite()
-                            && m_vkmsFrameDescriptor->convert == nullptr;
+    const bool useInPlace = m_reader.supportsInPlaceComposite() && m_vkmsFrameDescriptor->convert == nullptr;
 
-    QImage result = DisplayReader::imageFromFrameBuffer(
+    auto result = DisplayReader::imageFromFrameBuffer(
         static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride,
-        m_vkmsFrameDescriptor.value(), useInPlace);
+        m_vkmsFrameDescriptor.value(), useInPlace
+    );
 
     const QImage *finalImage = &result;
 
@@ -265,6 +214,7 @@ void Display::forward()
             DisplayReader::compositeWithCursor(result, cursorFb, m_cursorFrameDescriptor.value(), m_compositeBuffer);
             finalImage = &m_compositeBuffer;
         }
+
         DisplayReader::releaseCursorFrameBuffer(cursorFb);
     }
 
@@ -273,11 +223,28 @@ void Display::forward()
         const Packets::ClientResolution res{
             .width  = {static_cast<quint32>(finalImage->width())},
             .height = {static_cast<quint32>(finalImage->height())},
-            };
+        };
+
         sendData(std::move(Packets::Writer::generate(res)));
     }
 
+
+    const auto encodeStart = std::chrono::steady_clock::now();
+
     processImage(*finalImage);
+
+    const auto encodeEnd = std::chrono::steady_clock::now();
+    m_encodeSumNs += std::chrono::duration_cast<std::chrono::nanoseconds>(encodeEnd - encodeStart).count();
+    if (++m_encodeSamples >= 50) {
+        qInfo().nospace() << "Encode avg: "
+                          << (m_encodeSumNs / m_encodeSamples / 1'000'000) << " ms"
+                          << " (frames=" << m_encodeSamples
+                          << ", targetFps=" << targetFps
+                          << ", encode time budget=" << (minIntervalNs / 1'000'000) << " ms)";
+        m_encodeSumNs   = 0;
+        m_encodeSamples = 0;
+    }
+
     DisplayReader::releaseVkmsFrameBuffer(fb);
 
     m_lastForwardNs = nowNs;
@@ -306,6 +273,8 @@ void Display::onDisconnected()
         m_pollTimer.stop();
         Q_EMIT nowFree();
     }
+
+    m_targetFps.store(Settings::maxForwardFps, std::memory_order_relaxed);
 }
 
 void Display::sendData(QByteArray output)

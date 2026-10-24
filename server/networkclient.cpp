@@ -72,6 +72,25 @@ void NetworkClient::processPacket(const Packets::RequestVideoSource &)
     write(std::move(Packets::Writer::generate(src)));
 }
 
+void NetworkClient::processPacket(const Packets::ClientTelemetry &t)
+{
+    // Telemetry is advisory; we don't need to keep the whole packet, just
+    // pass it to the display currently owning this client.
+
+    qDebug() << "Telemetry from" << m_address << ":" << m_port
+             << "fps=" << (t.fpsX10.data / 10.0)
+             << "avg=" << t.latencyMsAvg.data << "ms"
+             << "p95=" << t.latencyMsP95.data << "ms"
+             << "drops=" << t.droppedFrames.data
+             << "kbps=" << t.recvRateKbps.data
+             << "dQ=" << t.decodeQueueDepth.data
+             << "rQ=" << t.renderQueueDepth.data;
+
+    if (m_display) {
+        m_display->applyClientTelemetry(t);
+    }
+}
+
 NetworkClient::NetworkClient(QDtls *dtls, const QHostAddress &address, const quint16 port, QPair<QUdpSocket, QMutex> &sharedSocket, QObject *parent)
     : QObject(parent)
     , Packets::Parser<NetworkClient>(*this)

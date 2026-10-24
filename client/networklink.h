@@ -8,6 +8,7 @@
 #include <QUdpSocket>
 
 #include "../net/udp.h"
+#include "../net/telemetry.h"
 
 /**
  * Client-side secure transport for control packets and video frames.
@@ -63,8 +64,14 @@ private Q_SLOTS:
     void onError(QAbstractSocket::SocketError error);
     void onSslError(const QSslError &error);
 
+    void onTelemetryTimeout();
+
 protected:
     QTimer m_inactivityTimer{};
+
+    Telemetry m_telemetry{};
+    QTimer m_telemetryTimer{};
+    qint64 m_lastTelemetryNs = 0;
 
 private:
     QString m_protocol;

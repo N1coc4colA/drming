@@ -33,7 +33,7 @@ AVPixelFormat setupLibX265(AVCodecContext *ctx)
         av_opt_set(ctx->priv_data, "preset", "ultrafast", 0);
         av_opt_set(ctx->priv_data, "tune", "zerolatency", 0);
         av_opt_set(ctx->priv_data, "global_header", "1", 0);
-        av_opt_set_int(ctx->priv_data, "crf", 28, 0);
+        av_opt_set_int(ctx->priv_data, "crf", 20, 0);
 
         // Force no lookahead and no b-frames
         av_opt_set(ctx->priv_data,

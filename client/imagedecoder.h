@@ -11,6 +11,9 @@
 #include <mutex>
 #include <thread>
 
+
+class Telemetry;
+
 /**
  * Decodes compressed stream frames away from the UI thread.
  *
@@ -21,17 +24,19 @@
 class ImageDecoder : public QObject
 {
     Q_OBJECT
+
 public:
-    using FrameCallback = std::function<void(const QImage &)>;
+    using FrameCallback = std::function<void(const QImage &, qint64 receiveNs)>;
 
     explicit ImageDecoder(QObject *parent = nullptr);
     ~ImageDecoder() override;
 
     /// Sets the callback invoked by the decoder thread for each decoded frame.
     void setFrameCallback(FrameCallback callback);
+    void setTelemetry(Telemetry *t) { m_telemetry = t; }
 
     // Thread-safe: queues a new compressed frame, keeping at most 2 frames and dropping oldest
-    void queueFrame(QByteArray data, QByteArray format);
+    void queueFrame(QByteArray data, QByteArray format, qint64 receiveNs);
 
     /// Discards queued work and restores the decoder to its idle state.
     void reset();
@@ -41,11 +46,12 @@ private:
 
     struct PendingFrame
     {
-        QByteArray data;
-        QByteArray format;
+        QByteArray data{};
+        QByteArray format{};
+        qint64 receiveNs = 0;
     };
 
-    static constexpr size_t MaxPendingFrames = 2;
+    static constexpr size_t MaxPendingFrames = 3;
 
     std::thread m_thread;
     std::mutex m_mutex;
@@ -55,6 +61,8 @@ private:
 
     std::mutex m_cbMutex;
     FrameCallback m_callback;
+
+    Telemetry *m_telemetry = nullptr;
 };
 
 #endif // IMAGEDECODER_H

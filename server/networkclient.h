@@ -12,6 +12,7 @@
 #include "../net/udp.h"
 #include "../settings.h"
 
+
 class QUdpSocket;
 class QSslSocket;
 class QDtls;
@@ -54,6 +55,7 @@ public:
     void processPacket(const Packets::RequestKey &);
     void processPacket(const Packets::RequestAudioSource &);
     void processPacket(const Packets::RequestVideoSource &);
+    void processPacket(const Packets::ClientTelemetry &t);
     void onPacketErrors() {}
 
     void notifyHeartBeat();
