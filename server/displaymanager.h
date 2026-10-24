@@ -9,6 +9,7 @@
 class NetworkClient;
 class DisplayThread;
 class StreamSocket;
+class DispSetup;
 
 /**
  * Schedules clients onto available virtual displays.
@@ -28,6 +29,7 @@ public:
 private:
     DisplayThread *m_thread = nullptr;
     StreamSocket &m_ss;
+    DispSetup *m_setup = nullptr;
 };
 
 #endif // DISPLAYMANAGER_H

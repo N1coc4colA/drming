@@ -2,6 +2,7 @@
 
 #include <cerrno>
 #include <cstring>
+#include <filesystem>
 
 #include <unistd.h>
 #include <xf86drmMode.h>
@@ -151,6 +152,37 @@ DispSetup::DispSetup(const QString &instanceName)
     }
 }
 
+DispSetup::~DispSetup()
+{
+    close();
+}
+
+void DispSetup::close()
+{
+    if (!m_setup && !QFileInfo::exists(m_basePath)) {
+        return;
+    }
+
+    qInfo() << "Closing/disconnecting VKMS instance:" << m_instanceName;
+
+    // Disable VKMS instance in configfs
+    if (QFileInfo::exists(m_enabledPath)) {
+        writeFile(m_enabledPath, "0");
+        // Give the compositor time to process the hotplug disconnection
+        QThread::msleep(500);
+    }
+
+    // Remove configfs instance directory and all internal symlinks/subdirs
+    // It may not be permitted, but at least try to.
+    std::error_code ec{};
+    std::filesystem::remove_all(m_basePath.toStdString(), ec);
+    if (ec) {
+        qWarning() << "Failed to fully remove VKMS configfs path:" << QString::fromStdString(ec.message());
+    }
+
+    m_setup = false;
+}
+
 bool DispSetup::makeEnvChecks() const
 {
     if (!isConfigfsMounted()) {
@@ -163,8 +195,6 @@ bool DispSetup::makeEnvChecks() const
             qCritical() << "VKMS kernel module is not loaded. Its loading failed. You can load it with: modprobe vkms enable_cursor=1";
             return false;
         }
-        // We need to wait for the module to load, it is async.
-        // Otherwise, the program will continue too quickly and fail.
         sleep(2);
     }
 
@@ -228,7 +258,6 @@ bool DispSetup::makeCursorPlane() const
 
 bool DispSetup::setPrimaryPlaneType() const
 {
-    // DRM_PLANE_TYPE_PRIMARY = 1
     if (!writeFile(m_primaryPlanePath + "/type", QString::number(DRM_PLANE_TYPE_PRIMARY).toLocal8Bit())) {
         qCritical() << "Failed to set plane type to primary.";
         return false;
@@ -254,7 +283,6 @@ bool DispSetup::linkPlaneToCrtc(const QString &planePath, const QString &crtcPat
     const auto link = linkPath.toLocal8Bit();
     const auto tgt = crtcPath.toLocal8Bit();
 
-    // Wait for ConfigFS to show up.
     int i = 0;
     for (; i < Settings::maximumLPTries; i++) {
         msleep(500);
@@ -263,7 +291,6 @@ bool DispSetup::linkPlaneToCrtc(const QString &planePath, const QString &crtcPat
             return true;
         }
 
-        // Ensure parent directory exists before attempting symlink
         if (!QDir().mkpath(linkDir)) {
             if (i == Settings::maximumLPTries - 1) {
                 qCritical() << "Failed to create parent directory for plane symlink";
@@ -357,7 +384,6 @@ QString DispSetup::findVirtualConnectorName() const
             continue;
         }
 
-        // Check if connector is connected (just in case)
         QFile status(drmDir.filePath(entry) + QStringLiteral("/status"));
         if (!status.open(QIODevice::ReadOnly)) {
             continue;
@@ -367,17 +393,13 @@ QString DispSetup::findVirtualConnectorName() const
             continue;
         }
 
-        // Verify this connector belongs to our instance by checking the device symlink
         const QFileInfo deviceInfo(drmDir.filePath(entry));
         if (!deviceInfo.isSymLink()) {
             continue;
         }
 
-        // Read the symlink target to get the device name
         const auto target = deviceInfo.symLinkTarget();
 
-        // The symlink target should contain our instance name
-        // e.g., "../../../drming_0" or "/sys/devices/faux/drming_0"
         if (target.contains(m_instanceName)) {
             return entry;
         }

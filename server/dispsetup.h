@@ -13,6 +13,10 @@ class DispSetup
 {
 public:
     explicit DispSetup(const QString &instanceName);
+    ~DispSetup();
+
+    /// Closes and disconnects the VKMS display, cleaning up configfs entries.
+    void close();
 
     [[nodiscard]] bool isSetup() const { return m_setup; }
     [[nodiscard]] const QString &virtualConnectorName() const { return m_virtualConnectorName; }

@@ -20,6 +20,10 @@ DisplayManager::~DisplayManager()
         m_thread->exit();
         m_thread->wait();
     }
+
+    if (m_setup) {
+        delete m_setup;
+    }
 }
 
 bool DisplayManager::registerClient(NetworkClient *client)
@@ -37,13 +41,17 @@ bool DisplayManager::registerClient(NetworkClient *client)
         }
 
         const auto instance = Parameters::instance.targetScreen + "_" + QString(Settings::maximumDisplayCountLength - number.size(), '0') + number;
-        const DispSetup setup(instance);
-        if (!setup.isSetup()) {
+
+        if (!m_setup) {
+            m_setup = new DispSetup(instance);
+        }
+
+        if (!m_setup->isSetup()) {
             qDebug() << "Failed to setup screen, rejecting" << client->peerAddress() << client->peerPort();
             return false;
         }
 
-        m_thread = new DisplayThread(generateNewDisplay(setup.virtualConnectorName(), m_ss, this), this);
+        m_thread = new DisplayThread(generateNewDisplay(m_setup->virtualConnectorName(), m_ss, this), this);
     }
 
     if (!m_thread->isRunning()) {
