@@ -40,7 +40,7 @@ constexpr int pollMSecsInterval = 5;
 // Hard cap on outbound frame rate. Prevents saturating the client when
 // the compositor draws faster than the client can decode.
 constexpr int maxForwardFps = 65;
-constexpr qint64 minForwardIntervalNs = 1'000'000'000LL / maxForwardFps;
+constexpr qint64 minForwardIntervalNs = 15'000'000LL;
 
 // Emit a HeartBeat packet when no frame has been forwarded for this long.
 // Keeps client connections alive during idle content.
