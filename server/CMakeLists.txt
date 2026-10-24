@@ -31,6 +31,7 @@ add_subdirectory(
 set(DRMING_SERVER_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/certificatesupport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/parser.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../net/telemetry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/udp.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../settings.h
 

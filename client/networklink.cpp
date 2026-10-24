@@ -64,6 +64,14 @@ NetworkLink::NetworkLink(QObject *parent)
     m_inactivityTimer.setSingleShot(true);
     m_inactivityTimer.setInterval(Settings::inactivityTimeout + 5000);
     m_inactivityTimer.stop();
+
+    m_telemetryTimer.setInterval(2000);
+    m_telemetryTimer.setTimerType(Qt::VeryCoarseTimer);
+    m_telemetryTimer.stop();
+    QObject::connect(&m_telemetryTimer, &QTimer::timeout, this, &NetworkLink::onTelemetryTimeout);
+
+    QObject::connect(this, &NetworkLink::connectionReady, &m_telemetryTimer, qOverload<>(&QTimer::start));
+    QObject::connect(this, &NetworkLink::closed, &m_telemetryTimer, &QTimer::stop);
 }
 
 NetworkLink::~NetworkLink()
@@ -110,6 +118,8 @@ void NetworkLink::resetSessionState()
     m_imageSize = 0;
     m_rw.jitterBuffer().clear();
     m_inactivityTimer.stop();
+    m_telemetryTimer.stop();
+    m_lastTelemetryNs = 0;
 }
 
 void NetworkLink::connect(const QString &address, const int port, const QString &clientName, const QString &protocolName)
@@ -334,6 +344,55 @@ void NetworkLink::onConnectionTimeout()
     qDebug() << "Connection timed out";
     Q_EMIT error(tr("Connection timed out."));
     close();
+}
+
+void NetworkLink::onTelemetryTimeout()
+{
+    if (!m_connectionReady) {
+        return;
+    }
+
+    const auto nowNs = steadyNowNs();
+    if (m_lastTelemetryNs == 0) {
+        m_lastTelemetryNs = nowNs;
+        return;
+    }
+
+    const auto windowNs = nowNs - m_lastTelemetryNs;
+    if (windowNs < 500'000'000LL) {
+        // don't spam a sub-0.5 s window
+        return;
+    }
+
+    const auto snap = m_telemetry.takeSnapshot(windowNs);
+    m_lastTelemetryNs = nowNs;
+
+    if (snap.fpsX10 == 0 && snap.droppedFrames == 0 && snap.latencyMsAvg == 0) {
+        // nothing was rendered, don't wake the server
+        return;
+    }
+
+    Packets::ClientTelemetry t{};
+    t.fpsX10.data = snap.fpsX10;
+    t.latencyMsAvg.data = snap.latencyMsAvg;
+    t.latencyMsP95.data = snap.latencyMsP95;
+    t.droppedFrames.data = snap.droppedFrames;
+    t.recvRateKbps.data = snap.recvRateKbps;
+    t.decodeQueueDepth.data = snap.decodeQueueDepth;
+    t.renderQueueDepth.data = snap.renderQueueDepth;
+
+#ifdef TELEMETRY_OUTPUT
+    qDebug() << "Sending telemetry:"
+             << "fps=" << (snap.fpsX10 / 10.0)
+             << "avg=" << snap.latencyMsAvg << "ms"
+             << "p95=" << snap.latencyMsP95 << "ms"
+             << "drops=" << snap.droppedFrames
+             << "kbps=" << snap.recvRateKbps
+             << "dQ=" << snap.decodeQueueDepth
+             << "rQ=" << snap.renderQueueDepth;
+#endif
+
+    write(Packets::Writer::generate(t));
 }
 
 void NetworkLink::write(const QByteArray &data)

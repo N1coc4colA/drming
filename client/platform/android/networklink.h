@@ -44,6 +44,8 @@ public:
         clearJitterBuffer();
     }
 
+    void setTelemetry(Telemetry *t);
+
 public Q_SLOTS:
     void reset()
     {
@@ -66,6 +68,7 @@ private:
     VideoDecoder *m_decoder = nullptr;
     ImageDecoder m_imageDecoder;
     VideoFrameItem *m_item = nullptr;
+    Telemetry *m_telemetry = nullptr;
     std::atomic<bool> m_waitedForResolution{false};
     bool m_locked = false;
 };

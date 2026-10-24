@@ -28,6 +28,9 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 
+
+class Telemetry;
+
 namespace Platform {
 
 /**
@@ -41,6 +44,8 @@ class VideoDecoder : public QObject
     Q_OBJECT
 
 public:
+    using LatencyCallback = std::function<void(qint64 latencyNs)>;
+
     explicit VideoDecoder(QObject* parent = nullptr);
     ~VideoDecoder();
 
@@ -61,6 +66,11 @@ public:
 
     QSize textureSize() const { return QSize(m_width, m_height); }
 
+    void setLatencyCallback(LatencyCallback cb) { m_latencyCallback = std::move(cb); }
+    void setLastInputNs(const qint64 ns) { m_lastInputNs.store(ns, std::memory_order_relaxed); }
+
+    void setTelemetry(Telemetry *t) { m_telemetry = t; }
+
 private:
     // Decoder state
     AMediaCodec* m_codec = nullptr;
@@ -68,6 +78,9 @@ private:
     int m_width = 0;
     int m_height = 0;
     GLuint m_oesTextureId = 0; // OES texture handle
+
+    std::atomic<qint64> m_lastInputNs{0};
+    LatencyCallback m_latencyCallback{};
 
     bool m_initialized = false;
     bool m_needResync = false;
@@ -81,6 +94,8 @@ private:
     // AImageReader & zero‑copy pipeline
     AImageReader* m_imageReader = nullptr;
     ANativeWindow* m_window = nullptr;
+
+    Telemetry *m_telemetry = nullptr;
 
     // EGLImage cache: AImageReader has a fixed pool of buffers (maxImages below),
     // so we cache one EGLImageKHR per AHardwareBuffer identity instead of

@@ -23,6 +23,8 @@ public:
 
     StreamSocket &streamSocket() { return m_ss; }
 
+    void applyClientTelemetry(const Packets::ClientTelemetry &t);
+
 Q_SIGNALS:
     void nowFree();
 
@@ -55,6 +57,12 @@ private:
 
     std::optional<DrmFormat::FormatDescriptor> m_cursorFrameDescriptor{};
     std::optional<DrmFormat::FormatDescriptor> m_vkmsFrameDescriptor{};
+
+    std::atomic<int> m_targetFps{Settings::maxForwardFps};
+    int m_overloadStreak = 0;
+    int m_healthyStreak = 0;
+    qint64 m_encodeSumNs = 0;
+    int m_encodeSamples = 0;
 
     virtual void processImage(const QImage &img) = 0;
 

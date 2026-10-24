@@ -49,9 +49,10 @@ enum class Type : quint16 {
     ServerStream,
 
     SpeedInfo,
+    ClientTelemetry,
 
     MINIMUM = HeartBeat,
-    MAXIMUM = SpeedInfo,
+    MAXIMUM = ClientTelemetry,
 
     LOWER = HeartBeat,
     UPPER = MAXIMUM,
@@ -389,6 +390,36 @@ struct SpeedInfo
     static constexpr auto fields = std::tuple{&SpeedInfo::speed};
 };
 
+struct ClientTelemetry
+{
+    static constexpr auto type = Type::ClientTelemetry;
+
+    /// actual decoded fps × 10
+    NumericField<quint16, 0, 1000>  fpsX10;
+    /// avg end-to-end latency
+    NumericField<quint16, 0, 65535> latencyMsAvg;
+    /// 95th-percentile latency
+    NumericField<quint16, 0, 65535> latencyMsP95;
+    /// frames dropped by queues
+    NumericField<quint16, 0, 65535> droppedFrames;
+    /// video receive rate, Kbit/s
+    NumericField<quint16, 0, 65535> recvRateKbps;
+    /// current decoder queue
+    NumericField<quint8,  0, 255>   decodeQueueDepth;
+    /// current render queue
+    NumericField<quint8,  0, 255>   renderQueueDepth;
+
+    static constexpr auto fields = std::tuple{
+        &ClientTelemetry::fpsX10,
+        &ClientTelemetry::latencyMsAvg,
+        &ClientTelemetry::latencyMsP95,
+        &ClientTelemetry::droppedFrames,
+        &ClientTelemetry::recvRateKbps,
+        &ClientTelemetry::decodeQueueDepth,
+        &ClientTelemetry::renderQueueDepth,
+    };
+};
+
 using PacketVariant = std::variant<HeartBeat,
                                    Reinit,
                                    RequestKey,
@@ -402,7 +433,8 @@ using PacketVariant = std::variant<HeartBeat,
                                    ServerBrightness,
                                    ServerImage,
                                    ServerStream,
-                                   SpeedInfo>;
+                                   SpeedInfo,
+                                   ClientTelemetry>;
 
 class Writer
 {
