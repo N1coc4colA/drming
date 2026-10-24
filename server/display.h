@@ -44,12 +44,17 @@ private:
 
     StreamSocket &m_ss;
     DisplayReader m_reader;
+
+    /// rate-limiter state
+    qint64 m_lastForwardNs = 0;
+    /// idle keepalive state
+    qint64 m_lastKeepAliveNs = 0;
+    uint32_t m_lastFbId = 0;
+    QTimer m_pollTimer{};
     QImage m_compositeBuffer{};
 
     std::optional<DrmFormat::FormatDescriptor> m_cursorFrameDescriptor{};
     std::optional<DrmFormat::FormatDescriptor> m_vkmsFrameDescriptor{};
-
-    QTimer m_timer{};
 
     virtual void processImage(const QImage &img) = 0;
 

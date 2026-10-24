@@ -23,9 +23,10 @@ Display::Display(const QString &connectorName, StreamSocket &ss, const bool inPl
     , m_ss(ss)
     , m_reader(connectorName, inPlaceComposite)
 {
-    connect(&m_timer, &QTimer::timeout, this, &Display::forward);
-    m_timer.setInterval(Settings::frameMSecsInterval);
-    m_timer.stop();
+    connect(&m_pollTimer, &QTimer::timeout, this, &Display::forward);
+    m_pollTimer.setTimerType(Qt::PreciseTimer);
+    m_pollTimer.setInterval(Settings::pollMSecsInterval);
+    m_pollTimer.stop();
 }
 
 void Display::addClient(NetworkClient *client)
@@ -53,17 +54,16 @@ void Display::addClient(NetworkClient *client)
 
 void Display::reinit()
 {
-    if (m_timer.isActive()) {
-        qDebug() << "Stopping screen timer";
-
-        m_timer.stop();
+    m_lastFbId = 0;
+    if (m_pollTimer.isActive()) {
+        m_pollTimer.stop();
         QTimer::singleShot(1500, [this]() {
             if (!m_clients.isEmpty()) {
                 const Packets::Reinit reinitPkt{};
                 sendData(Packets::Writer::generate(reinitPkt));
-                m_timer.start();
-                qDebug() << "Restarted screen timer";
+                m_pollTimer.start();
                 m_prevSize = {};
+                qDebug() << "Restarted screen poll";
             }
         });
     }
@@ -71,10 +71,11 @@ void Display::reinit()
 
 void Display::requireResolutionInformation()
 {
+    m_lastFbId = 0;
     m_prevSize = {};
 }
 
-void Display::forward()
+/*void Display::forward()
 {
     CTRACK;
 
@@ -121,7 +122,7 @@ void Display::forward()
 
     const QImage *finalImage = &result;
 
-    if (hasCursor) [[likely]] {
+    if (hasCursor) [[unlikely]] {
         if (!m_cursorFrameDescriptor.has_value()) [[unlikely]] {
             m_cursorFrameDescriptor = DrmFormat::resolve(cursorFb.format);
             if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
@@ -161,12 +162,134 @@ void Display::forward()
 
     processImage(*finalImage);
     DisplayReader::releaseVkmsFrameBuffer(fb);
+}*/
+
+void Display::forward()
+{
+    CTRACK;
+
+    const auto nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                           std::chrono::steady_clock::now().time_since_epoch()).count();
+
+    // ---- idle keepalive ----------------------------------------------
+    // If nothing has been forwarded for idleKeepAliveMSecs, emit a
+    // HeartBeat so the client's inactivity timer never expires.
+    if (m_lastForwardNs != 0
+        && (nowNs - m_lastForwardNs) >= Settings::idleKeepAliveMSecs * 1'000'000LL
+        && (nowNs - m_lastKeepAliveNs) >= Settings::idleKeepAliveMSecs * 1'000'000LL) {
+
+        const Packets::HeartBeat hb{};
+        sendData(Packets::Writer::generate(hb));
+        m_lastKeepAliveNs = nowNs;
+    }
+
+    // ---- rate limiter --------------------------------------------------
+    // Cap encodes at Settings::maxForwardFps. Does NOT touch m_lastFbId,
+    // so a change observed while rate-limited is picked up on the next
+    // eligible poll.
+    if (m_lastForwardNs != 0
+        && (nowNs - m_lastForwardNs) < Settings::minForwardIntervalNs) {
+        return;
+    }
+
+    VkmsFrameBuffer fb{};
+    if (!m_reader.getVkmsFrameBuffer(fb)) [[unlikely]] {
+        if (!primaryFailureNotice) {
+            primaryFailureNotice = true;
+            qCritical() << "Failed to get primary";
+        }
+        return;
+    }
+    primaryFailureNotice = false;
+
+    // ---- change detection --------------------------------------------
+    // VKMS allocates a new framebuffer on every compositor flip, so a
+    // stable buffer_id means a stable image. Skip the rest of forward()
+    // entirely; on 46 µs getCrtc + ~1 µs compare, this is ~0.9 % CPU
+    // at 200 Hz polling.
+    if (fb.fb_id == m_lastFbId) [[likely]] {
+        DisplayReader::releaseVkmsFrameBuffer(fb);
+        return;
+    }
+    m_lastFbId = fb.fb_id;
+
+    // ---- existing body (composite, encode, send) ---------------------
+    CursorFrameBuffer cursorFb{};
+    const auto hasCursor = m_reader.getCursorFrameBuffer(cursorFb, fb);
+
+    if (!m_vkmsFrameDescriptor.has_value()) [[unlikely]] {
+        m_vkmsFrameDescriptor = DrmFormat::resolve(fb.format);
+        if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
+            char a, b, c, d;
+            Drm::split_fourcc(fb.format, a, b, c, d);
+            qWarning() << "Image format for frame is invalid:" << fb.format << ";" << a << b << c << d;
+            if (hasCursor) DisplayReader::releaseCursorFrameBuffer(cursorFb);
+            disconnectAllClients();
+            return;
+        }
+    }
+    if (m_vkmsFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
+        if (hasCursor) DisplayReader::releaseCursorFrameBuffer(cursorFb);
+        return;
+    }
+
+    const bool useInPlace = m_reader.supportsInPlaceComposite()
+                            && m_vkmsFrameDescriptor->convert == nullptr;
+
+    QImage result = DisplayReader::imageFromFrameBuffer(
+        static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride,
+        m_vkmsFrameDescriptor.value(), useInPlace);
+
+    const QImage *finalImage = &result;
+
+    if (hasCursor) [[unlikely]] {
+        if (!m_cursorFrameDescriptor.has_value()) [[unlikely]] {
+            m_cursorFrameDescriptor = DrmFormat::resolve(cursorFb.format);
+            if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
+                char a, b, c, d;
+                Drm::split_fourcc(cursorFb.format, a, b, c, d);
+                qWarning() << "Image format for cursor is invalid:" << cursorFb.format << ";" << a << b << c << d;
+                DisplayReader::releaseCursorFrameBuffer(cursorFb);
+                disconnectAllClients();
+                return;
+            }
+        }
+        if (m_cursorFrameDescriptor->qtFormat == QImage::Format_Invalid) [[unlikely]] {
+            DisplayReader::releaseCursorFrameBuffer(cursorFb);
+            return;
+        }
+
+        if (useInPlace) {
+            DisplayReader::compositeWithCursorInPlace(result, cursorFb, m_cursorFrameDescriptor.value());
+        } else {
+            DisplayReader::compositeWithCursor(result, cursorFb, m_cursorFrameDescriptor.value(), m_compositeBuffer);
+            finalImage = &m_compositeBuffer;
+        }
+        DisplayReader::releaseCursorFrameBuffer(cursorFb);
+    }
+
+    if (m_prevSize != finalImage->size()) [[unlikely]] {
+        m_prevSize = finalImage->size();
+        const Packets::ClientResolution res{
+            .width  = {static_cast<quint32>(finalImage->width())},
+            .height = {static_cast<quint32>(finalImage->height())},
+            };
+        sendData(std::move(Packets::Writer::generate(res)));
+    }
+
+    processImage(*finalImage);
+    DisplayReader::releaseVkmsFrameBuffer(fb);
+
+    m_lastForwardNs = nowNs;
 }
 
 void Display::onConnected()
 {
-    if (!m_timer.isActive()) {
-        m_timer.start();
+    // New clients need to see the current frame even if the compositor hasn't drawn
+    // since the previous client was with us.
+    m_lastFbId = 0;
+    if (!m_pollTimer.isActive()) {
+        m_pollTimer.start();
     }
 }
 
@@ -180,8 +303,7 @@ void Display::onDisconnected()
 
     if (m_clients.isEmpty()) {
         qDebug() << "No clients anymore, suspending screen.";
-
-        m_timer.stop();
+        m_pollTimer.stop();
         Q_EMIT nowFree();
     }
 }
@@ -240,8 +362,9 @@ class DisplayH265 : public Display
 public:
     DisplayH265(const QString &connectorName, StreamSocket &ss, const bool inPlaceComposite, QObject *parent = nullptr)
         : Display(connectorName, ss, inPlaceComposite, parent)
-        , m_encoder([this](const uint8_t *data, size_t size, int64_t pts) { this->h265dataForward(data, size, pts); },
-                    1000 / Settings::frameMSecsInterval)
+        , m_encoder(
+            [this](const uint8_t *data, size_t size, int64_t pts) { this->h265dataForward(data, size, pts); },
+            Settings::maxForwardFps)
     {}
 
 private:
