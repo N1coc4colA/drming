@@ -3,6 +3,8 @@
 #include <QSGSimpleTextureNode>
 #include <QThread>
 
+#include "../../../net/telemetry.h"
+
 namespace Platform {
 
 QRectF fitKeepAspect(const QSizeF &itemSize, const QSizeF &imgSize)
@@ -30,7 +32,7 @@ VideoFrameItem::VideoFrameItem(QQuickItem *parent)
     setFlag(ItemHasContents, true);
 }
 
-void VideoFrameItem::setImage(const QImage &image)
+void VideoFrameItem::setImage(const QImage &image, const qint64 receiveNs)
 {
     if (image.isNull()) {
         return;
@@ -38,7 +40,7 @@ void VideoFrameItem::setImage(const QImage &image)
 
     {
         QMutexLocker locker(&m_mtx);
-        m_frameQueue.push_back(image.convertToFormat(QImage::Format_RGBA8888));
+        m_frameQueue.push_back({ image.convertToFormat(QImage::Format_RGBA8888), receiveNs });
         while (m_frameQueue.size() > MaxPresentationQueue) {
             m_frameQueue.pop_front(); // drop oldest frame
         }
@@ -73,11 +75,15 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
     {
         QMutexLocker locker(&m_mtx);
         if (!m_frameQueue.empty()) {
-            localImage = m_frameQueue.front();
+            const auto entry = std::move(m_frameQueue.front());
             m_frameQueue.pop_front();
+            localImage = entry.image;
             m_imageSize = localImage.size();
             textureChanged = true;
             hasMore = !m_frameQueue.empty();
+            if (entry.receiveNs > 0 && m_latencyCallback) {
+                m_latencyCallback(steadyNowNs() - entry.receiveNs);
+            }
         }
     }
 

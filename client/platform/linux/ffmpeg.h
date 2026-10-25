@@ -5,9 +5,13 @@
 #include <QObject>
 #include <QQueue>
 
+#include <functional>
+
 extern "C" {
 #include <libavutil/pixfmt.h>
 }
+
+class Telemetry;
 
 struct AVCodec;
 struct AVCodecContext;
@@ -38,7 +42,8 @@ class FfmpegDecoder : public QObject
     Q_OBJECT
 
 public:
-    using FrameCallback = std::function<void(const QImage &image)>;
+    using FrameCallback = std::function<void(const QImage &image, qint64 receiveNs)>;
+    using LatencyCallback = std::function<void(qint64 latencyNs)>;
 
     explicit FfmpegDecoder(QObject *parent = nullptr);
     ~FfmpegDecoder();
@@ -63,11 +68,26 @@ public:
 
     void setFrameCallback(FrameCallback callback)
     {
-        m_frameCallback = callback;
+        m_frameCallback = std::move(callback);
+    }
+    void setLastInputNs(const qint64 ns)
+    {
+        m_lastInputNs = ns;
+    }
+    void setLatencyCallback(LatencyCallback callback)
+    {
+        m_latencyCallback = std::move(callback);
+    }
+    void setTelemetry(Telemetry *telemetry)
+    {
+        m_telemetry = telemetry;
     }
 
 private:
     FrameCallback m_frameCallback = nullptr;
+    LatencyCallback m_latencyCallback = nullptr;
+    Telemetry *m_telemetry = nullptr;
+    qint64 m_lastInputNs = 0;
 
     int m_width = 0;
     int m_height = 0;

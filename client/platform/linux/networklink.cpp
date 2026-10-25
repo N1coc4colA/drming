@@ -19,6 +19,7 @@ void VideoLink::processPacket(const Packets::ClientResolution &res)
 void VideoLink::processPacket(const Packets::ServerStream &img)
 {
     qDebug() << "Got stream";
+    Q_EMIT activity();
 
     if (!m_item) [[unlikely]] {
         return;
@@ -31,18 +32,31 @@ void VideoLink::processPacket(const Packets::ServerStream &img)
 
     if (!m_decoder) {
         m_decoder = new FfmpegDecoder(this);
-        m_decoder->setFrameCallback([this](const QImage &image) {
+        m_decoder->setFrameCallback([this](const QImage &image, const qint64 receiveNs) {
             if (!image.isNull() && m_item) {
-                QMetaObject::invokeMethod(m_item, "setImage", Qt::QueuedConnection, Q_ARG(QImage, image));
+                QMetaObject::invokeMethod(
+                    m_item,
+                    "setImage",
+                    Qt::QueuedConnection,
+                    Q_ARG(QImage, image),
+                    Q_ARG(qint64, receiveNs)
+                );
             }
         });
     }
 
+    const auto receiveNs = steadyNowNs();
+    if (m_telemetry) {
+        m_telemetry->recordReceived(img.data.size);
+    }
+    m_decoder->setLastInputNs(receiveNs);
     m_decoder->decode(reinterpret_cast<const uint8_t *>(img.data.data.constData()), img.data.size);
 }
 
 void VideoLink::processPacket(const Packets::ServerImage &img)
 {
+    Q_EMIT activity();
+
     if (!m_item) [[unlikely]] {
         return;
     }
@@ -52,33 +66,88 @@ void VideoLink::processPacket(const Packets::ServerImage &img)
         m_locked = true;
     }
 
-    m_imageDecoder.queueFrame(img.data.data, img.format.data);
+    const auto receiveNs = steadyNowNs();
+    if (m_telemetry) {
+        m_telemetry->recordReceived(img.data.data.size());
+    }
+    m_imageDecoder.queueFrame(img.data.data, img.format.data, receiveNs);
 }
 
 void VideoLink::setItem(VideoFrameItem *item, QObject *owner)
 {
     m_item = item;
 
-    m_imageDecoder.setFrameCallback([this](const QImage &image) {
-        if (m_item) {
-            QMetaObject::invokeMethod(m_item, "setImage", Qt::QueuedConnection, Q_ARG(QImage, image));
-        }
-    });
-
     if (!m_decoder) {
         m_decoder = new FfmpegDecoder(owner);
-        m_decoder->setFrameCallback([this](const QImage &image) {
+        m_decoder->setFrameCallback([this](const QImage &image, const qint64 receiveNs) {
             if (!image.isNull() && m_item) {
-                QMetaObject::invokeMethod(m_item, "setImage", Qt::QueuedConnection, Q_ARG(QImage, image));
+                QMetaObject::invokeMethod(
+                    m_item,
+                    "setImage",
+                    Qt::QueuedConnection,
+                    Q_ARG(QImage, image),
+                    Q_ARG(qint64, receiveNs)
+                );
             }
         });
     }
+
+    m_imageDecoder.setFrameCallback([this](const QImage &image, const qint64 receiveNs) {
+        if (m_item) {
+            QMetaObject::invokeMethod(
+                m_item,
+                "setImage",
+                Qt::QueuedConnection,
+                Q_ARG(QImage, image),
+                Q_ARG(qint64, receiveNs)
+            );
+        }
+    });
+
+    m_decoder->setTelemetry(m_telemetry);
+    m_decoder->setLatencyCallback([this](const qint64 ns) {
+        if (m_telemetry) {
+            m_telemetry->recordDecoded(ns);
+        }
+    });
+
+    item->setLatencyCallback([this](const qint64 ns) {
+        if (m_telemetry) {
+            m_telemetry->recordDecoded(ns);
+        }
+    });
+}
+
+void VideoLink::setTelemetry(Telemetry *telemetry)
+{
+    m_telemetry = telemetry;
+    m_imageDecoder.setTelemetry(telemetry);
+    if (m_decoder) {
+        m_decoder->setTelemetry(telemetry);
+        m_decoder->setLatencyCallback([telemetry](const qint64 ns) {
+            if (telemetry) {
+                telemetry->recordDecoded(ns);
+            }
+        });
+    }
+}
+
+void VideoLink::onFrameSkipped()
+{
+    qWarning() << "Jitter buffer skipped an incomplete frame; requesting keyframe";
+    Q_EMIT keyframeRequested();
 }
 
 NetworkLink::NetworkLink(QObject *parent)
     : ::NetworkLink(parent)
     , Parser(*this)
 {
+    m_vlink.setTelemetry(&m_telemetry);
+    QObject::connect(&m_vlink, &VideoLink::activity, this, &NetworkLink::markActivity, Qt::QueuedConnection);
+    QObject::connect(&m_vlink, &VideoLink::keyframeRequested, this, [this]() {
+        static constexpr Packets::RequestKeyframe pkt{};
+        write(Packets::Writer::generate(pkt));
+    });
     QObject::connect(this, &NetworkLink::connectionInitialised, this, [this]() {
         m_vlink.reset();
         m_waitedForKey = false;

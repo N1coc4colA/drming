@@ -2,6 +2,8 @@
 
 #include <QDebug>
 
+#include "../../../net/telemetry.h"
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -194,7 +196,13 @@ int FfmpegDecoder::decode_frame(AVPacket *pkt)
         // Convert decoded frame to QImage
         const QImage image = frameToQImage(m_frame);
         if (!image.isNull() && m_frameCallback) {
-            m_frameCallback(image);
+            m_frameCallback(image, m_lastInputNs);
+            if (m_lastInputNs > 0 && m_latencyCallback) {
+                m_latencyCallback(steadyNowNs() - m_lastInputNs);
+            }
+            if (m_telemetry && m_lastInputNs > 0) {
+                m_telemetry->recordDecoded(steadyNowNs() - m_lastInputNs);
+            }
         }
 
         av_frame_unref(m_frame);
@@ -225,7 +233,7 @@ int FfmpegDecoder::flush()
 
         QImage image = frameToQImage(m_frame);
         if (!image.isNull() && m_frameCallback) {
-            m_frameCallback(image);
+            m_frameCallback(image, m_lastInputNs);
         }
 
         av_frame_unref(m_frame);

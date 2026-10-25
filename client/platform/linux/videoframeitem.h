@@ -6,6 +6,7 @@
 #include <QQuickItem>
 
 #include <deque>
+#include <functional>
 
 class QSGSimpleTextureNode;
 
@@ -23,7 +24,11 @@ protected:
     QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *) override;
 
 public Q_SLOTS:
-    void setImage(const QImage &image);
+    void setImage(const QImage &image, qint64 receiveNs);
+    void setLatencyCallback(std::function<void(qint64)> callback)
+    {
+        m_latencyCallback = std::move(callback);
+    }
 
 protected:
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
@@ -31,9 +36,16 @@ protected:
 private:
     static constexpr size_t MaxPresentationQueue = 2;
 
-    std::deque<QImage> m_frameQueue{};
+    struct QueueEntry
+    {
+        QImage image{};
+        qint64 receiveNs = 0;
+    };
+
+    std::deque<QueueEntry> m_frameQueue{};
     QSize m_imageSize{};
     QMutex m_mtx{};
+    std::function<void(qint64)> m_latencyCallback{};
 };
 
 } // namespace Platform

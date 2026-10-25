@@ -15,12 +15,14 @@ namespace Platform {
 class FfmpegDecoder;
 class VideoFrameItem;
 
-class VideoLink : Packets::Parser<VideoLink, Settings::errorLimit>, public UdpStreamSocket
+class VideoLink : public UdpStreamSocket, public Packets::Parser<VideoLink, Settings::errorLimit>
 {
+    Q_OBJECT
+
 public:
     explicit VideoLink()
-        : Packets::Parser<VideoLink, Settings::errorLimit>(*this)
-        , UdpStreamSocket(nullptr)
+        : UdpStreamSocket(nullptr)
+        , Packets::Parser<VideoLink, Settings::errorLimit>(*this)
     {
         QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "VideoLink connected."; });
     }
@@ -28,6 +30,16 @@ public:
     void processPacket(const Packets::ServerImage &img);
     void processPacket(const Packets::ServerStream &img);
     void processPacket(const Packets::ClientResolution &res);
+    void setTelemetry(Telemetry *telemetry);
+
+Q_SIGNALS:
+    void keyframeRequested();
+    void activity();
+
+protected:
+    void onFrameSkipped() override;
+
+public:
     inline void onPacketErrors()
     {
         Parser::clear();
@@ -70,6 +82,7 @@ private:
     FfmpegDecoder *m_decoder = nullptr;
     ImageDecoder m_imageDecoder;
     VideoFrameItem *m_item = nullptr;
+    Telemetry *m_telemetry = nullptr;
     bool m_waitedForResolution = false;
     bool m_locked = false;
 };
