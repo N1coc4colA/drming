@@ -72,7 +72,7 @@ public:
     bool consumeFrame(); // returns true if new frame was consumed
     GLuint oesTextureId() const
     {
-        return m_oesTextureId;
+        return m_oesTextureIds[m_textureIndex];
     }
 
     QSize textureSize() const
@@ -103,7 +103,9 @@ private:
     AMediaFormat *m_format = nullptr;
     int m_width = 0;
     int m_height = 0;
-    GLuint m_oesTextureId = 0; // OES texture handle
+    /// OES texture handles
+    GLuint m_oesTextureIds[2] = { 0, 0 };
+    int m_textureIndex = 0;
 
     std::atomic<qint64> m_lastInputNs{ 0 };
     LatencyCallback m_latencyCallback{};
@@ -119,6 +121,7 @@ private:
 
     // AImageReader & zero‑copy pipeline
     AImage *m_pendingImage = nullptr;
+    AImage *m_previousImage = nullptr;
     AImageReader *m_imageReader = nullptr;
     ANativeWindow *m_window = nullptr;
 

@@ -122,7 +122,7 @@ void OESRenderNode::render(const RenderState *state)
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_texId);
     // Filtering/wrap params are per-texture-object state, set once when the
-    // texture is created in FfmpegDecoder::updateTextureFromHardwareBuffer.
+    // texture is created in VideoDecoder::updateTextureFromHardwareBuffer.
     // No need to re-set them on every render call.
     glUniform1i(m_texUniform, 0);
     glUniformMatrix4fv(m_mvpUniform, 1, GL_FALSE, mvp.constData());
@@ -138,4 +138,5 @@ void OESRenderNode::render(const RenderState *state)
     glDisableVertexAttribArray(m_texAttr);
     glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
 }
+
 } // namespace Platform

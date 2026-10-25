@@ -22,6 +22,8 @@ void VideoLink::processPacket(const Packets::ClientResolution &res)
 
 void VideoLink::processPacket(const Packets::ServerStream &img)
 {
+    Q_EMIT activity();
+
     if (!m_item || !m_decoder) [[unlikely]] {
         return;
     }
@@ -43,6 +45,8 @@ void VideoLink::processPacket(const Packets::ServerStream &img)
 
 void VideoLink::processPacket(const Packets::ServerImage &img)
 {
+    Q_EMIT activity();
+
     if (!m_item) [[unlikely]] {
         return;
     }
@@ -173,6 +177,7 @@ NetworkLink::NetworkLink(QObject *parent)
         },
         Qt::QueuedConnection
     );
+    QObject::connect(m_vlink, &VideoLink::activity, this, &NetworkLink::markActivity, Qt::QueuedConnection);
 
     QObject::connect(this, &NetworkLink::connectionInitialised, this, [this]() {
         QMetaObject::invokeMethod(m_vlink, &VideoLink::reset);

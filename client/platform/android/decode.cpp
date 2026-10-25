@@ -208,6 +208,11 @@ void VideoDecoder::release()
      * Drop the retained image BEFORE deleting the reader, so the reader's
      * internal accounting stays consistent during teardown.
      */
+    // Drop both slots before tearing down the reader.
+    if (m_previousImage) {
+        AImage_delete(m_previousImage);
+        m_previousImage = nullptr;
+    }
     if (m_pendingImage) {
         AImage_delete(m_pendingImage);
         m_pendingImage = nullptr;
@@ -235,9 +240,13 @@ void VideoDecoder::release()
     // Destroy all cached EGL images and release our buffer references
     destroyEglImageCache();
 
-    if (m_oesTextureId != 0) {
-        glDeleteTextures(1, &m_oesTextureId);
-        m_oesTextureId = 0;
+    if (m_oesTextureIds[0] != 0) {
+        glDeleteTextures(1, &m_oesTextureIds[0]);
+        m_oesTextureIds[0] = 0;
+    }
+    if (m_oesTextureIds[1] != 0) {
+        glDeleteTextures(1, &m_oesTextureIds[1]);
+        m_oesTextureIds[1] = 0;
     }
 
     m_initialized = false;
@@ -413,15 +422,24 @@ bool VideoDecoder::consumeFrame()
     }
 
     /*
-     * Release the previously-consumed image now. A full render pass has
-     * elapsed since we set the texture to it, so the GPU is done reading.
-     * Releasing it here (rather than right after updateTextureFromHardwareBuffer)
-     * prevents MediaCodec from recycling the buffer while we're still drawing it.
+     * Two-frame hold:
+     *
+     *   frame N   -> m_pendingImage  = AImage_N  (may still be drawing)
+     *   frame N+1 -> m_previousImage = AImage_N  (release next call)
+     *   frame N+2 -> AImage_delete(m_previousImage = AImage_N)   safe now
+     *
+     * One frame is not enough: glDrawArrays queues asynchronously and the
+     * GPU may still be sampling EGLImage_N when the next frame begins. If
+     * we release AImage_N at that point, MediaCodec can start writing into
+     * buffer N while the GPU reads it, producing exactly the "half the
+     * frame is from an older image" artifact.
      */
-    if (m_pendingImage) {
-        AImage_delete(m_pendingImage);
-        m_pendingImage = nullptr;
+    if (m_previousImage) {
+        AImage_delete(m_previousImage);
+        m_previousImage = nullptr;
     }
+    m_previousImage = m_pendingImage;
+    m_pendingImage = nullptr;
 
     const bool hadFrame = m_frameAvailable.exchange(false, std::memory_order_acq_rel);
     if (!hadFrame) {
@@ -446,7 +464,7 @@ bool VideoDecoder::consumeFrame()
         return false;
     case AMEDIA_IMGREADER_MAX_IMAGES_ACQUIRED:
         qWarning() << "MC IR Too many IMG acquired.";
-        break;
+        return false;
     default:
         qWarning() << "AImageReader_acquireNextImage failed:" << status;
         return false;
@@ -461,12 +479,8 @@ bool VideoDecoder::consumeFrame()
     }
 
     updateTextureFromHardwareBuffer(hardwareBuffer);
-
-    /*
-     * Hold the AImage rather than deleting it. It will be released at the
-     * start of the next consumeFrame() call.
-     */
     m_pendingImage = image;
+
     return true;
 }
 
@@ -478,7 +492,6 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
         return;
     }
 
-    // Get EGL client buffer from AHardwareBuffer
     const auto clientBuffer = eglGetNativeClientBufferANDROID(buffer);
     if (!clientBuffer) [[unlikely]] {
         qWarning() << "eglGetNativeClientBufferANDROID failed";
@@ -487,8 +500,7 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
 
     EGLImageKHR eglImage = EGL_NO_IMAGE_KHR;
 
-    // Create EGLImage if needed, otherwise reuse the cached one for this buffer.
-    auto it = m_eglImageCache.find(buffer);
+    const auto it = m_eglImageCache.find(buffer);
     if (it != m_eglImageCache.end()) [[likely]] {
         eglImage = it->second.image;
     } else {
@@ -499,10 +511,6 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
             return;
         }
 
-        /*
-         * The pool is fixed-size (AImageReader's maxImages). If we somehow
-         * exceed it, evict one entry rather than growing unbounded.
-         */
         if (m_eglImageCache.size() >= kMaxCachedImages) [[unlikely]] {
             auto victim = m_eglImageCache.begin();
             eglDestroyImageKHR(display, victim->second.image);
@@ -510,26 +518,30 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
             m_eglImageCache.erase(victim);
         }
 
-        /*
-         * Pin our own reference so this buffer's address can't be reused by
-         * the system for a different allocation while we hold it cached
-         * (AImage_delete() in consumeFrame() only drops AImageReader's ref).
-         */
         AHardwareBuffer_acquire(buffer);
         m_eglImageCache.insert({ buffer, CachedImage{ eglImage, buffer } });
     }
 
-    // Create/update the OES texture
-    if (m_oesTextureId == 0) [[unlikely]] {
-        glGenTextures(1, &m_oesTextureId);
-        glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_oesTextureId);
-        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // Create both textures on first call, and set parameters on both.
+    if (m_oesTextureIds[0] == 0) [[unlikely]] {
+        glGenTextures(2, m_oesTextureIds);
+        for (const GLuint tex : m_oesTextureIds) {
+            glBindTexture(GL_TEXTURE_EXTERNAL_OES, tex);
+            glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        }
     }
 
-    glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_oesTextureId);
+    /*
+     * Alternate to the other texture for this frame. The one we used last
+     * frame is now idle (its draw completed before swapBuffers), so it is
+     * safe to point it at the new EGLImage.
+     */
+    m_textureIndex ^= 1;
+    glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_oesTextureIds[m_textureIndex]);
     glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, eglImage);
 }
+
 } // namespace Platform

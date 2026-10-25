@@ -49,6 +49,7 @@ public:
 
 Q_SIGNALS:
     void keyframeRequested();
+    void activity();
 
 public Q_SLOTS:
     void reset()
