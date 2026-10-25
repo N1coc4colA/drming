@@ -108,7 +108,7 @@ if (ANDROID)
         PRIVATE
             mediandk
             EGL
-            GLESv2
+            GLESv3
             android
     )
 else()
