@@ -278,7 +278,7 @@ void NetworkLink::onSslDisconnected()
 
 void NetworkLink::onDtlsDataAvailable()
 {
-    m_inactivityTimer.start();
+    markActivity();
 
     while (m_udpSocket->hasPendingDatagrams()) {
         QByteArray dgram(m_udpSocket->pendingDatagramSize(), Qt::Uninitialized);
@@ -320,7 +320,7 @@ void NetworkLink::onDtlsDataAvailable()
 
 void NetworkLink::onSslDataAvailable()
 {
-    m_inactivityTimer.start();
+    markActivity();
 
     const auto plain = m_sslSocket->readAll();
     if (!plain.isEmpty()) {
@@ -335,6 +335,11 @@ void NetworkLink::onSslDataAvailable()
     }
 
     qWarning() << "Received empty SSL payload";
+}
+
+void NetworkLink::markActivity()
+{
+    m_inactivityTimer.start();
 }
 
 void NetworkLink::onConnectionTimeout()

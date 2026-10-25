@@ -47,6 +47,7 @@ public Q_SLOTS:
     virtual void setItem(QObject *item) = 0;
 
 protected:
+    void markActivity();
     void write(const QByteArray &data);
 
 private Q_SLOTS:
