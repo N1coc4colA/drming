@@ -99,6 +99,23 @@ void onConnectivityChanged(const JNIEnv *env, const jclass clazz, const jboolean
     NetworkState::instance()->onConnectivityChanged(connected);
 }
 
+void onFileSelected(
+    JNIEnv *env,
+    const jclass clazz,
+    const jint operation,
+    const jstring name,
+    const jstring source
+)
+{
+    Q_UNUSED(env);
+    Q_UNUSED(clazz);
+
+    auto *provider = dynamic_cast<Platform::FileProvider *>(::FileProvider::instance());
+    if (provider) {
+        provider->completeFileImport(operation, QJniObject(name).toString(), QJniObject(source).toString());
+    }
+}
+
 template<>
 class JavaProxy<Platform::FileProvider>
 {
@@ -195,6 +212,17 @@ public:
             const auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
             return instance
                 .callMethod<jint, jstring, jstring>("addClientKey", ja.object<jstring>(), jb.object<jstring>());
+        };
+        m_instance.jStartFilePicker = [&instance](int operation, const QString &name, const QString &mimeType) {
+            const auto ja = QJniObject::fromString(name);
+            const auto jb = QJniObject::fromString(mimeType);
+            return instance.callMethod<jboolean>(
+                "startFilePicker",
+                "(ILjava/lang/String;Ljava/lang/String;)Z",
+                operation,
+                ja.object<jstring>(),
+                jb.object<jstring>()
+            );
         };
 
         m_instance.jClientCertData = [&instance](const QString &a) -> QByteArray {
@@ -315,7 +343,11 @@ bool registerNativeMethods_FileHelper(const QJniObject &m_javaHelper)
         return false;
     }
 
-    constexpr std::vector<JNINativeMethod> methods = {};
+    const std::vector<JNINativeMethod> methods = {
+        { "nativeOnFileSelected",
+            "(ILjava/lang/String;Ljava/lang/String;)V",
+            reinterpret_cast<void *>(onFileSelected) }
+    };
     const auto regResult = env->RegisterNatives(clazz, methods.data(), static_cast<jint>(methods.size()));
     if (regResult != 0) {
         qWarning() << "Failed to register native methods for FileHelper:" << regResult;

@@ -1,7 +1,5 @@
 #include "fileprovider.h"
 
-#include <QFileDialog>
-
 #include "../net/certificatesupport.h"
 
 #include "native.h"
@@ -40,65 +38,33 @@ void FileProvider::deleteClient(const QString &file)
 
 int FileProvider::addServerCert()
 {
-    const auto sourceLocation
-        = QFileDialog::getOpenFileName(nullptr, tr("Import certificate"), {}, "application/x-x509-ca-cert");
-    if (sourceLocation.isEmpty()) {
-        return false;
-    }
-
-    const QFileInfo source(sourceLocation);
-    const auto src = source.filePath();
-
-    const auto ret = jAddServerCert(src);
-    if (ret < 2) {
-        return ret;
-    }
-
-    loadServerCerts();
-
-    return 2;
+    return jStartFilePicker(0, {}, "application/x-x509-ca-cert") ? -1 : 0;
 }
 
 int FileProvider::addClientCert(const QString &name)
 {
-    const auto sourceLocation
-        = QFileDialog::getOpenFileName(nullptr, tr("Import certificate"), {}, "application/x-x509-ca-cert");
-    if (sourceLocation.isEmpty()) {
-        return false;
-    }
-
-    const QFileInfo source(sourceLocation);
-    const auto src = source.filePath();
-
-    const auto ret = jAddClientCert(name, src);
-    if (ret < 2) {
-        return ret;
-    }
-
-    loadClients();
-
-    return 2;
+    return jStartFilePicker(1, name, "application/x-x509-ca-cert") ? -1 : 0;
 }
 
 int FileProvider::addClientKey(const QString &name)
 {
-    const auto sourceLocation
-        = QFileDialog::getOpenFileName(nullptr, tr("Import key"), {}, tr("application/x-pem-key"));
-    if (sourceLocation.isEmpty()) {
-        return false;
+    return jStartFilePicker(2, name, "application/x-pem-key") ? -1 : 0;
+}
+
+void FileProvider::completeFileImport(int operation, const QString &name, const QString &source)
+{
+    if (source.isEmpty()) {
+        Q_EMIT fileImportFinished(operation, 0);
+        return;
     }
 
-    const QFileInfo source(sourceLocation);
-    const auto src = source.filePath();
-
-    const auto ret = jAddClientKey(name, src);
-    if (ret < 2) {
-        return ret;
+    const auto result = operation == 0 ? jAddServerCert(source)
+        : operation == 1 ? jAddClientCert(name, source)
+                        : jAddClientKey(name, source);
+    if (result >= 2) {
+        operation == 0 ? loadServerCerts() : loadClients();
     }
-
-    loadClients();
-
-    return 2;
+    Q_EMIT fileImportFinished(operation, result);
 }
 
 QStringList FileProvider::validClientEntries()

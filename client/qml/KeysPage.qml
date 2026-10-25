@@ -8,6 +8,32 @@ StandardPage {
     property real dialogMaxWidth: Math.max(250, 250 * GlobalVars.scaling)
     property real dialogMinMargin: GlobalVars.spacingBase
 
+    Connections {
+        target: fileProvider()
+
+        function onFileImportFinished(operation, result) {
+            if (operation === 1) {
+                if (result === 0)
+                    errorLabel.text = qsTr("Failed to open certificate file.")
+                else if (result === 1) {
+                    errorLabel.text = qsTr("Invalid certificate file.")
+                    infoDialog.model.info.cert = false
+                } else {
+                    infoDialog.model.info.cert = true
+                }
+            } else if (operation === 2) {
+                if (result === 0)
+                    errorLabel.text = qsTr("Failed to open key file.")
+                else if (result === 1) {
+                    errorLabel.text = qsTr("Invalid key file.")
+                    infoDialog.model.info.key = false
+                } else {
+                    infoDialog.model.info.key = true
+                }
+            }
+        }
+    }
+
     EasyDialog {
         id: infoDialog
         modal: true
@@ -97,6 +123,8 @@ StandardPage {
                 onClicked: {
                     errorLabel.text = ""
                     const output = fileProvider().addClientKey(infoDialog.model.entryName)
+                    if (output < 0)
+                        return
                     switch (output) {
                     case 0: {
                         errorLabel.text = qsTr("Failed to open key file.")
@@ -131,6 +159,8 @@ StandardPage {
                 onClicked: {
                     errorLabel.text = ""
                     const output = fileProvider().addClientCert(infoDialog.model.entryName)
+                    if (output < 0)
+                        return
                     switch (output) {
                     case 0: {
                         errorLabel.text = qsTr("Failed to open certificate file.")

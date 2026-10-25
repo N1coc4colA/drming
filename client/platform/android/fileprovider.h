@@ -43,6 +43,10 @@ public:
     QString clientKeyName() override;
 
     bool updateClientEntry(const QVariantMap &map) override;
+    void completeFileImport(int operation, const QString &name, const QString &source);
+
+Q_SIGNALS:
+    void fileImportFinished(int operation, int result);
 
 private:
     QJniObject m_object{};
@@ -60,6 +64,7 @@ private:
     Fn<int(const QString &)> jAddServerCert;
     Fn<int(const QString &, const QString &)> jAddClientCert;
     Fn<int(const QString &, const QString &)> jAddClientKey;
+    Fn<bool(int, const QString &, const QString &)> jStartFilePicker;
 
     Fn<QByteArray(const QString &)> jClientCertData;
     Fn<QByteArray(const QString &)> jClientKeyData;

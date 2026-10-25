@@ -3,6 +3,7 @@ package eu.n1coc4cola.drming;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.app.Activity;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.OpenableColumns;
@@ -15,6 +16,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.spec.InvalidKeySpecException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -28,6 +31,8 @@ import java.util.List;
  */
 public class FileHelper {
     private static final String TAG = "FileHelper";
+    private static final int FILE_PICKER_REQUEST = 17421;
+    private static FileHelper activeHelper;
     private static final String FOLDER_NAME = "drming";
     private static final String CLIENT_CERT_NAME = "cert.crt";
     private static final String CLIENT_KEY_NAME = "key.key";
@@ -38,6 +43,7 @@ public class FileHelper {
 
     private FileHelper(Context context) {
         mContext = context;
+        activeHelper = this;
 
         File baseDir = new File(context.getFilesDir(), FOLDER_NAME);
         serversDir = new File(baseDir, "servers");
@@ -54,6 +60,73 @@ public class FileHelper {
     private ContentResolver getContextContentResolver() {
         return mContext.getContentResolver();
     }
+
+    private int pendingOperation;
+    private String pendingName = "";
+
+    public boolean startFilePicker(int operation, String name, String mimeType) {
+        if (!(mContext instanceof Activity)) {
+            Log.e(TAG, "Cannot open file picker without an Activity context");
+            return false;
+        }
+
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        // Android document providers often report PEM/KEY files as text or binary
+        // data instead of the application-specific MIME type supplied by callers.
+        intent.setType("*/*");
+        if ("application/x-pem-key".equals(mimeType)) {
+            intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                    "application/x-pem-file",
+                    "application/pem-certificate-chain",
+                    "text/plain",
+                    "application/octet-stream"
+            });
+        } else {
+            intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                    "application/x-x509-ca-cert",
+                    "application/x-pem-file",
+                    "application/pem-certificate-chain",
+                    "text/plain",
+                    "application/octet-stream"
+            });
+        }
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        pendingOperation = operation;
+        pendingName = name == null ? "" : name;
+        ((Activity) mContext).startActivityForResult(intent, FILE_PICKER_REQUEST);
+        return true;
+    }
+
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode != FILE_PICKER_REQUEST) {
+            return;
+        }
+
+        if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
+            nativeOnFileSelected(pendingOperation, pendingName, "");
+            return;
+        }
+
+        Uri uri = data.getData();
+        try {
+            getContextContentResolver().takePersistableUriPermission(
+                    uri,
+                    data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            );
+        } catch (SecurityException e) {
+            Log.d(TAG, "Selected URI is not persistable: " + uri);
+        }
+        nativeOnFileSelected(pendingOperation, pendingName, uri.toString());
+    }
+
+    public static void onActivityResultFromQt(int requestCode, int resultCode, Intent data) {
+        if (activeHelper != null) {
+            activeHelper.onActivityResult(requestCode, resultCode, data);
+        }
+    }
+
+    private static native void nativeOnFileSelected(int operation, String name, String source);
 
     private String getNameFromUri(String uriString) {
         Uri uri = Uri.parse(uriString);
@@ -338,16 +411,28 @@ public class FileHelper {
     private boolean isKeyValid(File keyFile) {
         try {
             byte[] keyBytes = Files.readAllBytes(keyFile.toPath());
-            // Try to parse as PKCS#8 (DER or PEM)
             if (keyBytes.length == 0) return false;
-            // If PEM, strip headers and decode base64
-            String content = new String(keyBytes);
+
+            String content = new String(keyBytes, java.nio.charset.StandardCharsets.US_ASCII);
             if (content.contains("-----BEGIN")) {
+                if (content.contains("ENCRYPTED PRIVATE KEY")
+                        || content.contains("Proc-Type: 4,ENCRYPTED")) {
+                    Log.d(TAG, "Encrypted private keys are not supported");
+                    return false;
+                }
                 keyBytes = pemToDer(content);
             }
-            KeyFactory kf = KeyFactory.getInstance("RSA");
-            kf.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
-            return true;
+
+            for (String algorithm : new String[]{"RSA", "EC", "DSA"}) {
+                try {
+                    KeyFactory kf = KeyFactory.getInstance(algorithm);
+                    PrivateKey key = kf.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+                    return key != null;
+                } catch (InvalidKeySpecException e) {
+                    // The key may use another supported algorithm.
+                }
+            }
+            return false;
         } catch (Exception e) {
             Log.d(TAG, "Invalid key: " + keyFile.getAbsolutePath(), e);
             return false;
@@ -355,13 +440,23 @@ public class FileHelper {
     }
 
     private byte[] pemToDer(String pem) {
-        StringBuilder sb = new StringBuilder();
-        for (String line : pem.split("\n")) {
-            if (!line.contains("-----")) {
-                sb.append(line.trim());
-            }
+        int begin = pem.indexOf("-----BEGIN ");
+        int beginEnd = pem.indexOf("-----", begin + 11);
+        int end = pem.indexOf("-----END ", beginEnd);
+        if (begin < 0 || beginEnd < 0 || end < 0) {
+            throw new IllegalArgumentException("Invalid PEM private key envelope");
         }
-        return android.util.Base64.decode(sb.toString(), android.util.Base64.DEFAULT);
+
+        String header = pem.substring(begin, beginEnd);
+        if (!header.contains("PRIVATE KEY")) {
+            throw new IllegalArgumentException("Not a private key PEM");
+        }
+
+        String encoded = pem.substring(beginEnd + 5, end).replaceAll("\\s", "");
+        if (encoded.isEmpty()) {
+            throw new IllegalArgumentException("Empty PEM private key");
+        }
+        return android.util.Base64.decode(encoded, android.util.Base64.DEFAULT);
     }
 
     // ------------------------------------------------------------------------
