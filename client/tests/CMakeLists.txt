@@ -9,6 +9,12 @@ function(drming_add_test name)
             drming_client_core
             Qt6::Test Qt6::Core Qt6::Gui Qt6::Network Qt6::DBus Qt6::Quick Qt6::QuickControls2 Qt6::Widgets QtAES::QtAES
     )
+    target_compile_definitions(
+    test_${name}
+        PRIVATE
+            QT_NO_SIGNALS_SLOTS_KEYWORDS
+            QT_NO_EMIT
+    )
 
     if(NOT ANDROID)
         target_link_libraries(test_${name} PRIVATE PkgConfig::FFMPEG)

@@ -42,7 +42,7 @@ public:
         : m_mdns(nullptr)
     {}
 
-private slots:
+private Q_SLOTS:
     void serviceInfoEqualityAndHash()
     {
         const ServiceInfo first{ "name", "type", "host", "127.0.0.1", "ssl", 443 };
@@ -154,7 +154,7 @@ private slots:
         QMutex mutex;
         QWaitCondition condition;
         QList<QImage> frames;
-        decoder.setFrameCallback([&](const QImage &image) {
+        decoder.setFrameCallback([&](const QImage &image, const qint64) {
             QMutexLocker locker(&mutex);
             frames.append(image);
             condition.wakeAll();
@@ -163,8 +163,8 @@ private slots:
             QtWarningMsg,
             QRegularExpression(R"(ImageDecoder: Failed to decode image of format "PNG" size \d+)")
         );
-        decoder.queueFrame("not an image", "PNG");
-        decoder.queueFrame(encoded, "PNG");
+        decoder.queueFrame("not an image", "PNG", 0);
+        decoder.queueFrame(encoded, "PNG", 0);
 
         QMutexLocker locker(&mutex);
         QVERIFY(condition.wait(&mutex, 2000));
