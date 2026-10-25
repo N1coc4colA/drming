@@ -49,9 +49,10 @@ enum class Type : quint16 {
 
     SpeedInfo,
     ClientTelemetry,
+    RequestKeyframe,
 
     MINIMUM = HeartBeat,
-    MAXIMUM = ClientTelemetry,
+    MAXIMUM = RequestKeyframe,
 
     LOWER = HeartBeat,
     UPPER = MAXIMUM,
@@ -445,6 +446,12 @@ struct ClientTelemetry
     };
 };
 
+struct RequestKeyframe
+{
+    static constexpr auto type = Type::RequestKeyframe;
+    static constexpr auto fields = std::tuple{};
+};
+
 using PacketVariant = std::variant<
     HeartBeat,
     Reinit,
@@ -460,7 +467,8 @@ using PacketVariant = std::variant<
     ServerImage,
     ServerStream,
     SpeedInfo,
-    ClientTelemetry>;
+    ClientTelemetry,
+    RequestKeyframe>;
 
 class Writer
 {
@@ -940,8 +948,8 @@ public:
 template<
     typename OrderType = Ordering,
     typename TsType = Timestamp,
-    TsType MaxTimestamps = 3,
-    std::size_t PacketsLimit = 200>
+    const TsType MaxTimestamps = 5,
+    const std::size_t PacketsLimit = 200>
 class JitterBuffer
 {
     struct ChunkQueue
@@ -1028,6 +1036,29 @@ public:
     // Attempt to retrieve a complete packet, oldest first.
     // Returns the assembled QByteArray if a complete timestamp is found,
     // otherwise std::nullopt.
+    inline std::optional<QByteArray> pullComplete(bool &outDroppedAny)
+    {
+        CTRACK;
+
+        if (outDroppedAny) {
+            outDroppedAny = false;
+        }
+
+        for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
+            if (it->queue.isComplete()) {
+                const QByteArray assembled = it->queue.assemble();
+                if (outDroppedAny && it != m_entries.begin()) {
+                    outDroppedAny = true;
+                }
+
+                // Remove this timestamp and all older ones (they are no longer needed).
+                m_entries.erase(m_entries.begin(), std::next(it));
+                return assembled;
+            }
+        }
+
+        return std::nullopt;
+    }
     inline std::optional<QByteArray> pullComplete()
     {
         CTRACK;

@@ -27,6 +27,8 @@ public:
     }
 
     void applyClientTelemetry(const Packets::ClientTelemetry &t);
+    virtual void forceKeyframe()
+    {}
 
 Q_SIGNALS:
     void nowFree();
@@ -40,7 +42,7 @@ public Q_SLOTS:
     void requireResolutionInformation();
 
 protected:
-    void sendData(QByteArray output);
+    bool sendData(QByteArray output);
 
 private:
     QSet<NetworkClient *> m_clients{};

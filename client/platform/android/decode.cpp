@@ -104,6 +104,7 @@ VideoDecoder::~VideoDecoder()
 int VideoDecoder::init(const int width, const int height)
 {
     if (m_initialized) {
+        qDebug() << "Tried to re-init VideoDecoder while alreay init'd.";
         return 0;
     }
 
@@ -137,7 +138,7 @@ int VideoDecoder::init(const int width, const int height)
     }
     }
 
-    // 2. Get ANativeWindow from the reader
+    // Get ANativeWindow from the reader
     status = AImageReader_getWindow(m_imageReader, &m_window);
     if (status != AMEDIA_OK) {
         qWarning() << "AImageReader_getWindow failed:" << status;
@@ -146,13 +147,13 @@ int VideoDecoder::init(const int width, const int height)
         return -1;
     }
 
-    // 3. Set up the image listener (callback from decoder thread)
+    // Set up the image listener (callback from decoder thread)
     AImageReader_ImageListener listener;
     listener.context = this;
     listener.onImageAvailable = VideoDecoder::onImageAvailable;
     AImageReader_setImageListener(m_imageReader, &listener);
 
-    // 4. Create MediaCodec decoder
+    // Create MediaCodec decoder
     m_codec = AMediaCodec_createDecoderByType("video/hevc");
     if (!m_codec) {
         qCritical() << "Failed to create MediaCodec decoder";
@@ -178,12 +179,14 @@ int VideoDecoder::init(const int width, const int height)
         }
     }
 
-    // 5. Configure MediaCodec with the ANativeWindow (surface)
+    // Configure MediaCodec with the ANativeWindow (surface)
     status = AMediaCodec_configure(m_codec, m_format, m_window, nullptr, 0);
     if (status != AMEDIA_OK) {
         qCritical() << "AMediaCodec_configure with surface failed:" << status;
         return -1;
     }
+
+    qDebug() << "init() about to AMediaCodec_start";
 
     status = AMediaCodec_start(m_codec);
     if (status != AMEDIA_OK) {
@@ -198,6 +201,18 @@ int VideoDecoder::init(const int width, const int height)
 
 void VideoDecoder::release()
 {
+    qDebug() << "release() called on" << this << "m_codec=" << (m_codec ? "non-null" : "null")
+             << "m_initialized=" << m_initialized;
+
+    /*
+     * Drop the retained image BEFORE deleting the reader, so the reader's
+     * internal accounting stays consistent during teardown.
+     */
+    if (m_pendingImage) {
+        AImage_delete(m_pendingImage);
+        m_pendingImage = nullptr;
+    }
+
     if (m_codec) {
         AMediaCodec_stop(m_codec);
         AMediaCodec_delete(m_codec);
@@ -262,36 +277,30 @@ int VideoDecoder::flush()
 
 int VideoDecoder::decode(const uint8_t *data, const size_t size)
 {
-    // No dequeue, no m_codec guard: init() sets m_codec, and it must run
-    // BEFORE we try to touch the codec. Dequeue happens in decode_frame().
+    /*
+     * No dequeue, no m_codec guard: init() sets m_codec, and it must run
+     * BEFORE we try to touch the codec. Dequeue happens in decode_frame().
+     */
 
     const bool needNalScan = m_needResync || !m_csdReady;
     const bool isKeyFrame = needNalScan ? isKeyFrameH265(data, size) : false;
 
-    // If we don't have resolution, use a default
-    if (!m_resolutionDetected || (m_needResync && isKeyFrame)) [[unlikely]] {
+    // Initial decoder setup only. Do not re-init on every keyframe.
+    if (!m_resolutionDetected) [[unlikely]] {
         qWarning() << "No resolution detected, using default 1920x1080";
         const auto ret = init(1920, 1080);
-        if (ret < 0) [[unlikely]] {
-            qDebug() << "Failed to reinit (1).";
+        if (ret < 0) [[unlikely]]
             return ret;
-        }
-        m_needResync = false;
     }
 
     if (!m_initialized) [[unlikely]] {
         const int ret = init(m_width, m_height);
-        if (ret < 0) {
-            qDebug() << "Failed to reinit (2).";
+        if (ret < 0) [[unlikely]]
             return ret;
-        }
     }
 
     if (isKeyFrame && m_needResync) {
-        // [TODO] Handle flush status
-        AMediaCodec_flush(m_codec);
         m_needResync = false;
-        // Requires resend of key frame.
     }
 
     if (m_needResync && !isKeyFrame) {
@@ -321,12 +330,17 @@ int VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const boo
     if (inputIndex >= 0) [[likely]] {
         // Most likely case, we have a buffer, just continue.
     } else if (inputIndex == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
-        qDebug() << "Dequeue input TAL";
-        // MediaCodec's input queue was full for the whole 10 ms timeout.
-        // The frame is gone; count it so the server-side policy can react.
+        qDebug() << "Dequeue input TAL: frame lost, requesting IDR";
+        /*
+         * MediaCodec's input queue was full for the whole 10 ms timeout.
+         * The frame is gone; count it so the server-side policy can react.
+         */
         if (m_telemetry) {
             m_telemetry->recordDropped();
         }
+
+        m_needResync = true;
+        Q_EMIT needsKeyframe();
         return 0;
     } else {
         qWarning() << "Failed to dequeue input buffer, unexpected error occurred:" << inputIndex;
@@ -398,6 +412,17 @@ bool VideoDecoder::consumeFrame()
         return false;
     }
 
+    /*
+     * Release the previously-consumed image now. A full render pass has
+     * elapsed since we set the texture to it, so the GPU is done reading.
+     * Releasing it here (rather than right after updateTextureFromHardwareBuffer)
+     * prevents MediaCodec from recycling the buffer while we're still drawing it.
+     */
+    if (m_pendingImage) {
+        AImage_delete(m_pendingImage);
+        m_pendingImage = nullptr;
+    }
+
     const bool hadFrame = m_frameAvailable.exchange(false, std::memory_order_acq_rel);
     if (!hadFrame) {
         return false;
@@ -414,24 +439,19 @@ bool VideoDecoder::consumeFrame()
             if (recvNs > 0 && m_latencyCallback) {
                 m_latencyCallback(renderNs - recvNs);
             }
-
             break;
         }
-    case AMEDIA_IMGREADER_NO_BUFFER_AVAILABLE: {
-        qDebug() << "No availble buffers";
+    case AMEDIA_IMGREADER_NO_BUFFER_AVAILABLE:
+        qDebug() << "No available buffers";
         return false;
-    }
-    case AMEDIA_IMGREADER_MAX_IMAGES_ACQUIRED: {
+    case AMEDIA_IMGREADER_MAX_IMAGES_ACQUIRED:
         qWarning() << "MC IR Too many IMG acquired.";
         break;
-    }
-    default: {
+    default:
         qWarning() << "AImageReader_acquireNextImage failed:" << status;
         return false;
     }
-    }
 
-    // Get the hardware buffer
     AHardwareBuffer *hardwareBuffer = nullptr;
     status = AImage_getHardwareBuffer(image, &hardwareBuffer);
     if (status != AMEDIA_OK || !hardwareBuffer) [[unlikely]] {
@@ -440,10 +460,13 @@ bool VideoDecoder::consumeFrame()
         return false;
     }
 
-    // Update the OpenGL texture using the hardware buffer
     updateTextureFromHardwareBuffer(hardwareBuffer);
 
-    AImage_delete(image);
+    /*
+     * Hold the AImage rather than deleting it. It will be released at the
+     * start of the next consumeFrame() call.
+     */
+    m_pendingImage = image;
     return true;
 }
 
@@ -476,8 +499,10 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
             return;
         }
 
-        // The pool is fixed-size (AImageReader's maxImages). If we somehow
-        // exceed it, evict one entry rather than growing unbounded.
+        /*
+         * The pool is fixed-size (AImageReader's maxImages). If we somehow
+         * exceed it, evict one entry rather than growing unbounded.
+         */
         if (m_eglImageCache.size() >= kMaxCachedImages) [[unlikely]] {
             auto victim = m_eglImageCache.begin();
             eglDestroyImageKHR(display, victim->second.image);
@@ -485,9 +510,11 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
             m_eglImageCache.erase(victim);
         }
 
-        // Pin our own reference so this buffer's address can't be reused by
-        // the system for a different allocation while we hold it cached
-        // (AImage_delete() in consumeFrame() only drops AImageReader's ref).
+        /*
+         * Pin our own reference so this buffer's address can't be reused by
+         * the system for a different allocation while we hold it cached
+         * (AImage_delete() in consumeFrame() only drops AImageReader's ref).
+         */
         AHardwareBuffer_acquire(buffer);
         m_eglImageCache.insert({ buffer, CachedImage{ eglImage, buffer } });
     }

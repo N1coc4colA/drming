@@ -230,6 +230,11 @@ public Q_SLOTS:
 
 protected:
     virtual void addData(QByteArray additional) = 0;
+    /**
+     * Called when the jitter buffer abandons an incomplete timestamp because
+     * a chunk was lost in transit. Subclasses use this to request an IDR.
+     */
+    virtual void onFrameSkipped() {};
 
 private:
     QHostAddress m_ipAddress{};
@@ -314,7 +319,13 @@ private:
 
         m_jitterBuffer.pushChunk(ts, order, sizing, std::move(plain));
 
-        while (const auto v = m_jitterBuffer.pullComplete()) {
+        bool droppedAny = false;
+        while (const auto v = m_jitterBuffer.pullComplete(droppedAny)) {
+            if (droppedAny) {
+                onFrameSkipped();
+                droppedAny = false;
+            }
+
             addData(std::move(*v));
         }
     }

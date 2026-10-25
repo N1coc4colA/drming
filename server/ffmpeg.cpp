@@ -32,7 +32,7 @@ AVPixelFormat setupLibX265(AVCodecContext *ctx)
         av_opt_set(ctx->priv_data, "preset", "ultrafast", 0);
         av_opt_set(ctx->priv_data, "tune", "zerolatency", 0);
         av_opt_set(ctx->priv_data, "global_header", "1", 0);
-        av_opt_set_int(ctx->priv_data, "crf", 20, 0);
+        av_opt_set_int(ctx->priv_data, "crf", 28, 0);
 
         // Force no lookahead and no b-frames
         av_opt_set(
@@ -56,6 +56,7 @@ AVPixelFormat setupLibX265(AVCodecContext *ctx)
              "no-weightb=1:"
              "no-weightp=1:"
              "no-open-gop=1:"
+             "crf=28:"
              "keyint="
                 + std::to_string(ctx->gop_size) + ":" + "min-keyint=" + std::to_string(ctx->gop_size) + ":")
                 .c_str(),
@@ -332,14 +333,16 @@ int Encoder::init(const int width, const int height, const QImage::Format format
         return AVERROR(EINVAL);
     }
 
-    // sws_getContext() defaults to BT.601, limited range (16-235) output
-    // regardless of what we set on m_enc above. That default has nothing to
-    // do with what gets written into the SPS/VUI — it's the actual sample
-    // values swscale produces. If we leave this unset, the bitstream will
-    // *claim* full-range BT.709 (per m_enc->colorspace/color_range) while the
-    // real pixel data is limited-range BT.601, and a spec-compliant decoder
-    // will render it without expanding the range back out — i.e. flat,
-    // washed-out colors. Keep this in sync with m_enc's color settings above.
+    /*
+     * sws_getContext() defaults to BT.601, limited range (16-235) output
+     * regardless of what we set on m_enc above. That default has nothing to
+     * do with what gets written into the SPS/VUI — it's the actual sample
+     * values swscale produces. If we leave this unset, the bitstream will
+     * *claim* full-range BT.709 (per m_enc->colorspace/color_range) while the
+     * real pixel data is limited-range BT.601, and a spec-compliant decoder
+     * will render it without expanding the range back out — i.e. flat,
+     * washed-out colors. Keep this in sync with m_enc's color settings above.
+     */
     const int *coeffs = sws_getCoefficients(SWS_CS_ITU709);
     sws_setColorspaceDetails(
         m_sws,
@@ -428,7 +431,7 @@ int Encoder::flush()
     return status;
 }
 
-int Encoder::encode(AVFrame *frame)
+int Encoder::encode(AVFrame &frame)
 {
     CTRACK;
 
@@ -437,17 +440,22 @@ int Encoder::encode(AVFrame *frame)
         return ret;
     }
 
-    sws_scale(
-        m_sws,
-        (const uint8_t *const *)frame->data,
-        frame->linesize,
-        0,
-        frame->height,
-        m_yuv->data,
-        m_yuv->linesize
-    );
+    sws_scale(m_sws, (const uint8_t *const *)frame.data, frame.linesize, 0, frame.height, m_yuv->data, m_yuv->linesize);
 
-    m_yuv->pts = frame->pts;
+    m_yuv->pts = frame.pts;
+
+    /*
+     * Force an IDR if a prior frame's transmission was truncated (EAGAIN).
+     * FFmpeg's libx265 wrapper maps AV_PICTURE_TYPE_I to X265_TYPE_IDR, so
+     * the very next encoded frame becomes a recovery point. h265dataForward
+     * sets the flag when sendData() fails; without this, recovery is bounded
+     * by gop_size (up to ~2 s of frozen-artifact playback on the client).
+     *
+     * m_yuv is reused across frames, so pict_type must be cleared explicitly
+     * on the non-forced path; otherwise the previous I-frame mark persists.
+     */
+    m_yuv->pict_type = m_forceKeyframe.exchange(false, std::memory_order_relaxed) ? AV_PICTURE_TYPE_I
+                                                                                  : AV_PICTURE_TYPE_NONE;
 
     ret = avcodec_send_frame(m_enc, m_yuv);
     if (ret < 0) [[unlikely]] {
@@ -508,7 +516,7 @@ void Encoder::push_image(
     frame.linesize[0] = static_cast<int>(stride);
     frame.pts = m_pts++;
 
-    if (encode(&frame) < 0) [[unlikely]] {
+    if (encode(frame) < 0) [[unlikely]] {
         qWarning() << "Failed to encode frame";
     }
 }

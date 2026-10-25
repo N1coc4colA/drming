@@ -3,6 +3,8 @@
 
 #include <QImage>
 
+#include <atomic>
+
 extern "C" {
 #include <libavutil/pixfmt.h>
 }
@@ -37,11 +39,17 @@ public:
     /// Encodes one frame and invokes the callback for each produced packet.
     void push_image(const uint8_t *data, int width, int height, QImage::Format format, uint32_t stride);
 
+    /// Forces the next encoded frame to be an IDR. Safe to call from any thread.
+    void forceKeyframe()
+    {
+        m_forceKeyframe.store(true, std::memory_order_relaxed);
+    }
+
 private:
     int init(int width, int height, QImage::Format format, uint32_t stride);
     void release();
     int flush();
-    int encode(AVFrame *frame);
+    int encode(AVFrame &frame);
 
     PacketCallback m_callback;
 
@@ -60,6 +68,8 @@ private:
     enum AVPixelFormat m_dst_fmt = AV_PIX_FMT_NV12; // AV_PIX_FMT_YUV420P;
     QImage::Format m_format = QImage::Format_Invalid;
     uint32_t m_stride = 0;
+
+    std::atomic<bool> m_forceKeyframe{ false };
 };
 
 } // namespace Ffmpeg

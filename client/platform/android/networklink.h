@@ -22,12 +22,7 @@ class VideoLink : public UdpStreamSocket, public Packets::Parser<VideoLink, Sett
     Q_OBJECT
 
 public:
-    explicit VideoLink(QObject *parent = nullptr)
-        : UdpStreamSocket(parent)
-        , Packets::Parser<VideoLink, Settings::errorLimit>(*this)
-    {
-        QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "VideoLink connected."; });
-    }
+    explicit VideoLink(QObject *parent = nullptr);
 
     void processPacket(const Packets::ServerImage &img);
     void processPacket(const Packets::ServerStream &img);
@@ -52,6 +47,9 @@ public:
 
     void setTelemetry(Telemetry *t);
 
+Q_SIGNALS:
+    void keyframeRequested();
+
 public Q_SLOTS:
     void reset()
     {
@@ -75,6 +73,9 @@ public:
     {
         return Parser::waitFor(v);
     }
+
+protected:
+    void onFrameSkipped() override;
 
 private:
     VideoDecoder *m_decoder = nullptr;
@@ -130,6 +131,7 @@ public:
         }
         Parser::clear();
     }
+
     void processPacket(const Packets::KeyUpdate &ku);
     void processPacket(const Packets::AudioSource &src);
     void processPacket(const Packets::VideoSource &src);

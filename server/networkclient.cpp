@@ -90,6 +90,13 @@ void NetworkClient::processPacket(const Packets::ClientTelemetry &t)
     }
 }
 
+void NetworkClient::processPacket(const Packets::RequestKeyframe &)
+{
+    if (m_display) {
+        m_display->forceKeyframe();
+    }
+}
+
 NetworkClient::NetworkClient(
     QDtls *dtls,
     const QHostAddress &address,

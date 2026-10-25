@@ -94,6 +94,9 @@ public:
         m_telemetry = t;
     }
 
+Q_SIGNALS:
+    void needsKeyframe();
+
 private:
     // Decoder state
     AMediaCodec *m_codec = nullptr;
@@ -115,6 +118,7 @@ private:
     std::vector<uint8_t> m_vps, m_sps, m_pps;
 
     // AImageReader & zero‑copy pipeline
+    AImage *m_pendingImage = nullptr;
     AImageReader *m_imageReader = nullptr;
     ANativeWindow *m_window = nullptr;
 
@@ -126,7 +130,7 @@ private:
     // (AHardwareBuffer_acquire/_release) on each cached buffer so the pointer
     // can't be reused by the system for a different allocation while cached
     // (ABA hazard) — AImage_delete() only drops AImageReader's reference.
-    static constexpr size_t kMaxCachedImages = 3; // must match AImageReader_new's maxImages
+    static constexpr size_t kMaxCachedImages = 6; // must match AImageReader_new's maxImages
     struct CachedImage
     {
         EGLImageKHR image = EGL_NO_IMAGE_KHR;

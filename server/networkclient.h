@@ -68,6 +68,7 @@ public:
     void processPacket(const Packets::RequestAudioSource &);
     void processPacket(const Packets::RequestVideoSource &);
     void processPacket(const Packets::ClientTelemetry &t);
+    void processPacket(const Packets::RequestKeyframe &);
     void onPacketErrors()
     {}
 

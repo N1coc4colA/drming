@@ -274,9 +274,9 @@ void Display::onDisconnected()
     m_targetFps.store(Settings::maxForwardFps, std::memory_order_relaxed);
 }
 
-void Display::sendData(QByteArray output)
+bool Display::sendData(QByteArray output)
 {
-    m_ss.write(output);
+    return m_ss.write(output);
 }
 
 void Display::disconnectAllClients()
@@ -340,6 +340,11 @@ public:
           )
     {}
 
+    void forceKeyframe() override
+    {
+        m_encoder.forceKeyframe();
+    }
+
 private:
     void processImage(const QImage &result) override
     {
@@ -360,7 +365,17 @@ private:
         payload.append(reinterpret_cast<const char *>(data), static_cast<qsizetype>(size));
 
         Packets::ServerStream stm{ .data = { std::move(payload) } };
-        sendData(std::move(Packets::Writer::generate(stm)));
+
+        if (!sendData(std::move(Packets::Writer::generate(stm)))) {
+            /*
+             * Frame was truncated in transit (EAGAIN from sendmmsg). The client
+             * cannot complete this timestamp in its jitter buffer and will hold
+             * the last good reference, producing motion-artifacts until the next
+             * natural IDR. Force an IDR on the next encode so recovery is one
+             * frame instead of one GOP.
+             */
+            m_encoder.forceKeyframe();
+        }
     }
 
     Ffmpeg::Encoder m_encoder;

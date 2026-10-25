@@ -4,6 +4,13 @@
 
 namespace Platform {
 
+VideoLink::VideoLink(QObject *parent)
+    : UdpStreamSocket(parent)
+    , Packets::Parser<VideoLink, Settings::errorLimit>(*this)
+{
+    QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "VideoLink connected."; });
+}
+
 void VideoLink::processPacket(const Packets::ClientResolution &res)
 {
     m_waitedForResolution.store(true, std::memory_order_relaxed);
@@ -54,6 +61,31 @@ void VideoLink::processPacket(const Packets::ServerImage &img)
     m_imageDecoder.queueFrame(img.data.data, img.format.data, recvNs);
 }
 
+void VideoLink::setTelemetry(Telemetry *t)
+{
+    m_telemetry = t;
+    m_imageDecoder.setTelemetry(t);
+
+    if (m_decoder) {
+        m_decoder->setTelemetry(t);
+        m_decoder->setLatencyCallback([t](const qint64 ns) {
+            if (t) {
+                t->recordDecoded(ns);
+            }
+        });
+    }
+}
+
+void VideoLink::onFrameSkipped()
+{
+    qDebug() << "JitterBuffer: skipped incomplete frame — requesting IDR";
+    if (m_telemetry) {
+        m_telemetry->recordDropped();
+    }
+
+    Q_EMIT keyframeRequested();
+}
+
 void VideoLink::setItem(VideoFrameItem *item)
 {
     m_item = item;
@@ -69,6 +101,14 @@ void VideoLink::setItem(VideoFrameItem *item)
                     t->recordDecoded(ns);
             });
         }
+
+        QObject::connect(
+            m_decoder,
+            &VideoDecoder::needsKeyframe,
+            this,
+            &VideoLink::keyframeRequested,
+            Qt::DirectConnection
+        );
     }
 
     // Connect image decoder callback to update UI safely on GUI thread
@@ -123,6 +163,16 @@ NetworkLink::NetworkLink(QObject *parent)
 
     QObject::connect(m_alink, &UdpStreamSocket::disconnected, &m_lock, &MulticastLock::release);
     QObject::connect(m_vlink, &UdpStreamSocket::disconnected, &m_lock, &MulticastLock::release);
+    QObject::connect(
+        m_vlink,
+        &VideoLink::keyframeRequested,
+        this,
+        [this]() {
+            static constexpr Packets::RequestKeyframe pkt{};
+            write(Packets::Writer::generate(pkt));
+        },
+        Qt::QueuedConnection
+    );
 
     QObject::connect(this, &NetworkLink::connectionInitialised, this, [this]() {
         QMetaObject::invokeMethod(m_vlink, &VideoLink::reset);
@@ -207,21 +257,6 @@ void NetworkLink::setItem(QObject *item)
     }
 
     QMetaObject::invokeMethod(m_vlink, [this, vitem]() { m_vlink->setItem(vitem); });
-}
-
-void VideoLink::setTelemetry(Telemetry *t)
-{
-    m_telemetry = t;
-    m_imageDecoder.setTelemetry(t);
-
-    if (m_decoder) {
-        m_decoder->setTelemetry(t);
-        m_decoder->setLatencyCallback([t](const qint64 ns) {
-            if (t) {
-                t->recordDecoded(ns);
-            }
-        });
-    }
 }
 
 void NetworkLink::processPacket(const Packets::KeyUpdate &ku)
