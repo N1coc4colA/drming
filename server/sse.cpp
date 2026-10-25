@@ -302,7 +302,9 @@ constexpr std::array kTable = std::to_array<Entry>({
     // ── 128-bit float (32FP per channel) ─────────────────────────────────────
     // DRM ABGR32323232F: 32FP units in memory [R, G, B, A]
     // Qt Format_RGBA32FPx4: 32FP units in memory [R, G, B, A] ✓
+#ifdef DRM_FORMAT_ABGR32323232F
     { DRM_FORMAT_ABGR32323232F, QImage::Format_RGBA32FPx4,                 nullptr },
+#endif
 });
 // clang-format on
 
