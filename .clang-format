@@ -1,0 +1,84 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 120
+
+# Braces: function and class bodies on their own line, control statements on the same line
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: true
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: true
+  AfterNamespace: false
+  AfterStruct: true
+  BeforeCatch: false
+  BeforeElse: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: true
+
+# Every function body on separate lines
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+
+# Constructor initializers: one per line, ":" and "," at the start of each line
+BreakConstructorInitializers: BeforeComma
+PackConstructorInitializers: Never
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+
+# Namespaces: no indentation, closing comment added/fixed
+NamespaceIndentation: None
+FixNamespaceComments: true
+
+# Access specifiers aligned with the class/struct keyword
+IndentAccessModifiers: false
+AccessModifierOffset: -4
+EmptyLineBeforeAccessModifier: Always
+EmptyLineAfterAccessModifier: Never
+
+# Inheritance stays on the declaration line unless it overflows
+BreakInheritanceList: AfterColon
+
+# Parameters and arguments: all on one line, or one per line; never packed
+BinPackArguments: false
+BinPackParameters: false
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+BreakAfterOpenBracketFunction: true
+BreakBeforeCloseBracketFunction: true
+AlignAfterOpenBracket: DontAlign
+PenaltyBreakBeforeFirstCallParameter: 0
+
+# Operators: break before the operator, not after it
+BreakBeforeBinaryOperators: All
+AlignOperands: DontAlign
+
+# Ternary: "?" and ":" start their own lines
+BreakBeforeTernaryOperators: true
+
+# Prefer breaking after "=" over breaking inside the declarator
+PenaltyBreakAssignment: 200
+PenaltyExcessCharacter: 1000000
+
+# Templates: template header on its own line, requires clause indented below it
+BreakTemplateDeclarations: Yes
+BreakBeforeConceptDeclarations: Always
+IndentRequiresClause: true
+RequiresClausePosition: OwnLine
+
+PointerAlignment: Right
+ReferenceAlignment: Right
+DerivePointerAlignment: false
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+SpaceBeforeParens: ControlStatements
+SpaceAfterTemplateKeyword: false
+Cpp11BracedListStyle: false
+...

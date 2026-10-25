@@ -57,7 +57,12 @@ QVariant ServicesModel::data(const QModelIndex &index, const int role) const
 
 QHash<int, QByteArray> ServicesModel::roleNames() const
 {
-    return {{NameRole, "name"}, {HostRole, "host"}, {IpRole, "ip"}, {PortRole, "port"}, {TypeRole, "type"}, {ProtocolRole, "protocol"}};
+    return { { NameRole, "name" },
+        { HostRole, "host" },
+        { IpRole, "ip" },
+        { PortRole, "port" },
+        { TypeRole, "type" },
+        { ProtocolRole, "protocol" } };
 }
 
 QVariantMap ServicesModel::get(const int index) const
@@ -67,7 +72,7 @@ QVariantMap ServicesModel::get(const int index) const
     }
 
     const ServiceInfo &s = m_services.at(index).second;
-    return {{"name", s.name}, {"host", s.host}, {"ip", s.ip}, {"port", s.port}, {"type", s.type}};
+    return { { "name", s.name }, { "host", s.host }, { "ip", s.ip }, { "port", s.port }, { "type", s.type } };
 }
 
 int ServicesModel::findServiceIndex(const QString &key) const
@@ -123,14 +128,14 @@ void ServicesModel::onServiceResolved(const QString &key, const ServiceInfo &inf
         // If we didn't have the service yet, insert it
         const auto servicesCount = static_cast<int>(m_services.count());
         beginInsertRows(QModelIndex(), servicesCount, servicesCount);
-        m_services.append({key, info});
+        m_services.append({ key, info });
         endInsertRows();
 
         Q_EMIT countChanged();
         return;
     }
 
-    m_services[idx] = {key, info};
+    m_services[idx] = { key, info };
 
     Q_EMIT dataChanged(index(idx), index(idx));
 }

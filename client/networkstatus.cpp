@@ -22,7 +22,7 @@ NetworkState *NetworkState::instance()
 }
 
 NetworkState::NetworkState(QObject *parent)
-    : QObject{parent}
+    : QObject{ parent }
 {
     assert(!m_instance);
     m_instance = this;

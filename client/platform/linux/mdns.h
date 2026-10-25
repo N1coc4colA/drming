@@ -24,7 +24,13 @@ private:
 Q_SIGNALS:
     void dispatchServiceFound(const QString &name, const QString &type, const QString &protocol);
     void dispatchServiceLost(const QString &name, const QString &ip, const QString &protocol);
-    void dispatchServiceResolved(const QString &name, const QString &host, const QString &ip, int port, const QString &protocol);
+    void dispatchServiceResolved(
+        const QString &name,
+        const QString &host,
+        const QString &ip,
+        int port,
+        const QString &protocol
+    );
 
     friend class AvahiDiscoverer;
 };

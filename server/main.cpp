@@ -14,7 +14,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-
 namespace {
 
 int sigFd[2] = { -1, -1 };
@@ -49,9 +48,8 @@ int main(int argc, char *argv[])
         QCoreApplication::quit();
     });
 
-    std::signal(SIGINT,  requestShutdown);
-    std::signal(SIGTERM, requestShutdown);   // needed by systemd / containers
-
+    std::signal(SIGINT, requestShutdown);
+    std::signal(SIGTERM, requestShutdown); // needed by systemd / containers
 
     switch (CommandParser().parseApp()) {
     case CommandParser::Failure:
@@ -82,14 +80,18 @@ int main(int argc, char *argv[])
         audioSocket.setKey(videoSocket.getKey(), videoSocket.getKeystamp());
     });
 
-    if (!videoSocket.listen(Parameters::instance.serviceVideoIp,
-                            Parameters::instance.videoPort,
-                            Parameters::instance.serviceIface)) {
+    if (!videoSocket.listen(
+            Parameters::instance.serviceVideoIp,
+            Parameters::instance.videoPort,
+            Parameters::instance.serviceIface
+        )) {
         return EXIT_FAILURE;
     }
-    if (!audioSocket.listen(Parameters::instance.serviceAudioIp,
-                            Parameters::instance.audioPort,
-                            Parameters::instance.serviceIface)) {
+    if (!audioSocket.listen(
+            Parameters::instance.serviceAudioIp,
+            Parameters::instance.audioPort,
+            Parameters::instance.serviceIface
+        )) {
         return EXIT_FAILURE;
     }
     audioSocket.setKey(videoSocket.getKey(), videoSocket.getKeystamp());
@@ -106,7 +108,7 @@ int main(int argc, char *argv[])
             "_drming._udp",
             static_cast<uint16_t>(Parameters::instance.port),
             &app
-            );
+        );
         publisher->start();
     }
 

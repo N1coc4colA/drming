@@ -5,15 +5,15 @@
 #include <QSGSimpleTextureNode>
 #include <QThread>
 
+#include "androidui.h"
 #include "decode.h"
 #include "oesrendernode.h"
-#include "androidui.h"
 
 #include "../net/telemetry.h"
 
 namespace Platform {
 
-QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
+QRectF fitKeepAspect(const QSizeF &itemSize, const QSizeF &imgSize)
 {
     if (itemSize.isEmpty() || imgSize.isEmpty()) [[unlikely]] {
         return {};
@@ -24,10 +24,10 @@ QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
     const auto s = qMin(sx, sy);
     const auto w = imgSize.width() * s;
     const auto h = imgSize.height() * s;
-    return {(itemSize.width() - w) * 0.5, (itemSize.height() - h) * 0.5, w, h};
+    return { (itemSize.width() - w) * 0.5, (itemSize.height() - h) * 0.5, w, h };
 }
 
-VideoFrameItem::VideoFrameItem(QQuickItem* parent)
+VideoFrameItem::VideoFrameItem(QQuickItem *parent)
     : QQuickItem(parent)
     , m_aui(new AndroidUi(this))
 {
@@ -38,7 +38,7 @@ VideoFrameItem::VideoFrameItem(QQuickItem* parent)
     });
 }
 
-void VideoFrameItem::setDecoder(VideoDecoder* decoder)
+void VideoFrameItem::setDecoder(VideoDecoder *decoder)
 {
     m_decoder = decoder;
 
@@ -60,7 +60,7 @@ void VideoFrameItem::setImage(const QImage &image, const qint64 receiveNs)
 
     {
         QMutexLocker locker(&m_mtx);
-        m_frameQueue.push_back({image, receiveNs});
+        m_frameQueue.push_back({ image, receiveNs });
         while (m_frameQueue.size() > MaxPresentationQueue) {
             m_frameQueue.pop_front(); // drop oldest frame
         }
@@ -78,7 +78,7 @@ void VideoFrameItem::setImage(const QImage &image, const qint64 receiveNs)
     }
 }
 
-void VideoFrameItem::geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry)
+void VideoFrameItem::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
 {
     QQuickItem::geometryChange(newGeometry, oldGeometry);
 
@@ -87,7 +87,7 @@ void VideoFrameItem::geometryChange(const QRectF& newGeometry, const QRectF& old
     }
 }
 
-QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* data)
+QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data)
 {
     Q_UNUSED(data);
 
@@ -102,7 +102,7 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
     switch (m_textureMode) {
     case TextureMode::OES: {
         if (m_decoder) [[unlikely]] {
-            auto node = static_cast<QSGNode*>(oldNode);
+            auto node = static_cast<QSGNode *>(oldNode);
             if (!node) [[unlikely]] {
                 node = new QSGNode();
             }
@@ -110,7 +110,7 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
             if (m_decoder->consumeFrame()) {
                 const auto texId = m_decoder->oesTextureId();
                 if (texId != 0) [[unlikely]] {
-                    auto oesNode = node->childCount() ? static_cast<OESRenderNode*>(node->firstChild()) : nullptr;
+                    auto oesNode = node->childCount() ? static_cast<OESRenderNode *>(node->firstChild()) : nullptr;
                     if (!oesNode) [[unlikely]] {
                         oesNode = new OESRenderNode();
                         node->removeAllChildNodes();
@@ -129,7 +129,7 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
         break;
     }
     case TextureMode::Simple: {
-        auto node = static_cast<QSGSimpleTextureNode*>(oldNode);
+        auto node = static_cast<QSGSimpleTextureNode *>(oldNode);
         if (!node) [[unlikely]] {
             node = new QSGSimpleTextureNode();
             node->setFiltering(QSGTexture::Linear);
@@ -156,7 +156,8 @@ QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* 
         }
 
         if (textureChanged && !localImage.isNull()) [[likely]] {
-            if (auto fallbackTex = window()->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque)) [[likely]] {
+            if (auto fallbackTex = window()->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque))
+                [[likely]] {
                 fallbackTex->setFiltering(QSGTexture::Linear);
                 node->setTexture(fallbackTex);
                 node->setOwnsTexture(true);

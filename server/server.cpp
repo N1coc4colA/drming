@@ -6,19 +6,18 @@
 
 #include "parameters.h"
 
+#include "../ctrack_wrap.h"
 #include "../net/certificatesupport.h"
 #include "../settings.h"
-#include "../ctrack_wrap.h"
 
 #ifndef Q_MOC_RUN
 #include <ctrack.hpp>
 #endif
 
-
 static PeerKey keyFor(const QHostAddress &a, const quint16 p)
 {
     PeerKey k;
-    k.port  = p;
+    k.port = p;
     k.proto = a.protocol();
 
     switch (k.proto) {
@@ -56,7 +55,12 @@ Server::~Server()
 
 bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, const quint16 port)
 {
-    if (!loadServerCertsConfig(m_sslConfig, "dtls", Parameters::instance.serverCertPath, Parameters::instance.serverKeyPath)) {
+    if (!loadServerCertsConfig(
+            m_sslConfig,
+            "dtls",
+            Parameters::instance.serverCertPath,
+            Parameters::instance.serverKeyPath
+        )) {
         qCritical() << "SSL config not loaded; DTLS connections may not use server certificate.";
         return false;
     }
@@ -172,9 +176,11 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
                 connect(client, &NetworkClient::disconnected, this, &Server::onClientDisconnected);
 
                 // Defer because we are in the datagram-processing loop.
-                QMetaObject::invokeMethod(this, [this, client] {
-                    Q_EMIT clientConnected(client);
-                }, Qt::QueuedConnection);
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, client] { Q_EMIT clientConnected(client); },
+                    Qt::QueuedConnection
+                );
             }
 
             continue;
@@ -188,7 +194,8 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
         dtls->setPeer(sender, senderPort);
 
         if (!track<&QDtls::doHandshake>(dtls, &socket, dgram)) {
-            qWarning() << "Failed to start DTLS handshake for" << sender << senderPort << ":" << dtls->dtlsErrorString();
+            qWarning() << "Failed to start DTLS handshake for" << sender << senderPort << ":"
+                       << dtls->dtlsErrorString();
             delete dtls;
             continue;
         }
@@ -201,9 +208,7 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
             connect(client, &NetworkClient::disconnected, this, &Server::onClientDisconnected);
 
             // Defer because we are in the datagram-processing loop.
-            QMetaObject::invokeMethod(this, [this, client] {
-                Q_EMIT clientConnected(client);
-            }, Qt::QueuedConnection);
+            QMetaObject::invokeMethod(this, [this, client] { Q_EMIT clientConnected(client); }, Qt::QueuedConnection);
         } else {
             m_pendingHandshakes.insert(key, dtls);
         }

@@ -4,12 +4,10 @@
 
 #include "../net/telemetry.h"
 
-
 ImageDecoder::ImageDecoder(QObject *parent)
     : QObject(parent)
     , m_thread(&ImageDecoder::workerLoop, this)
-{
-}
+{}
 
 ImageDecoder::~ImageDecoder()
 {
@@ -36,7 +34,7 @@ void ImageDecoder::queueFrame(QByteArray data, QByteArray format, const qint64 r
     {
         std::lock_guard<std::mutex> lock(m_mutex);
 
-        m_pendingFrames.push_back({std::move(data), std::move(format), receiveNs});
+        m_pendingFrames.push_back({ std::move(data), std::move(format), receiveNs });
 
         while (m_pendingFrames.size() > MaxPendingFrames) {
             m_pendingFrames.pop_front();
@@ -48,8 +46,7 @@ void ImageDecoder::queueFrame(QByteArray data, QByteArray format, const qint64 r
         // Report depth after the eviction so it reflects what the worker
         // will actually see when it wakes up.
         if (m_telemetry) {
-            m_telemetry->setDecodeQueueDepth(static_cast<quint8>(
-                std::min<std::size_t>(m_pendingFrames.size(), 255)));
+            m_telemetry->setDecodeQueueDepth(static_cast<quint8>(std::min<std::size_t>(m_pendingFrames.size(), 255)));
         }
     }
 
@@ -80,8 +77,9 @@ void ImageDecoder::workerLoop()
             m_pendingFrames.pop_front();
 
             if (m_telemetry) {
-                m_telemetry->setDecodeQueueDepth(static_cast<quint8>(
-                    std::min<std::size_t>(m_pendingFrames.size(), 255)));
+                m_telemetry->setDecodeQueueDepth(
+                    static_cast<quint8>(std::min<std::size_t>(m_pendingFrames.size(), 255))
+                );
             }
         }
 
@@ -99,7 +97,8 @@ void ImageDecoder::workerLoop()
                     cb(converted, frame.receiveNs);
                 }
             } else {
-                qWarning() << "ImageDecoder: Failed to decode image of format" << frame.format << "size" << frame.data.size();
+                qWarning() << "ImageDecoder: Failed to decode image of format" << frame.format << "size"
+                           << frame.data.size();
             }
         }
     }

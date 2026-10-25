@@ -52,7 +52,7 @@ QString FileProvider::clientKeyName()
 QPair<QSslCertificate, QSslKey> FileProvider::clientData(const QString &name)
 {
     const auto basePath = clientPath() + name + "/";
-    return {openCertificate(basePath + clientCertName()), openKey(basePath + clientKeyName())};
+    return { openCertificate(basePath + clientCertName()), openKey(basePath + clientKeyName()) };
 }
 
 QList<QSslCertificate> FileProvider::trustedCerts()
@@ -62,13 +62,14 @@ QList<QSslCertificate> FileProvider::trustedCerts()
 
 void FileProvider::loadServerCerts()
 {
-    const auto availables = QDir(serverCertsPath()).entryInfoList(QDir::Files | QDir::Readable | QDir::Hidden, QDir::LocaleAware);
+    const auto availables = QDir(serverCertsPath())
+                                .entryInfoList(QDir::Files | QDir::Readable | QDir::Hidden, QDir::LocaleAware);
 
     QList<std::tuple<QDateTime, QString, QVariantMap>> data{};
     data.reserve(availables.size());
 
     for (const auto &info : availables) {
-        data.append({info.fileTime(QFileDevice::FileModificationTime), info.fileName(), {}});
+        data.append({ info.fileTime(QFileDevice::FileModificationTime), info.fileName(), {} });
     }
 
     m_serverFiles->setData(data);
@@ -76,7 +77,11 @@ void FileProvider::loadServerCerts()
 
 void FileProvider::loadClients()
 {
-    const auto availables = QDir(clientPath()).entryInfoList(QDir::Dirs | QDir::Readable | QDir::Hidden | QDir::NoDotAndDotDot, QDir::LocaleAware);
+    const auto availables = QDir(clientPath())
+                                .entryInfoList(
+                                    QDir::Dirs | QDir::Readable | QDir::Hidden | QDir::NoDotAndDotDot,
+                                    QDir::LocaleAware
+                                );
 
     QList<std::tuple<QDateTime, QString, QVariantMap>> data{};
     data.reserve(availables.size());
@@ -91,7 +96,9 @@ void FileProvider::loadClients()
         const auto certExists = QFile(certPath).exists() && canOpenCert(certPath);
         const auto keyExists = QFile(keyPath).exists() && canOpenKey(keyPath);
 
-        data.append({info.fileTime(QFileDevice::FileModificationTime), name, {{"cert", certExists}, {"key", keyExists}}});
+        data.append(
+            { info.fileTime(QFileDevice::FileModificationTime), name, { { "cert", certExists }, { "key", keyExists } } }
+        );
     }
 
     m_clientFiles->setData(data);
@@ -125,7 +132,8 @@ void FileProvider::deleteClient(const QString &name)
 
 int FileProvider::addServerCert()
 {
-    const auto sourceLocation = QFileDialog::getOpenFileName(nullptr, tr("Import certificate"), {}, "Certificate (*.crt)");
+    const auto sourceLocation
+        = QFileDialog::getOpenFileName(nullptr, tr("Import certificate"), {}, "Certificate (*.crt)");
     if (sourceLocation.isEmpty()) {
         return 0;
     }

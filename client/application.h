@@ -35,18 +35,36 @@ public:
         });
     }
 
-    static Application *instance() { return qobject_cast<Application *>(qApp); }
+    static Application *instance()
+    {
+        return qobject_cast<Application *>(qApp);
+    }
 
     /// Returns the platform mDNS service registry.
-    Q_INVOKABLE Mdns *mdnsManager() const { return Mdns::instance(); }
+    Q_INVOKABLE Mdns *mdnsManager() const
+    {
+        return Mdns::instance();
+    }
     /// Returns the process-wide network connectivity state.
-    Q_INVOKABLE NetworkState *networkState() const { return NetworkState::instance(); }
+    Q_INVOKABLE NetworkState *networkState() const
+    {
+        return NetworkState::instance();
+    }
     /// Returns the platform certificate and key store.
-    Q_INVOKABLE FileProvider *fileProvider() const { return FileProvider::instance(); }
+    Q_INVOKABLE FileProvider *fileProvider() const
+    {
+        return FileProvider::instance();
+    }
     /// Creates the platform transport on first use and reuses it thereafter.
-    Q_INVOKABLE NetworkLink *networkLink() { return m_networkLink ? m_networkLink : m_networkLink = NetworkLink::createForPlatform(this); }
+    Q_INVOKABLE NetworkLink *networkLink()
+    {
+        return m_networkLink ? m_networkLink : m_networkLink = NetworkLink::createForPlatform(this);
+    }
     /// Returns the model populated by the mDNS manager.
-    Q_INVOKABLE ServicesModel *servicesModel() { return m_servicesModel ? m_servicesModel : m_servicesModel = new ServicesModel(this); }
+    Q_INVOKABLE ServicesModel *servicesModel()
+    {
+        return m_servicesModel ? m_servicesModel : m_servicesModel = new ServicesModel(this);
+    }
 
 private:
     NetworkLink *m_networkLink = nullptr;

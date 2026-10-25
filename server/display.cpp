@@ -17,7 +17,6 @@
 #include <ctrack.hpp>
 #endif
 
-
 Display::Display(const QString &connectorName, StreamSocket &ss, const bool inPlaceComposite, QObject *parent)
     : QObject(parent)
     , m_ss(ss)
@@ -36,17 +35,11 @@ void Display::applyClientTelemetry(const Packets::ClientTelemetry &t)
 
     // Overload is sustained. A drop or a 60 ms p95 is normal jitter at 10-40 fps.
     // 3 consecutive samples (6 s) shows a capacity issue.
-    const bool overloaded =
-        t.droppedFrames.data >= 3 ||
-        t.latencyMsP95.data > 60 ||
-        t.decodeQueueDepth.data > 4 ||
-        t.renderQueueDepth.data > 4;
+    const bool overloaded = t.droppedFrames.data >= 3 || t.latencyMsP95.data > 60 || t.decodeQueueDepth.data > 4
+        || t.renderQueueDepth.data > 4;
 
-    const bool healthy =
-        t.droppedFrames.data == 0 &&
-        t.latencyMsP95.data < 30 &&
-        t.decodeQueueDepth.data < 2 &&
-        t.renderQueueDepth.data < 2;
+    const bool healthy = t.droppedFrames.data == 0 && t.latencyMsP95.data < 30 && t.decodeQueueDepth.data < 2
+        && t.renderQueueDepth.data < 2;
 
     if (overloaded) {
         if (++m_overloadStreak >= 3) {
@@ -63,15 +56,12 @@ void Display::applyClientTelemetry(const Packets::ClientTelemetry &t)
     } else {
         // Mixed signals: reset both streak counters and leave target alone.
         m_overloadStreak = 0;
-        m_healthyStreak  = 0;
+        m_healthyStreak = 0;
     }
 
     if (next != current) {
-        qInfo().nospace()
-        << "Telemetry: fps=" << (t.fpsX10.data / 10.0)
-        << " p95=" << t.latencyMsP95.data << "ms"
-        << " drops=" << t.droppedFrames.data
-        << " target " << current << "→" << next;
+        qInfo().nospace() << "Telemetry: fps=" << (t.fpsX10.data / 10.0) << " p95=" << t.latencyMsP95.data << "ms"
+                          << " drops=" << t.droppedFrames.data << " target " << current << "→" << next;
         m_targetFps.store(next, std::memory_order_relaxed);
     }
 }
@@ -129,7 +119,9 @@ void Display::forward()
     CTRACK;
 
     const auto nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                           std::chrono::steady_clock::now().time_since_epoch()).count();
+        std::chrono::steady_clock::now().time_since_epoch()
+    )
+                           .count();
 
     const auto targetFps = std::max(1, m_targetFps.load(std::memory_order_relaxed));
     const auto minIntervalNs = 1'000'000'000LL / targetFps;
@@ -169,7 +161,8 @@ void Display::forward()
             char a, b, c, d;
             Drm::split_fourcc(fb.format, a, b, c, d);
             qWarning() << "Image format for frame is invalid:" << fb.format << ";" << a << b << c << d;
-            if (hasCursor) DisplayReader::releaseCursorFrameBuffer(cursorFb);
+            if (hasCursor)
+                DisplayReader::releaseCursorFrameBuffer(cursorFb);
             disconnectAllClients();
             return;
         }
@@ -185,8 +178,12 @@ void Display::forward()
     const bool useInPlace = m_reader.supportsInPlaceComposite() && m_vkmsFrameDescriptor->convert == nullptr;
 
     auto result = DisplayReader::imageFromFrameBuffer(
-        static_cast<const uint8_t *>(fb.data), fb.width, fb.height, fb.stride,
-        m_vkmsFrameDescriptor.value(), useInPlace
+        static_cast<const uint8_t *>(fb.data),
+        fb.width,
+        fb.height,
+        fb.stride,
+        m_vkmsFrameDescriptor.value(),
+        useInPlace
     );
 
     const QImage *finalImage = &result;
@@ -221,13 +218,12 @@ void Display::forward()
     if (m_prevSize != finalImage->size()) [[unlikely]] {
         m_prevSize = finalImage->size();
         const Packets::ClientResolution res{
-            .width  = {static_cast<quint32>(finalImage->width())},
-            .height = {static_cast<quint32>(finalImage->height())},
+            .width = { static_cast<quint32>(finalImage->width()) },
+            .height = { static_cast<quint32>(finalImage->height()) },
         };
 
         sendData(std::move(Packets::Writer::generate(res)));
     }
-
 
     const auto encodeStart = std::chrono::steady_clock::now();
 
@@ -237,14 +233,12 @@ void Display::forward()
     m_encodeSumNs += std::chrono::duration_cast<std::chrono::nanoseconds>(encodeEnd - encodeStart).count();
     if (++m_encodeSamples >= 50) {
 #ifdef TELEMETRY_OUTPUT
-        qInfo().nospace() << "Encode avg: "
-                          << (m_encodeSumNs / m_encodeSamples / 1'000'000) << " ms"
-                          << " (frames=" << m_encodeSamples
-                          << ", targetFps=" << targetFps
+        qInfo().nospace() << "Encode avg: " << (m_encodeSumNs / m_encodeSamples / 1'000'000) << " ms"
+                          << " (frames=" << m_encodeSamples << ", targetFps=" << targetFps
                           << ", encode time budget=" << (minIntervalNs / 1'000'000) << " ms)";
 #endif
 
-        m_encodeSumNs   = 0;
+        m_encodeSumNs = 0;
         m_encodeSamples = 0;
     }
 
@@ -297,7 +291,13 @@ void Display::disconnectAllClients()
 class DisplayImage : public Display
 {
 public:
-    DisplayImage(const QString &connectorName, StreamSocket &ss, const QString &format, const bool inPlaceComposite, QObject *parent = nullptr)
+    DisplayImage(
+        const QString &connectorName,
+        StreamSocket &ss,
+        const QString &format,
+        const bool inPlaceComposite,
+        QObject *parent = nullptr
+    )
         : Display(connectorName, ss, inPlaceComposite, parent)
         , m_format(format.toLocal8Bit())
     {}
@@ -335,8 +335,9 @@ public:
     DisplayH265(const QString &connectorName, StreamSocket &ss, const bool inPlaceComposite, QObject *parent = nullptr)
         : Display(connectorName, ss, inPlaceComposite, parent)
         , m_encoder(
-            [this](const uint8_t *data, size_t size, int64_t pts) { this->h265dataForward(data, size, pts); },
-            Settings::maxForwardFps)
+              [this](const uint8_t *data, size_t size, int64_t pts) { this->h265dataForward(data, size, pts); },
+              Settings::maxForwardFps
+          )
     {}
 
 private:
@@ -358,7 +359,7 @@ private:
         payload.append("\x00\x00\x00\x01", 4);
         payload.append(reinterpret_cast<const char *>(data), static_cast<qsizetype>(size));
 
-        Packets::ServerStream stm{.data = {std::move(payload)}};
+        Packets::ServerStream stm{ .data = { std::move(payload) } };
         sendData(std::move(Packets::Writer::generate(stm)));
     }
 

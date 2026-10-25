@@ -10,7 +10,10 @@ void VideoLink::processPacket(const Packets::ClientResolution &res)
     qDebug() << "Got resolution";
 
     m_waitedForResolution = true;
-    setBounds<&Packets::ServerImage::data>(quint64(0), static_cast<quint64>(res.width.data) * static_cast<quint64>(res.height.data) * 4);
+    setBounds<&Packets::ServerImage::data>(
+        quint64(0),
+        static_cast<quint64>(res.width.data) * static_cast<quint64>(res.height.data) * 4
+    );
 }
 
 void VideoLink::processPacket(const Packets::ServerStream &img)
@@ -152,9 +155,11 @@ void NetworkLink::processPacket(const Packets::KeyUpdate &ku)
 
 void NetworkLink::processPacket(const Packets::AudioSource &src)
 {
-    qDebug() << "Got audio source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':' << src.port.data;
+    qDebug() << "Got audio source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':'
+             << src.port.data;
 
-    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
+    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData()))
+                                    : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
 
     const auto sock = m_alink.socket();
     if (sock ? (sock->peerPort() != src.port.data || sock->peerAddress() != addr) : true) {
@@ -167,9 +172,11 @@ void NetworkLink::processPacket(const Packets::AudioSource &src)
 
 void NetworkLink::processPacket(const Packets::VideoSource &src)
 {
-    qDebug() << "Got video source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':' << src.port.data;
+    qDebug() << "Got video source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':'
+             << src.port.data;
 
-    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
+    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData()))
+                                    : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
 
     const auto sock = m_vlink.socket();
     if (sock ? (sock->peerPort() != src.port.data || sock->peerAddress() != addr) : true) {

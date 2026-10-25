@@ -3,8 +3,8 @@
 
 #include <ctrack.hpp>
 
-template<auto fn, typename Object, typename ... Args>
-auto track(Object &obj, Args && ...args)
+template<auto fn, typename Object, typename... Args>
+auto track(Object &obj, Args &&...args)
 {
     CTRACK;
 

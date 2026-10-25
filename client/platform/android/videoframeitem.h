@@ -8,7 +8,6 @@
 
 #include <deque>
 
-
 class Telemetry;
 class QSGSimpleTextureNode;
 
@@ -35,22 +34,29 @@ public:
         Simple,
     };
 
-    explicit VideoFrameItem(QQuickItem* parent = nullptr);
+    explicit VideoFrameItem(QQuickItem *parent = nullptr);
 
     /// Sets the decoder used by the zero-copy texture rendering path.
-    void setDecoder(VideoDecoder* decoder);
-    void setLatencyCallback(LatencyCallback cb) { m_latencyCallback = std::move(cb); }
-    void setTelemetry(Telemetry *t) { m_telemetry = t; }
+    void setDecoder(VideoDecoder *decoder);
+    void setLatencyCallback(LatencyCallback cb)
+    {
+        m_latencyCallback = std::move(cb);
+    }
+    void setTelemetry(Telemetry *t)
+    {
+        m_telemetry = t;
+    }
 
-    Q_INVOKABLE void setImage(const QImage& image, qint64 receiveNs);
+    Q_INVOKABLE void setImage(const QImage &image, qint64 receiveNs);
 
 protected:
-    QSGNode* updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data) override;
+    QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data) override;
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
 
 private:
     static constexpr size_t MaxPresentationQueue = 3;
-    struct QueueEntry {
+    struct QueueEntry
+    {
         QImage image{};
         qint64 receiveNs = 0;
     };

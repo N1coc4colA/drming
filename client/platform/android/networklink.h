@@ -6,8 +6,8 @@
 
 #include "../../networklink.h"
 
-#include "multicastlock.h"
 #include "imagedecoder.h"
+#include "multicastlock.h"
 
 #include "../net/parser.h"
 #include "../settings.h"
@@ -32,9 +32,15 @@ public:
     void processPacket(const Packets::ServerImage &img);
     void processPacket(const Packets::ServerStream &img);
     void processPacket(const Packets::ClientResolution &res);
-    inline void onPacketErrors() { Parser::clear(); }
+    inline void onPacketErrors()
+    {
+        Parser::clear();
+    }
 
-    inline VideoFrameItem *item() { return m_item; }
+    inline VideoFrameItem *item()
+    {
+        return m_item;
+    }
     void setItem(VideoFrameItem *item);
 
     inline void clear()
@@ -55,21 +61,27 @@ public Q_SLOTS:
     }
 
 public:
-    inline bool waitedForResolution() const { return m_waitedForResolution.load(std::memory_order_relaxed); }
+    inline bool waitedForResolution() const
+    {
+        return m_waitedForResolution.load(std::memory_order_relaxed);
+    }
 
     void addData(QByteArray data) override
     {
         Parser::pushData(std::move(data));
     }
 
-    inline auto waitFor(auto v) { return Parser::waitFor(v); }
+    inline auto waitFor(auto v)
+    {
+        return Parser::waitFor(v);
+    }
 
 private:
     VideoDecoder *m_decoder = nullptr;
     ImageDecoder m_imageDecoder;
     VideoFrameItem *m_item = nullptr;
     Telemetry *m_telemetry = nullptr;
-    std::atomic<bool> m_waitedForResolution{false};
+    std::atomic<bool> m_waitedForResolution{ false };
     bool m_locked = false;
 };
 
@@ -85,8 +97,14 @@ public:
         QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "AudioLink connected."; });
     }
 
-    inline void onPacketErrors() { Parser::clear(); }
-    inline void clear() { Parser::clear(); }
+    inline void onPacketErrors()
+    {
+        Parser::clear();
+    }
+    inline void clear()
+    {
+        Parser::clear();
+    }
 
     void addData(QByteArray data) override
     {
@@ -115,7 +133,10 @@ public:
     void processPacket(const Packets::KeyUpdate &ku);
     void processPacket(const Packets::AudioSource &src);
     void processPacket(const Packets::VideoSource &src);
-    inline void onPacketErrors() { Parser::clear(); }
+    inline void onPacketErrors()
+    {
+        Parser::clear();
+    }
 
     void setItem(QObject *item) override;
 

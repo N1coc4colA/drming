@@ -32,7 +32,7 @@ void Mdns::onServiceFound(const QString &name, const QString &type, const QStrin
     qDebug() << "Found:" << name << type;
 
     const auto fullName = name + "*";
-    const ServiceInfo info{name, type, "", "", protocol, -1};
+    const ServiceInfo info{ name, type, "", "", protocol, -1 };
     m_services[fullName] = info;
 
     Q_EMIT serviceFound(fullName, info, protocol);
@@ -63,7 +63,13 @@ void Mdns::onServiceLost(const QString &name, const QString &ip, const QString &
     Q_EMIT countChanged(count());
 }
 
-void Mdns::onServiceResolved(const QString &name, const QString &host, const QString &ip, const int port, const QString &protocol)
+void Mdns::onServiceResolved(
+    const QString &name,
+    const QString &host,
+    const QString &ip,
+    const int port,
+    const QString &protocol
+)
 {
     qDebug() << "Resolved:" << name << host << ip << port << protocol;
 

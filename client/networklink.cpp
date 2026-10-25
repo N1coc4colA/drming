@@ -122,7 +122,12 @@ void NetworkLink::resetSessionState()
     m_lastTelemetryNs = 0;
 }
 
-void NetworkLink::connect(const QString &address, const int port, const QString &clientName, const QString &protocolName)
+void NetworkLink::connect(
+    const QString &address,
+    const int port,
+    const QString &clientName,
+    const QString &protocolName
+)
 {
     m_sslSocket->close();
     m_udpSocket->close();
@@ -334,7 +339,7 @@ void NetworkLink::onSslDataAvailable()
 
 void NetworkLink::onConnectionTimeout()
 {
-    const bool sslActive  = m_sslSocket->state() == QAbstractSocket::ConnectedState;
+    const bool sslActive = m_sslSocket->state() == QAbstractSocket::ConnectedState;
     const bool dtlsActive = m_dtls && m_dtls->isConnectionEncrypted();
 
     if (!sslActive && !dtlsActive) {
@@ -383,12 +388,9 @@ void NetworkLink::onTelemetryTimeout()
 
 #ifdef TELEMETRY_OUTPUT
     qDebug() << "Sending telemetry:"
-             << "fps=" << (snap.fpsX10 / 10.0)
-             << "avg=" << snap.latencyMsAvg << "ms"
+             << "fps=" << (snap.fpsX10 / 10.0) << "avg=" << snap.latencyMsAvg << "ms"
              << "p95=" << snap.latencyMsP95 << "ms"
-             << "drops=" << snap.droppedFrames
-             << "kbps=" << snap.recvRateKbps
-             << "dQ=" << snap.decodeQueueDepth
+             << "drops=" << snap.droppedFrames << "kbps=" << snap.recvRateKbps << "dQ=" << snap.decodeQueueDepth
              << "rQ=" << snap.renderQueueDepth;
 #endif
 

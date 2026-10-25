@@ -31,10 +31,13 @@ public:
     explicit DisplayReader(QString connectorName, bool writableMapping = false);
     ~DisplayReader();
 
-    DisplayReader(const DisplayReader &)            = delete;
+    DisplayReader(const DisplayReader &) = delete;
     DisplayReader &operator=(const DisplayReader &) = delete;
 
-    bool supportsInPlaceComposite() const { return m_writableMapping; }
+    bool supportsInPlaceComposite() const
+    {
+        return m_writableMapping;
+    }
 
     bool getVkmsFrameBuffer(VkmsFrameBuffer &fb);
 
@@ -54,10 +57,12 @@ public:
      * and then draws `cursor` into `output` with QPainter. `output` is
      * reused across frames to avoid QImage detach churn.
      */
-    static void compositeWithCursor(const QImage &primary,
-                                    const CursorFrameBuffer &cursor,
-                                    const DrmFormat::FormatDescriptor &fmtDesc,
-                                    QImage &output);
+    static void compositeWithCursor(
+        const QImage &primary,
+        const CursorFrameBuffer &cursor,
+        const DrmFormat::FormatDescriptor &fmtDesc,
+        QImage &output
+    );
 
     /**
      * In-place composite: writes the cursor directly into `primary`.
@@ -65,9 +70,11 @@ public:
      * (i.e. obtained from imageFromFrameBuffer(..., writable=true) with a
      * non-swizzle format). No fallback; caller must pick the right path.
      */
-    static void compositeWithCursorInPlace(QImage &primary,
-                                           const CursorFrameBuffer &cursor,
-                                           const DrmFormat::FormatDescriptor &fmtDesc);
+    static void compositeWithCursorInPlace(
+        QImage &primary,
+        const CursorFrameBuffer &cursor,
+        const DrmFormat::FormatDescriptor &fmtDesc
+    );
 
     /**
      * @brief Wraps a DRM buffer in a QImage and applies any required channel swizzle.
@@ -77,17 +84,19 @@ public:
      * the swizzle is a one-way transform and running it in-place on a cached
      * mapping would corrupt the next frame.
      */
-    static QImage imageFromFrameBuffer(const uint8_t *data,
-                                       uint32_t width,
-                                       uint32_t height,
-                                       uint32_t stride,
-                                       const DrmFormat::FormatDescriptor &fmtDesc,
-                                       bool writable = false);
+    static QImage imageFromFrameBuffer(
+        const uint8_t *data,
+        uint32_t width,
+        uint32_t height,
+        uint32_t stride,
+        const DrmFormat::FormatDescriptor &fmtDesc,
+        bool writable = false
+    );
 
 private:
     struct CachedPrimary
     {
-        void  *data = nullptr;
+        void *data = nullptr;
         size_t size = 0;
         uint32_t width = 0;
         uint32_t height = 0;
@@ -99,7 +108,7 @@ private:
 
     struct CachedCursor
     {
-        void  *data = nullptr;
+        void *data = nullptr;
         size_t size = 0;
         uint32_t width = 0;
         uint32_t height = 0;

@@ -25,7 +25,7 @@ constexpr auto kFragmentShader = R"(
     }
 )";
 
-GLuint compileShader(const GLenum type, const char* src)
+GLuint compileShader(const GLenum type, const char *src)
 {
     const auto shader = glCreateShader(type);
     glShaderSource(shader, 1, &src, nullptr);
@@ -78,7 +78,7 @@ void OESRenderNode::ensureProgram()
     m_mvpUniform = glGetUniformLocation(m_program, "uMvp");
 }
 
-void OESRenderNode::render(const RenderState* state)
+void OESRenderNode::render(const RenderState *state)
 {
     if (m_texId == 0) [[unlikely]] {
         return;

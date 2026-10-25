@@ -40,7 +40,8 @@ void FileProvider::deleteClient(const QString &file)
 
 int FileProvider::addServerCert()
 {
-    const auto sourceLocation = QFileDialog::getOpenFileName(nullptr, tr("Import certificate"), {}, "application/x-x509-ca-cert");
+    const auto sourceLocation
+        = QFileDialog::getOpenFileName(nullptr, tr("Import certificate"), {}, "application/x-x509-ca-cert");
     if (sourceLocation.isEmpty()) {
         return false;
     }
@@ -60,7 +61,8 @@ int FileProvider::addServerCert()
 
 int FileProvider::addClientCert(const QString &name)
 {
-    const auto sourceLocation = QFileDialog::getOpenFileName(nullptr, tr("Import certificate"), {}, "application/x-x509-ca-cert");
+    const auto sourceLocation
+        = QFileDialog::getOpenFileName(nullptr, tr("Import certificate"), {}, "application/x-x509-ca-cert");
     if (sourceLocation.isEmpty()) {
         return false;
     }
@@ -80,7 +82,8 @@ int FileProvider::addClientCert(const QString &name)
 
 int FileProvider::addClientKey(const QString &name)
 {
-    const auto sourceLocation = QFileDialog::getOpenFileName(nullptr, tr("Import key"), {}, tr("application/x-pem-key"));
+    const auto sourceLocation
+        = QFileDialog::getOpenFileName(nullptr, tr("Import key"), {}, tr("application/x-pem-key"));
     if (sourceLocation.isEmpty()) {
         return false;
     }
@@ -105,7 +108,7 @@ QStringList FileProvider::validClientEntries()
 
 QPair<QSslCertificate, QSslKey> FileProvider::clientData(const QString &name)
 {
-    return {openCertificateFromData(jClientCertData(name)), keyFromData(jClientKeyData(name))};
+    return { openCertificateFromData(jClientCertData(name)), keyFromData(jClientKeyData(name)) };
 }
 
 QList<QSslCertificate> FileProvider::trustedCerts()

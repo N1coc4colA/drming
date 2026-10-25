@@ -68,7 +68,7 @@ bool isVkmsModuleLoaded()
 
 bool isVkmsConfigEnabled()
 {
-    for (const auto &name : {QString("/proc/config.gz"), QString("/boot/config-") + QSysInfo::kernelVersion()}) {
+    for (const auto &name : { QString("/proc/config.gz"), QString("/boot/config-") + QSysInfo::kernelVersion() }) {
         QFile f(name);
         if (!f.open(QIODevice::ReadOnly)) {
             continue;
@@ -92,7 +92,7 @@ bool loadVkmsModule()
     qInfo() << "Inserting vkms";
 
     QProcess process{};
-    process.start("modprobe", {"vkms", "enable_cursor=1"});
+    process.start("modprobe", { "vkms", "enable_cursor=1" });
 
     while (!process.waitForFinished()) {
     }
@@ -192,7 +192,8 @@ bool DispSetup::makeEnvChecks() const
 
     if (!isVkmsModuleLoaded()) {
         if (!loadVkmsModule()) {
-            qCritical() << "VKMS kernel module is not loaded. Its loading failed. You can load it with: modprobe vkms enable_cursor=1";
+            qCritical() << "VKMS kernel module is not loaded. Its loading failed. You can load it with: modprobe vkms "
+                           "enable_cursor=1";
             return false;
         }
         sleep(2);

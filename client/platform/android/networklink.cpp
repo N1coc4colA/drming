@@ -7,7 +7,10 @@ namespace Platform {
 void VideoLink::processPacket(const Packets::ClientResolution &res)
 {
     m_waitedForResolution.store(true, std::memory_order_relaxed);
-    setBounds<&Packets::ServerImage::data>(quint64(0), static_cast<quint64>(res.width.data) * static_cast<quint64>(res.height.data) * 4);
+    setBounds<&Packets::ServerImage::data>(
+        quint64(0),
+        static_cast<quint64>(res.width.data) * static_cast<quint64>(res.height.data) * 4
+    );
 }
 
 void VideoLink::processPacket(const Packets::ServerStream &img)
@@ -62,7 +65,8 @@ void VideoLink::setItem(VideoFrameItem *item)
         if (m_telemetry) {
             m_decoder->setTelemetry(m_telemetry);
             m_decoder->setLatencyCallback([t = m_telemetry](qint64 ns) {
-                if (t) t->recordDecoded(ns);
+                if (t)
+                    t->recordDecoded(ns);
             });
         }
     }
@@ -70,19 +74,30 @@ void VideoLink::setItem(VideoFrameItem *item)
     // Connect image decoder callback to update UI safely on GUI thread
     m_imageDecoder.setFrameCallback([this](const QImage &image, qint64 receiveNs) {
         if (m_item) {
-            QMetaObject::invokeMethod(m_item, "setImage", Qt::QueuedConnection, Q_ARG(QImage, image), Q_ARG(qint64, receiveNs));
+            QMetaObject::invokeMethod(
+                m_item,
+                "setImage",
+                Qt::QueuedConnection,
+                Q_ARG(QImage, image),
+                Q_ARG(qint64, receiveNs)
+            );
         }
     });
 
     // Hop to the item's thread for the mutations.
-    QMetaObject::invokeMethod(item, [this, item] {
-        if (m_telemetry) {
-            item->setLatencyCallback([t = m_telemetry](qint64 ns) {
-                if (t) t->recordDecoded(ns);
-            });
-        }
-        item->setDecoder(m_decoder);
-    }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(
+        item,
+        [this, item] {
+            if (m_telemetry) {
+                item->setLatencyCallback([t = m_telemetry](qint64 ns) {
+                    if (t)
+                        t->recordDecoded(ns);
+                });
+            }
+            item->setDecoder(m_decoder);
+        },
+        Qt::QueuedConnection
+    );
 }
 
 NetworkLink::NetworkLink(QObject *parent)
@@ -155,7 +170,7 @@ void NetworkLink::performRequirements()
     }
 
     if (m_vlink && !m_vlink->waitedForResolution()) [[unlikely]] {
-        //m_vlink->waitFor(Packets::Type::ClientResolution);
+        // m_vlink->waitFor(Packets::Type::ClientResolution);
 
         static constexpr Packets::RequestClientResolution resReq{};
         write(Packets::Writer::generate(resReq));
@@ -191,9 +206,7 @@ void NetworkLink::setItem(QObject *item)
         return;
     }
 
-    QMetaObject::invokeMethod(m_vlink, [this, vitem]() {
-        m_vlink->setItem(vitem);
-    });
+    QMetaObject::invokeMethod(m_vlink, [this, vitem]() { m_vlink->setItem(vitem); });
 }
 
 void VideoLink::setTelemetry(Telemetry *t)
@@ -220,17 +233,17 @@ void NetworkLink::processPacket(const Packets::KeyUpdate &ku)
 
     const auto keyData = ku.key.data;
     const auto keyStamp = ku.keyStamp.data;
-    QMetaObject::invokeMethod(m_vlink, [this, keyData, keyStamp]() {
-        m_vlink->setKey(keyData, keyStamp);
-    });
+    QMetaObject::invokeMethod(m_vlink, [this, keyData, keyStamp]() { m_vlink->setKey(keyData, keyStamp); });
 }
 
 void NetworkLink::processPacket(const Packets::AudioSource &src)
 {
-    qDebug() << "Got audio source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':' << src.port.data;
+    qDebug() << "Got audio source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':'
+             << src.port.data;
 
     m_inactivityTimer.stop();
-    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
+    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData()))
+                                    : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
     const quint16 port = src.port.data;
 
     m_waitedForAudioSource = true;
@@ -247,10 +260,12 @@ void NetworkLink::processPacket(const Packets::AudioSource &src)
 
 void NetworkLink::processPacket(const Packets::VideoSource &src)
 {
-    qDebug() << "Got video source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':' << src.port.data;
+    qDebug() << "Got video source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':'
+             << src.port.data;
 
     m_inactivityTimer.stop();
-    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
+    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData()))
+                                    : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
     const quint16 port = src.port.data;
 
     m_waitedForVideoSource = true;

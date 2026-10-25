@@ -11,9 +11,9 @@
 #include <QUdpSocket>
 #include <QtEndian>
 
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 
 #include <cerrno>
 #include <cstring>
@@ -28,10 +28,9 @@
 #include <ctrack.hpp>
 #endif
 
-
 using Endpoint = QPair<QHostAddress, quint16>;
 
-//#define ENABLE_ENCRYPT
+// #define ENABLE_ENCRYPT
 
 class UdpStreamSocket : public QObject
 {
@@ -55,14 +54,29 @@ public:
         rotateKey();
     }
 
-    inline Packets::Keystamp getKeystamp() const { return m_ks; }
-    inline QByteArray getKey() const { return m_key; }
+    inline Packets::Keystamp getKeystamp() const
+    {
+        return m_ks;
+    }
+    inline QByteArray getKey() const
+    {
+        return m_key;
+    }
 
-    inline auto ipv4Address() const { return m_ipAddress; }
+    inline auto ipv4Address() const
+    {
+        return m_ipAddress;
+    }
 
-    inline auto socket() { return &m_socket; }
+    inline auto socket()
+    {
+        return &m_socket;
+    }
 
-    inline auto clearJitterBuffer() { m_jitterBuffer.clear(); };
+    inline auto clearJitterBuffer()
+    {
+        m_jitterBuffer.clear();
+    };
 
 Q_SIGNALS:
     void connected();
@@ -81,7 +95,11 @@ public Q_SLOTS:
         const auto proto = address.protocol();
 
         if (proto == QAbstractSocket::IPv4Protocol || proto == QAbstractSocket::IPv6Protocol) {
-            if (!m_socket.bind(proto == QAbstractSocket::IPv4Protocol ? QHostAddress::AnyIPv4 : QHostAddress::AnyIPv6, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
+            if (!m_socket.bind(
+                    proto == QAbstractSocket::IPv4Protocol ? QHostAddress::AnyIPv4 : QHostAddress::AnyIPv6,
+                    port,
+                    QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress
+                )) {
                 qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket.errorString();
                 // [TODO] Propagate the error
                 return;
@@ -97,11 +115,14 @@ public Q_SLOTS:
             const auto flags = iface.flags();
             const auto name = iface.name();
 
-            if (!flags.testFlags(QNetworkInterface::CanMulticast | QNetworkInterface::IsUp | QNetworkInterface::IsLoopBack)) {
+            if (!flags.testFlags(
+                    QNetworkInterface::CanMulticast | QNetworkInterface::IsUp | QNetworkInterface::IsLoopBack
+                )) {
                 continue;
             }
 
-            if (name.startsWith("tailscale") || name.startsWith("docker") || name.startsWith("tun") || name.startsWith("tap")) {
+            if (name.startsWith("tailscale") || name.startsWith("docker") || name.startsWith("tun")
+                || name.startsWith("tap")) {
                 continue;
             }
 
@@ -126,7 +147,11 @@ public Q_SLOTS:
     {
         const auto proto = address.protocol();
         if (proto == QAbstractSocket::IPv4Protocol || proto == QAbstractSocket::IPv6Protocol) {
-            if (!m_socket.bind(proto == QAbstractSocket::IPv4Protocol ? QHostAddress::AnyIPv4 : QHostAddress::AnyIPv6, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
+            if (!m_socket.bind(
+                    proto == QAbstractSocket::IPv4Protocol ? QHostAddress::AnyIPv4 : QHostAddress::AnyIPv6,
+                    port,
+                    QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress
+                )) {
                 qDebug() << "Failed to bind for multicast:" << address << ':' << port << m_socket.errorString();
                 // [TODO] Propagate the error
                 return;
@@ -162,14 +187,18 @@ public Q_SLOTS:
 
     bool write(const QByteArray &data)
     {
-        if (m_socket.state() == QAbstractSocket::BoundState && !write(data, m_socket, m_ipAddress, m_socket.localPort())) {
+        if (m_socket.state() == QAbstractSocket::BoundState
+            && !write(data, m_socket, m_ipAddress, m_socket.localPort())) {
             return false;
         }
 
         return true;
     }
 
-    void onReadyRead4() { onReadyRead(m_socket); }
+    void onReadyRead4()
+    {
+        onReadyRead(m_socket);
+    }
 
     void setKey(const QByteArray &key, const Packets::Keystamp ks)
     {
@@ -205,7 +234,7 @@ protected:
 private:
     QHostAddress m_ipAddress{};
 
-    QUdpSocket m_socket{this};
+    QUdpSocket m_socket{ this };
 
     Packets::JitterBuffer<> m_jitterBuffer;
     Packets::Timestamp m_ts = 0;
@@ -213,7 +242,7 @@ private:
     Packets::Keystamp m_keyCount = 0;
     Packets::Keystamp m_ks = 0;
     QByteArray m_key;
-    QAESEncryption m_aes = {QAESEncryption::AES_256, QAESEncryption::CBC, QAESEncryption::PKCS7};
+    QAESEncryption m_aes = { QAESEncryption::AES_256, QAESEncryption::CBC, QAESEncryption::PKCS7 };
 
     static QByteArray generate(const qsizetype len)
     {
@@ -228,9 +257,18 @@ private:
         return d;
     }
 
-    static inline QByteArray generateIV() { return generate(Settings::ivSize); }
+    static inline QByteArray generateIV()
+    {
+        return generate(Settings::ivSize);
+    }
 
-    bool listen(QUdpSocket &socket, const QHostAddress &bindAddr, const QHostAddress &address, const quint16 port, const QNetworkInterface &iface)
+    bool listen(
+        QUdpSocket &socket,
+        const QHostAddress &bindAddr,
+        const QHostAddress &address,
+        const quint16 port,
+        const QNetworkInterface &iface
+    )
     {
         if (!socket.bind(bindAddr, port, QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress)) {
             qCritical() << "Failed to bind UDP socket" << address << ':' << port << ':' << socket.errorString();
@@ -243,7 +281,8 @@ private:
         }
 
         if (isValid ? !socket.joinMulticastGroup(address, iface) : !socket.joinMulticastGroup(address)) {
-            qCritical() << "Failed to join multicast" << iface.name() << ':' << address.toString() << ':' << port << socket.errorString();
+            qCritical() << "Failed to join multicast" << iface.name() << ':' << address.toString() << ':' << port
+                        << socket.errorString();
             return false;
         }
 
@@ -259,7 +298,12 @@ private:
         return true;
     }
 
-    void processPlain(QByteArray plain, const Packets::Timestamp ts, const Packets::Ordering order, const Packets::Ordering sizing)
+    void processPlain(
+        QByteArray plain,
+        const Packets::Timestamp ts,
+        const Packets::Ordering order,
+        const Packets::Ordering sizing
+    )
     {
         CTRACK;
 
@@ -277,8 +321,8 @@ private:
 
     void onReadyRead(QUdpSocket &socket)
     {
-        static constexpr qsizetype headerSize = sizeof(Packets::Keystamp) + Settings::ivSize +
-                                                sizeof(Packets::Timestamp) + sizeof(Packets::Ordering) * 2;
+        static constexpr qsizetype headerSize = sizeof(Packets::Keystamp) + Settings::ivSize
+            + sizeof(Packets::Timestamp) + sizeof(Packets::Ordering) * 2;
 
         while (socket.hasPendingDatagrams()) {
             CTRACK;
@@ -301,7 +345,9 @@ private:
             const auto order = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(dgram.constData() + offset));
             offset += sizeof(Packets::Ordering);
 
-            const auto sizing = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(dgram.constData() + offset));
+            const auto sizing = qFromBigEndian(
+                *reinterpret_cast<const Packets::Ordering *>(dgram.constData() + offset)
+            );
             offset += sizeof(Packets::Ordering);
 
             const auto ts = qFromBigEndian(*reinterpret_cast<const Packets::Timestamp *>(dgram.constData() + offset));
@@ -344,13 +390,10 @@ private:
         CTRACK;
 
         static constexpr qsizetype aesBlock = 16;
-        static constexpr auto innerSize = Settings::dtlsChunkSize - Settings::ivSize
-                                          - sizeof(Packets::Keystamp) - sizeof(Packets::Ordering) * 2
-                                          - sizeof(Packets::Timestamp) - aesBlock;
-        static constexpr auto headerSize = sizeof(Packets::Ordering) * 2
-                                           + sizeof(Packets::Timestamp)
-                                           + Settings::ivSize
-                                           + sizeof(Packets::Keystamp);
+        static constexpr auto innerSize = Settings::dtlsChunkSize - Settings::ivSize - sizeof(Packets::Keystamp)
+            - sizeof(Packets::Ordering) * 2 - sizeof(Packets::Timestamp) - aesBlock;
+        static constexpr auto headerSize = sizeof(Packets::Ordering) * 2 + sizeof(Packets::Timestamp) + Settings::ivSize
+            + sizeof(Packets::Keystamp);
 
         const int fd = static_cast<int>(socket.socketDescriptor());
         if (fd < 0) [[unlikely]] {
@@ -370,7 +413,7 @@ private:
         } else if (address.protocol() == QAbstractSocket::IPv6Protocol) {
             auto *sin6 = reinterpret_cast<sockaddr_in6 *>(&dst);
             sin6->sin6_family = AF_INET6;
-            sin6->sin6_port   = htons(port);
+            sin6->sin6_port = htons(port);
             const auto v6 = address.toIPv6Address();
             std::memcpy(&sin6->sin6_addr, v6.c, sizeof(sin6->sin6_addr));
             dstLen = sizeof(sockaddr_in6);
@@ -388,18 +431,20 @@ private:
         // Batch 32 datagrams per syscall. Everything below is stack-allocated
         // so there's no per-write heap churn beyond the payload buffers.
         static constexpr int kBatch = 32;
-        struct mmsghdr  mmsgs[kBatch];
-        struct iovec    iovs[kBatch];
-        QByteArray      buffers[kBatch];
+        struct mmsghdr mmsgs[kBatch];
+        struct iovec iovs[kBatch];
+        QByteArray buffers[kBatch];
         int inFlight = 0;
 
         auto flush = [&]() -> bool {
-            if (inFlight == 0) return true;
+            if (inFlight == 0)
+                return true;
             int sent = 0;
             while (sent < inFlight) {
                 const int n = ::sendmmsg(fd, mmsgs + sent, inFlight - sent, 0);
                 if (n < 0) {
-                    if (errno == EINTR) continue;
+                    if (errno == EINTR)
+                        continue;
                     qWarning() << "sendmmsg:" << strerror(errno);
                     inFlight = 0;
                     return false;
@@ -413,7 +458,7 @@ private:
         Packets::Ordering order = 0;
         qsizetype offset = 0;
         while (offset < size) {
-            const auto order_be  = qToBigEndian(order);
+            const auto order_be = qToBigEndian(order);
             const auto chunkSize = std::min<qsizetype>(innerSize, size - offset);
 
             QByteArray ciphertext{};
@@ -493,16 +538,43 @@ public:
         , m_mtx(mtx)
     {}
 
-    void setDtls(QDtls *dtls) { m_dtls = dtls; }
-    void setSocket(QUdpSocket *socket) { m_socket = socket; }
-    void setMutex(QMutex *mtx) { m_mtx = mtx; }
+    void setDtls(QDtls *dtls)
+    {
+        m_dtls = dtls;
+    }
+    void setSocket(QUdpSocket *socket)
+    {
+        m_socket = socket;
+    }
+    void setMutex(QMutex *mtx)
+    {
+        m_mtx = mtx;
+    }
 
-    QDtls *dtls() { return m_dtls; }
-    const QDtls *dtls() const { return m_dtls; }
-    QUdpSocket *socket() { return m_socket; }
-    const QUdpSocket *socket() const { return m_socket; }
-    QMutex *mutex() { return m_mtx; }
-    const QMutex *mutex() const { return m_mtx; }
+    QDtls *dtls()
+    {
+        return m_dtls;
+    }
+    const QDtls *dtls() const
+    {
+        return m_dtls;
+    }
+    QUdpSocket *socket()
+    {
+        return m_socket;
+    }
+    const QUdpSocket *socket() const
+    {
+        return m_socket;
+    }
+    QMutex *mutex()
+    {
+        return m_mtx;
+    }
+    const QMutex *mutex() const
+    {
+        return m_mtx;
+    }
 
     T &m_owner;
     QDtls *m_dtls;
@@ -522,11 +594,9 @@ public:
     {
         CTRACK;
 
-        static constexpr auto innerSize = Settings::dtlsChunkSize
-                                          - sizeof(Packets::Ordering) * 2
-                                          - sizeof(Packets::Timestamp);
-        static constexpr auto headerSize = sizeof(Packets::Timestamp)
-                                           + sizeof(Packets::Ordering) * 2;
+        static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) * 2
+            - sizeof(Packets::Timestamp);
+        static constexpr auto headerSize = sizeof(Packets::Timestamp) + sizeof(Packets::Ordering) * 2;
 
         const auto size = data.size();
         const auto sizing = Packets::Ordering(size / innerSize + (size % innerSize ? 1 : 0));
@@ -568,7 +638,8 @@ public:
                     continue;
                 }
                 default: {
-                    qWarning() << "DTLS write error on" << m_ts << order << static_cast<int>(err) << m_storage.m_dtls->dtlsErrorString();
+                    qWarning() << "DTLS write error on" << m_ts << order << static_cast<int>(err)
+                               << m_storage.m_dtls->dtlsErrorString();
                 }
                 }
 
@@ -621,7 +692,9 @@ public:
             const auto ts = qFromBigEndian(*reinterpret_cast<const Packets::Timestamp *>(plain.constData() + offset));
             offset += sizeof(Packets::Timestamp);
 
-            const auto sizing = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(plain.constData() + offset));
+            const auto sizing = qFromBigEndian(
+                *reinterpret_cast<const Packets::Ordering *>(plain.constData() + offset)
+            );
             offset += sizeof(Packets::Ordering);
 
             const auto order = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(plain.constData() + offset));
@@ -646,7 +719,10 @@ public:
         qWarning() << "Received zero-length DTLS plaintext or unexpected datagram";
     }
 
-    auto &jitterBuffer() { return m_jitterBuffer; }
+    auto &jitterBuffer()
+    {
+        return m_jitterBuffer;
+    }
 
 private:
     Storage &m_storage;
@@ -674,7 +750,10 @@ public:
 };
 
 template<typename T>
-class DtlsReaderWriter : public DtlsCommon<T>, public DtlsReaderImpl<T, DtlsReaderWriter<T>>, public DtlsWriterImpl<T, DtlsReaderWriter<T>>
+class DtlsReaderWriter :
+    public DtlsCommon<T>,
+    public DtlsReaderImpl<T, DtlsReaderWriter<T>>,
+    public DtlsWriterImpl<T, DtlsReaderWriter<T>>
 {
 public:
     explicit DtlsReaderWriter(T &owner, QDtls *dtls, QUdpSocket *socket, QMutex *mtx = nullptr)

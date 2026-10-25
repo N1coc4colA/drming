@@ -78,13 +78,10 @@ void NetworkClient::processPacket(const Packets::ClientTelemetry &t)
     // pass it to the display currently owning this client.
 
 #ifdef TELEMETRY_OUTPUT
-    qDebug() << "Telemetry from" << m_address << ":" << m_port
-             << "fps=" << (t.fpsX10.data / 10.0)
+    qDebug() << "Telemetry from" << m_address << ":" << m_port << "fps=" << (t.fpsX10.data / 10.0)
              << "avg=" << t.latencyMsAvg.data << "ms"
              << "p95=" << t.latencyMsP95.data << "ms"
-             << "drops=" << t.droppedFrames.data
-             << "kbps=" << t.recvRateKbps.data
-             << "dQ=" << t.decodeQueueDepth.data
+             << "drops=" << t.droppedFrames.data << "kbps=" << t.recvRateKbps.data << "dQ=" << t.decodeQueueDepth.data
              << "rQ=" << t.renderQueueDepth.data;
 #endif
 
@@ -93,7 +90,13 @@ void NetworkClient::processPacket(const Packets::ClientTelemetry &t)
     }
 }
 
-NetworkClient::NetworkClient(QDtls *dtls, const QHostAddress &address, const quint16 port, QPair<QUdpSocket, QMutex> &sharedSocket, QObject *parent)
+NetworkClient::NetworkClient(
+    QDtls *dtls,
+    const QHostAddress &address,
+    const quint16 port,
+    QPair<QUdpSocket, QMutex> &sharedSocket,
+    QObject *parent
+)
     : QObject(parent)
     , Packets::Parser<NetworkClient>(*this)
     , m_address(address)

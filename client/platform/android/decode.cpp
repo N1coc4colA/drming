@@ -6,7 +6,6 @@
 
 #include "../net/telemetry.h"
 
-
 namespace Platform {
 
 namespace {
@@ -14,7 +13,9 @@ bool nextAnnexBNal(const uint8_t *data, const size_t size, size_t &cursor, size_
 {
     while (cursor + 3 < size) {
         if (data[cursor] == 0x00 && data[cursor + 1] == 0x00) {
-            const size_t startCodeSize = data[cursor + 2] == 0x01 ? 3 : (cursor + 3 < size && data[cursor + 2] == 0x00 && data[cursor + 3] == 0x01 ? 4 : 0);
+            const size_t startCodeSize = data[cursor + 2] == 0x01
+                ? 3
+                : (cursor + 3 < size && data[cursor + 2] == 0x00 && data[cursor + 3] == 0x01 ? 4 : 0);
             if (startCodeSize != 0) {
                 nalStart = cursor + startCodeSize;
                 if (nalStart >= size) {
@@ -24,8 +25,9 @@ bool nextAnnexBNal(const uint8_t *data, const size_t size, size_t &cursor, size_
                 size_t next = nalStart;
                 bool foundNext = false;
                 while (next + 3 < size) {
-                    if (data[next] == 0x00 && data[next + 1] == 0x00 &&
-                        (data[next + 2] == 0x01 || (next + 3 < size && data[next + 2] == 0x00 && data[next + 3] == 0x01))) {
+                    if (data[next] == 0x00 && data[next + 1] == 0x00
+                        && (data[next + 2] == 0x01
+                            || (next + 3 < size && data[next + 2] == 0x00 && data[next + 3] == 0x01))) {
                         foundNext = true;
                         break;
                     }
@@ -64,7 +66,13 @@ bool isKeyFrameH265(const uint8_t *data, const size_t size)
     return false;
 }
 
-void extractCSDH265(const uint8_t *data, const size_t size, std::vector<uint8_t> &vps, std::vector<uint8_t> &sps, std::vector<uint8_t> &pps)
+void extractCSDH265(
+    const uint8_t *data,
+    const size_t size,
+    std::vector<uint8_t> &vps,
+    std::vector<uint8_t> &sps,
+    std::vector<uint8_t> &pps
+)
 {
     size_t cursor = 0;
     size_t nalStart = 0;
@@ -84,7 +92,7 @@ void extractCSDH265(const uint8_t *data, const size_t size, std::vector<uint8_t>
 }
 } // namespace
 
-VideoDecoder::VideoDecoder(QObject* parent)
+VideoDecoder::VideoDecoder(QObject *parent)
     : QObject(parent)
 {}
 
@@ -103,11 +111,13 @@ int VideoDecoder::init(const int width, const int height)
     m_height = height;
     m_resolutionDetected = width > 0 && height > 0;
 
-    media_status_t status = AImageReader_new(width,
-                                             height,
-                                             AIMAGE_FORMAT_YUV_420_888, // most common
-                                             kMaxCachedImages,
-                                             &m_imageReader);
+    media_status_t status = AImageReader_new(
+        width,
+        height,
+        AIMAGE_FORMAT_YUV_420_888, // most common
+        kMaxCachedImages,
+        &m_imageReader
+    );
     switch (status) {
     case AMEDIA_OK: {
         // Most likely case. We can continue normally.
@@ -229,7 +239,7 @@ void VideoDecoder::destroyEglImageCache()
     }
 
     const auto display = eglGetCurrentDisplay();
-    for (auto& [buffer, entry] : m_eglImageCache) {
+    for (auto &[buffer, entry] : m_eglImageCache) {
         if (display != EGL_NO_DISPLAY && entry.image != EGL_NO_IMAGE_KHR) {
             eglDestroyImageKHR(display, entry.image);
         }
@@ -304,7 +314,7 @@ int VideoDecoder::decode(const uint8_t *data, const size_t size)
     return ret;
 }
 
-int VideoDecoder::decode_frame(const uint8_t* data, const size_t size, const bool isKeyFrame)
+int VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const bool isKeyFrame)
 {
     // Always queue input buffer (works for both paths)
     const auto inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 10000);
@@ -342,7 +352,8 @@ int VideoDecoder::decode_frame(const uint8_t* data, const size_t size, const boo
         inputIndex,
         0,
         size,
-        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+            .count(),
         flags
     );
     if (status != AMEDIA_OK) [[unlikely]] {
@@ -356,7 +367,7 @@ int VideoDecoder::decode_frame(const uint8_t* data, const size_t size, const boo
         if (outIdx >= 0) [[likely]] {
             // render = true: hands the buffer to the ANativeWindow/AImageReader.
             AMediaCodec_releaseOutputBuffer(m_codec, outIdx, true);
-            continue; //more than one frame may be ready
+            continue; // more than one frame may be ready
         } else if (outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
             break;
         } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
@@ -373,9 +384,9 @@ int VideoDecoder::decode_frame(const uint8_t* data, const size_t size, const boo
     return 0;
 }
 
-void VideoDecoder::onImageAvailable(void* context, AImageReader* reader)
+void VideoDecoder::onImageAvailable(void *context, AImageReader *reader)
 {
-    auto self = static_cast<VideoDecoder*>(context);
+    auto self = static_cast<VideoDecoder *>(context);
     // Just set a flag; the actual acquisition happens on the render thread
     self->m_frameAvailable.store(true, std::memory_order_release);
 }
@@ -392,14 +403,14 @@ bool VideoDecoder::consumeFrame()
         return false;
     }
 
-    AImage* image = nullptr;
+    AImage *image = nullptr;
     auto status = AImageReader_acquireNextImage(m_imageReader, &image);
     switch (status) {
     case AMEDIA_OK:
         [[likely]]
         {
             const auto renderNs = steadyNowNs();
-            const auto recvNs   = m_lastInputNs.load(std::memory_order_relaxed);
+            const auto recvNs = m_lastInputNs.load(std::memory_order_relaxed);
             if (recvNs > 0 && m_latencyCallback) {
                 m_latencyCallback(renderNs - recvNs);
             }
@@ -421,7 +432,7 @@ bool VideoDecoder::consumeFrame()
     }
 
     // Get the hardware buffer
-    AHardwareBuffer* hardwareBuffer = nullptr;
+    AHardwareBuffer *hardwareBuffer = nullptr;
     status = AImage_getHardwareBuffer(image, &hardwareBuffer);
     if (status != AMEDIA_OK || !hardwareBuffer) [[unlikely]] {
         qWarning() << "Failed to get AHardwareBuffer from image";
@@ -436,7 +447,7 @@ bool VideoDecoder::consumeFrame()
     return true;
 }
 
-void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
+void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
 {
     const auto display = eglGetCurrentDisplay();
     if (display == EGL_NO_DISPLAY) [[unlikely]] {
@@ -458,7 +469,7 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
     if (it != m_eglImageCache.end()) [[likely]] {
         eglImage = it->second.image;
     } else {
-        constexpr EGLint attribs[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
+        constexpr EGLint attribs[] = { EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE };
         eglImage = eglCreateImageKHR(display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, attribs);
         if (eglImage == EGL_NO_IMAGE_KHR) [[unlikely]] {
             qWarning() << "eglCreateImageKHR failed";
@@ -478,7 +489,7 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer* buffer)
         // the system for a different allocation while we hold it cached
         // (AImage_delete() in consumeFrame() only drops AImageReader's ref).
         AHardwareBuffer_acquire(buffer);
-        m_eglImageCache.insert({buffer, CachedImage{eglImage, buffer}});
+        m_eglImageCache.insert({ buffer, CachedImage{ eglImage, buffer } });
     }
 
     // Create/update the OES texture

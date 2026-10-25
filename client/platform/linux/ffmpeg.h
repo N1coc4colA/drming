@@ -43,16 +43,28 @@ public:
     explicit FfmpegDecoder(QObject *parent = nullptr);
     ~FfmpegDecoder();
 
-    int width() const { return m_width; }
-    int height() const { return m_height; }
-    bool isInitialized() const { return m_initialized; }
+    int width() const
+    {
+        return m_width;
+    }
+    int height() const
+    {
+        return m_height;
+    }
+    bool isInitialized() const
+    {
+        return m_initialized;
+    }
 
     int init();
     void release();
     int flush();
     int decode(const uint8_t *data, size_t size);
 
-    void setFrameCallback(FrameCallback callback) { m_frameCallback = callback; }
+    void setFrameCallback(FrameCallback callback)
+    {
+        m_frameCallback = callback;
+    }
 
 private:
     FrameCallback m_frameCallback = nullptr;

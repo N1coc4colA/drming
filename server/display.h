@@ -21,7 +21,10 @@ class Display : public QObject
 public:
     explicit Display(const QString &connectorName, StreamSocket &ss, bool inPlaceComposite, QObject *parent = nullptr);
 
-    StreamSocket &streamSocket() { return m_ss; }
+    StreamSocket &streamSocket()
+    {
+        return m_ss;
+    }
 
     void applyClientTelemetry(const Packets::ClientTelemetry &t);
 
@@ -58,7 +61,7 @@ private:
     std::optional<DrmFormat::FormatDescriptor> m_cursorFrameDescriptor{};
     std::optional<DrmFormat::FormatDescriptor> m_vkmsFrameDescriptor{};
 
-    std::atomic<int> m_targetFps{Settings::maxForwardFps};
+    std::atomic<int> m_targetFps{ Settings::maxForwardFps };
     int m_overloadStreak = 0;
     int m_healthyStreak = 0;
     qint64 m_encodeSumNs = 0;

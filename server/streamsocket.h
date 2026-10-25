@@ -18,7 +18,8 @@ public:
         : UdpStreamSocket(parent)
     {}
 
-    inline void addData(QByteArray) override {}
+    inline void addData(QByteArray) override
+    {}
 };
 
 #endif // STREAMSOCKET_H

@@ -7,8 +7,8 @@
 #include <QTimer>
 #include <QUdpSocket>
 
-#include "../net/udp.h"
 #include "../net/telemetry.h"
+#include "../net/udp.h"
 
 /**
  * Client-side secure transport for control packets and video frames.

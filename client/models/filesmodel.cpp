@@ -44,7 +44,7 @@ QVariant FilesModel::data(const QModelIndex &index, const int role) const
 
 QHash<int, QByteArray> FilesModel::roleNames() const
 {
-    return {{NameRole, "name"}, {DateTimeRole, "datetime"}, {InfoRole, "info"}};
+    return { { NameRole, "name" }, { DateTimeRole, "datetime" }, { InfoRole, "info" } };
 }
 
 QVariantMap FilesModel::get(const int index) const
@@ -57,5 +57,5 @@ QVariantMap FilesModel::get(const int index) const
     const auto localeDateFormat = QLocale::system().dateFormat(QLocale::ShortFormat);
     const auto dt = QLocale::system().toString(std::get<0>(v), localeDateFormat + Settings::timeFormat);
 
-    return {{"datetime", dt}, {"name", std::get<1>(v)}, {"info", std::get<2>(v)}};
+    return { { "datetime", dt }, { "name", std::get<1>(v) }, { "info", std::get<2>(v) } };
 }

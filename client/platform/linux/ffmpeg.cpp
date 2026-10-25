@@ -251,7 +251,18 @@ QImage FfmpegDecoder::frameToQImage(AVFrame *frame)
             m_sws = nullptr;
         }
 
-        m_sws = sws_getContext(m_width, m_height, m_src_fmt, m_width, m_height, m_dst_fmt, SWS_BILINEAR, NULL, NULL, NULL);
+        m_sws = sws_getContext(
+            m_width,
+            m_height,
+            m_src_fmt,
+            m_width,
+            m_height,
+            m_dst_fmt,
+            SWS_BILINEAR,
+            NULL,
+            NULL,
+            NULL
+        );
 
         if (!m_sws) {
             qWarning() << "Failed to create scale context";
@@ -266,11 +277,11 @@ QImage FfmpegDecoder::frameToQImage(AVFrame *frame)
         return {};
     }
 
-    uint8_t *dst_data[1] = {image.bits()};
-    const int dst_linesize[1] = {static_cast<int>(image.bytesPerLine())};
+    uint8_t *dst_data[1] = { image.bits() };
+    const int dst_linesize[1] = { static_cast<int>(image.bytesPerLine()) };
 
     // Convert YUV to RGB
-    sws_scale(m_sws, (const uint8_t *const *) frame->data, frame->linesize, 0, m_height, dst_data, dst_linesize);
+    sws_scale(m_sws, (const uint8_t *const *)frame->data, frame->linesize, 0, m_height, dst_data, dst_linesize);
 
     return image;
 }

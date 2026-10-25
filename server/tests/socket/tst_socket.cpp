@@ -13,7 +13,8 @@ class TestStreamSocket final : public StreamSocket
 public:
     using StreamSocket::StreamSocket;
 
-    void addData(QByteArray) override {}
+    void addData(QByteArray) override
+    {}
 };
 
 class TestServerCore : public QObject
@@ -25,10 +26,10 @@ private Q_SLOTS:
     {
         uint8_t a = 0, b = 0, c = 0, d = 0;
         Drm::split_fourcc(DRM_FORMAT_XRGB8888, a, b, c, d);
-        QCOMPARE(a, uint8_t{'X'});
-        QCOMPARE(b, uint8_t{'R'});
-        QCOMPARE(c, uint8_t{'2'});
-        QCOMPARE(d, uint8_t{'4'});
+        QCOMPARE(a, uint8_t{ 'X' });
+        QCOMPARE(b, uint8_t{ 'R' });
+        QCOMPARE(c, uint8_t{ '2' });
+        QCOMPARE(d, uint8_t{ '4' });
 
         char ca = 0, cb = 0, cc = 0, cd = 0;
         Drm::split_fourcc(DRM_FORMAT_ARGB8888, ca, cb, cc, cd);
@@ -45,7 +46,7 @@ private Q_SLOTS:
         constexpr uint32_t width = 2;
         constexpr uint32_t height = 1;
         constexpr uint32_t stride = 8;
-        uchar pixels[stride] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+        uchar pixels[stride] = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
         const auto descriptor = DrmFormat::resolve(DRM_FORMAT_ABGR8888);
         QVERIFY(descriptor.has_value());
 
@@ -53,14 +54,14 @@ private Q_SLOTS:
         QCOMPARE(image.size(), QSize(2, 1));
         QCOMPARE(image.bytesPerLine(), int(stride));
         const auto *converted = image.constBits();
-        QCOMPARE(converted[0], uchar{0x33});
-        QCOMPARE(converted[1], uchar{0x22});
-        QCOMPARE(converted[2], uchar{0x11});
-        QCOMPARE(converted[3], uchar{0x44});
-        QCOMPARE(converted[4], uchar{0x77});
-        QCOMPARE(converted[5], uchar{0x66});
-        QCOMPARE(converted[6], uchar{0x55});
-        QCOMPARE(converted[7], uchar{0x88});
+        QCOMPARE(converted[0], uchar{ 0x33 });
+        QCOMPARE(converted[1], uchar{ 0x22 });
+        QCOMPARE(converted[2], uchar{ 0x11 });
+        QCOMPARE(converted[3], uchar{ 0x44 });
+        QCOMPARE(converted[4], uchar{ 0x77 });
+        QCOMPARE(converted[5], uchar{ 0x66 });
+        QCOMPARE(converted[6], uchar{ 0x55 });
+        QCOMPARE(converted[7], uchar{ 0x88 });
     }
 
     void cursorCompositeHandlesInvalidAndValidFrames()
@@ -76,7 +77,7 @@ private Q_SLOTS:
         QCOMPARE(primary.pixelColor(0, 0), QColor(Qt::black));
 
         composite = primary.copy();
-        uchar cursorPixel[4] = {0x00, 0x00, 0xff, 0xff};
+        uchar cursorPixel[4] = { 0x00, 0x00, 0xff, 0xff };
         CursorFrameBuffer cursor{};
         cursor.data = cursorPixel;
         cursor.width = 1;
@@ -99,7 +100,7 @@ private Q_SLOTS:
         fb.size = 0;
         DisplayReader::releaseVkmsFrameBuffer(fb);
         QCOMPARE(fb.fd, -1);
-        QCOMPARE(fb.width, uint32_t{0});
+        QCOMPARE(fb.width, uint32_t{ 0 });
         QCOMPARE(fb.data, nullptr);
 
         CursorFrameBuffer cursor{};
@@ -108,7 +109,7 @@ private Q_SLOTS:
         cursor.width = 4;
         DisplayReader::releaseCursorFrameBuffer(cursor);
         QCOMPARE(cursor.fd, -1);
-        QCOMPARE(cursor.width, uint32_t{0});
+        QCOMPARE(cursor.width, uint32_t{ 0 });
     }
 
     void ffmpegPixelFormatMapping()
@@ -159,7 +160,7 @@ private Q_SLOTS:
         QCOMPARE(keySpy.count(), 0);
         socket.setKey(QByteArrayLiteral("server-test-key"), 12);
         QCOMPARE(socket.getKey(), QByteArrayLiteral("server-test-key"));
-        QCOMPARE(socket.getKeystamp(), Packets::Keystamp{12});
+        QCOMPARE(socket.getKeystamp(), Packets::Keystamp{ 12 });
         QCOMPARE(keySpy.count(), 1);
     }
 };

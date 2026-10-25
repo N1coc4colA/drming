@@ -28,7 +28,13 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine(&app);
     engine.rootContext()->setContextObject(&app);
-    QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, qApp, [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
+    QObject::connect(
+        &engine,
+        &QQmlApplicationEngine::objectCreationFailed,
+        qApp,
+        [] { QCoreApplication::exit(-1); },
+        Qt::QueuedConnection
+    );
 
     engine.loadFromModule("drming", "Main");
 

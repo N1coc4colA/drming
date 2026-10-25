@@ -1,12 +1,12 @@
 #ifndef NETWORKLINKPLATFORM_H
 #define NETWORKLINKPLATFORM_H
 
-#include "../../../net/udp.h"
 #include "../../../net/parser.h"
+#include "../../../net/udp.h"
 
-#include "../settings.h"
-#include "../../networklink.h"
 #include "../../imagedecoder.h"
+#include "../../networklink.h"
+#include "../settings.h"
 
 #include <QThread>
 
@@ -28,9 +28,15 @@ public:
     void processPacket(const Packets::ServerImage &img);
     void processPacket(const Packets::ServerStream &img);
     void processPacket(const Packets::ClientResolution &res);
-    inline void onPacketErrors() { Parser::clear(); }
+    inline void onPacketErrors()
+    {
+        Parser::clear();
+    }
 
-    inline VideoFrameItem *item() { return m_item; }
+    inline VideoFrameItem *item()
+    {
+        return m_item;
+    }
     void setItem(VideoFrameItem *item, QObject *owner);
 
     inline void clear()
@@ -45,14 +51,20 @@ public:
         clear();
     }
 
-    inline bool waitedForResolution() const { return m_waitedForResolution; }
+    inline bool waitedForResolution() const
+    {
+        return m_waitedForResolution;
+    }
 
     void addData(QByteArray data) override
     {
         Parser::pushData(std::move(data));
     }
 
-    inline auto waitFor(auto v) { return Parser::waitFor(v); }
+    inline auto waitFor(auto v)
+    {
+        return Parser::waitFor(v);
+    }
 
 private:
     FfmpegDecoder *m_decoder = nullptr;
@@ -72,8 +84,14 @@ public:
         QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "AudioLink connected."; });
     }
 
-    inline void onPacketErrors() { Parser::clear(); }
-    inline void clear() { Parser::clear(); }
+    inline void onPacketErrors()
+    {
+        Parser::clear();
+    }
+    inline void clear()
+    {
+        Parser::clear();
+    }
 
     void addData(QByteArray data) override
     {
@@ -97,7 +115,10 @@ public:
     void processPacket(const Packets::KeyUpdate &ku);
     void processPacket(const Packets::AudioSource &src);
     void processPacket(const Packets::VideoSource &src);
-    inline void onPacketErrors() { Parser::clear(); }
+    inline void onPacketErrors()
+    {
+        Parser::clear();
+    }
 
     void setItem(QObject *item) override;
 

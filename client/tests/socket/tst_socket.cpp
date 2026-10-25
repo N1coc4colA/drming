@@ -4,21 +4,22 @@
 #include <QFile>
 #include <QTemporaryDir>
 
+#include "../net/udp.h"
+#include "fileprovider.h"
 #include "imagedecoder.h"
 #include "mdns.h"
-#include "networkstatus.h"
-#include "palette.h"
 #include "models/filesmodel.h"
 #include "models/servicesmodel.h"
-#include "fileprovider.h"
-#include "../net/udp.h"
+#include "networkstatus.h"
+#include "palette.h"
 
 class TestUdpStreamSocket final : public UdpStreamSocket
 {
 public:
     using UdpStreamSocket::UdpStreamSocket;
 
-    void addData(QByteArray) override {}
+    void addData(QByteArray) override
+    {}
 };
 
 class TestMdns final : public Mdns
@@ -26,8 +27,10 @@ class TestMdns final : public Mdns
 public:
     using Mdns::Mdns;
 
-    void startDiscovery() override {}
-    void stopDiscovery() override {}
+    void startDiscovery() override
+    {}
+    void stopDiscovery() override
+    {}
 };
 
 class TestClient : public QObject
@@ -42,9 +45,9 @@ public:
 private slots:
     void serviceInfoEqualityAndHash()
     {
-        const ServiceInfo first{"name", "type", "host", "127.0.0.1", "ssl", 443};
+        const ServiceInfo first{ "name", "type", "host", "127.0.0.1", "ssl", 443 };
         const ServiceInfo same = first;
-        const ServiceInfo different{"name", "type", "host", "127.0.0.1", "dtls", 443};
+        const ServiceInfo different{ "name", "type", "host", "127.0.0.1", "dtls", 443 };
 
         QCOMPARE(first.toHashable(), QStringLiteral("nametypehost127.0.0.1ssl443"));
         QVERIFY(first == same);
@@ -110,7 +113,7 @@ private slots:
     {
         FilesModel model;
         const QDateTime timestamp(QDate(2026, 10, 19), QTime(18, 9));
-        model.setData({{timestamp, "client.crt", {{"valid", true}}}});
+        model.setData({ { timestamp, "client.crt", { { "valid", true } } } });
 
         QCOMPARE(model.count(), 1);
         QCOMPARE(model.rowCount({}), 1);
@@ -156,7 +159,10 @@ private slots:
             frames.append(image);
             condition.wakeAll();
         });
-        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(R"(ImageDecoder: Failed to decode image of format "PNG" size \d+)"));
+        QTest::ignoreMessage(
+            QtWarningMsg,
+            QRegularExpression(R"(ImageDecoder: Failed to decode image of format "PNG" size \d+)")
+        );
         decoder.queueFrame("not an image", "PNG");
         decoder.queueFrame(encoded, "PNG");
 
@@ -174,8 +180,8 @@ private slots:
         QVERIFY(provider->clientCertsModel()->get(0).isEmpty());
         QVERIFY(provider->validClientEntries().isEmpty());
         QVERIFY(!provider->updateClientEntry({}));
-        QVERIFY(!provider->updateClientEntry({{"previousName", "old"}}));
-        QVERIFY(!provider->updateClientEntry({{"previousName", "old"}, {"updatedName", ""}}));
+        QVERIFY(!provider->updateClientEntry({ { "previousName", "old" } }));
+        QVERIFY(!provider->updateClientEntry({ { "previousName", "old" }, { "updatedName", "" } }));
 
         delete provider;
     }

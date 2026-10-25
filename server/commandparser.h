@@ -17,7 +17,8 @@ public:
 
     /// Returns whether startup should fail, stop after help/version, or continue.
     Exit parse(const QStringList &args);
-    inline Exit parseApp() {
+    inline Exit parseApp()
+    {
         return parse(qApp->arguments());
     }
 

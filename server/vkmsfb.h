@@ -9,8 +9,7 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
-namespace Drm
-{
+namespace Drm {
 
 struct DrmResourcesDeleter
 {
@@ -129,7 +128,6 @@ inline void split_fourcc(const uint32_t code, char &a, char &b, char &c, char &d
 }
 
 } // namespace Drm
-
 
 /// Metadata and mapped memory for a primary VKMS framebuffer.
 struct VkmsFrameBuffer

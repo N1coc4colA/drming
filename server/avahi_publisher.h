@@ -22,7 +22,14 @@ class AvahiPublisher : public QObject
     Q_OBJECT
 
 public:
-    explicit AvahiPublisher(const QNetworkInterface &iface, bool isIpV6, QString serviceName, QString protocol, uint16_t port, QObject *parent = nullptr);
+    explicit AvahiPublisher(
+        const QNetworkInterface &iface,
+        bool isIpV6,
+        QString serviceName,
+        QString protocol,
+        uint16_t port,
+        QObject *parent = nullptr
+    );
     ~AvahiPublisher() override;
 
     /// Starts the Avahi client and advertises the configured service.

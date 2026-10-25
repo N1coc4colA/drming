@@ -57,7 +57,7 @@ private:
     int64_t m_pts = 0;
 
     enum AVPixelFormat m_src_fmt = AV_PIX_FMT_NONE;
-    enum AVPixelFormat m_dst_fmt = AV_PIX_FMT_NV12; //AV_PIX_FMT_YUV420P;
+    enum AVPixelFormat m_dst_fmt = AV_PIX_FMT_NV12; // AV_PIX_FMT_YUV420P;
     QImage::Format m_format = QImage::Format_Invalid;
     uint32_t m_stride = 0;
 };

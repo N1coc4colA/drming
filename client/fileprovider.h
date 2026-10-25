@@ -45,13 +45,25 @@ public:
 
     Q_INVOKABLE virtual bool updateClientEntry(const QVariantMap &map) = 0;
 
-    [[nodiscard]] bool hasError() const { return m_dirCreationError; }
-    [[nodiscard]] QString errorMessage() const { return m_errorMessage; }
+    [[nodiscard]] bool hasError() const
+    {
+        return m_dirCreationError;
+    }
+    [[nodiscard]] QString errorMessage() const
+    {
+        return m_errorMessage;
+    }
 
     /// Lists client certificate/key pairs currently available to the user.
-    Q_INVOKABLE FilesModel *clientCertsModel() { return m_clientFiles; }
+    Q_INVOKABLE FilesModel *clientCertsModel()
+    {
+        return m_clientFiles;
+    }
     /// Lists certificates that can be used to authenticate the server.
-    Q_INVOKABLE FilesModel *serverCertsModel() { return m_serverFiles; }
+    Q_INVOKABLE FilesModel *serverCertsModel()
+    {
+        return m_serverFiles;
+    }
 
 protected:
     QString m_errorMessage{};

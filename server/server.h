@@ -10,7 +10,6 @@
 
 #include "networkclient.h"
 
-
 class QDtls;
 
 struct PeerKey
@@ -23,20 +22,25 @@ struct PeerKey
 
     inline bool operator==(const PeerKey &o) const noexcept
     {
-        return proto == o.proto
-               && port == o.port
-               && v4 == o.v4
-               && scopeId == o.scopeId
-               && std::memcmp(&v6, &o.v6, sizeof v6) == 0;
+        return proto == o.proto && port == o.port && v4 == o.v4 && scopeId == o.scopeId
+            && std::memcmp(&v6, &o.v6, sizeof v6) == 0;
     }
 
-    inline bool operator!=(const PeerKey &o) const noexcept { return !(*this == o); }
+    inline bool operator!=(const PeerKey &o) const noexcept
+    {
+        return !(*this == o);
+    }
 
     friend inline auto qHash(const PeerKey &k, const size_t seed = 0) noexcept
     {
         return qHashMulti(
-            seed, k.proto, k.v4, k.port, k.scopeId,
-            qFromBigEndian<quint64>(k.v6.c), qFromBigEndian<quint64>(k.v6.c + 8)
+            seed,
+            k.proto,
+            k.v4,
+            k.port,
+            k.scopeId,
+            qFromBigEndian<quint64>(k.v6.c),
+            qFromBigEndian<quint64>(k.v6.c + 8)
         );
     }
 };
@@ -60,7 +64,10 @@ public:
     /// Stops accepting peers and closes all active connections.
     void close();
 
-    [[nodiscard]] virtual bool hasClient() const { return !m_clients.isEmpty(); }
+    [[nodiscard]] virtual bool hasClient() const
+    {
+        return !m_clients.isEmpty();
+    }
 
 Q_SIGNALS:
     void noClient();

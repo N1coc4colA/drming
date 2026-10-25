@@ -1,24 +1,39 @@
 #ifndef OESRENDERNODE_H
 #define OESRENDERNODE_H
 
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
 #include <QOpenGLFunctions>
 #include <QRectF>
 #include <QSGRenderNode>
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
 
 namespace Platform {
 
 class OESRenderNode : public QSGRenderNode
 {
 public:
-    void setTextureId(const GLuint texId) { m_texId = texId; }
-    void setRect(const QRectF &rect) { m_rect = rect; }
+    void setTextureId(const GLuint texId)
+    {
+        m_texId = texId;
+    }
+    void setRect(const QRectF &rect)
+    {
+        m_rect = rect;
+    }
 
     void render(const RenderState *state) override;
-    inline QSGRenderNode::StateFlags changedStates() const override { return BlendState | DepthState | StencilState | ScissorState; }
-    RenderingFlags flags() const override { return BoundedRectRendering; }
-    QRectF rect() const override { return m_rect; }
+    inline QSGRenderNode::StateFlags changedStates() const override
+    {
+        return BlendState | DepthState | StencilState | ScissorState;
+    }
+    RenderingFlags flags() const override
+    {
+        return BoundedRectRendering;
+    }
+    QRectF rect() const override
+    {
+        return m_rect;
+    }
 
 private:
     void ensureProgram();

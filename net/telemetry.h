@@ -1,17 +1,16 @@
 #ifndef TELEMETRY_H
 #define TELEMETRY_H
 
+#include <QtGlobal>
 #include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <QtGlobal>
 
 inline qint64 steadyNowNs()
 {
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()
-    ).count();
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch())
+        .count();
 }
 
 class Telemetry
@@ -24,8 +23,8 @@ public:
         quint16 latencyMsP95 = 0;
         quint16 droppedFrames = 0;
         quint16 recvRateKbps = 0;
-        quint8  decodeQueueDepth = 0;
-        quint8  renderQueueDepth = 0;
+        quint8 decodeQueueDepth = 0;
+        quint8 renderQueueDepth = 0;
     };
 
     void recordReceived(const qint64 bytes)
@@ -52,8 +51,14 @@ public:
         m_framesDropped.fetch_add(1, std::memory_order_relaxed);
     }
 
-    void setDecodeQueueDepth(const quint8 d) { m_decodeQueueDepth.store(d, std::memory_order_relaxed); }
-    void setRenderQueueDepth(const quint8 d) { m_renderQueueDepth.store(d, std::memory_order_relaxed); }
+    void setDecodeQueueDepth(const quint8 d)
+    {
+        m_decodeQueueDepth.store(d, std::memory_order_relaxed);
+    }
+    void setRenderQueueDepth(const quint8 d)
+    {
+        m_renderQueueDepth.store(d, std::memory_order_relaxed);
+    }
 
     Snapshot takeSnapshot(const qint64 windowNs)
     {
@@ -85,7 +90,7 @@ public:
 
         if (totalSamples > 0) {
             s.latencyMsAvg = static_cast<quint16>(std::min<quint64>(65535, sumMs / totalSamples));
-            const quint32 target = (totalSamples * 95u + 99u) / 100u;   // ceil
+            const quint32 target = (totalSamples * 95u + 99u) / 100u; // ceil
             quint32 acc = 0;
             for (int i = 0; i < kHistogramBuckets; ++i) {
                 acc += counts[i];
@@ -103,15 +108,15 @@ public:
     }
 
 private:
-    static constexpr int kHistogramBuckets = 256;  // 0..255 ms, 1 ms resolution
+    static constexpr int kHistogramBuckets = 256; // 0..255 ms, 1 ms resolution
 
-    std::atomic<quint32> m_framesReceived{0};
-    std::atomic<quint32> m_framesDecoded{0};
-    std::atomic<quint32> m_framesDropped{0};
-    std::atomic<quint64> m_bytesReceived{0};
+    std::atomic<quint32> m_framesReceived{ 0 };
+    std::atomic<quint32> m_framesDecoded{ 0 };
+    std::atomic<quint32> m_framesDropped{ 0 };
+    std::atomic<quint64> m_bytesReceived{ 0 };
     std::array<std::atomic<quint32>, kHistogramBuckets> m_latencyHistogram{};
-    std::atomic<quint8> m_decodeQueueDepth{0};
-    std::atomic<quint8> m_renderQueueDepth{0};
+    std::atomic<quint8> m_decodeQueueDepth{ 0 };
+    std::atomic<quint8> m_renderQueueDepth{ 0 };
 };
 
 #endif // TELEMETRY_H

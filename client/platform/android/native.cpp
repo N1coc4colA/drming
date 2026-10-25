@@ -19,9 +19,15 @@ public:
         : m_instance(instance)
     {}
 
-    T &operator->() { return m_instance; }
+    T &operator->()
+    {
+        return m_instance;
+    }
 
-    auto &object() { return m_instance.m_objectHelper; }
+    auto &object()
+    {
+        return m_instance.m_objectHelper;
+    }
 
 private:
     T &m_instance;
@@ -56,7 +62,14 @@ void onServiceLost(JNIEnv *env, const jclass clazz, const jstring jname, const j
 }
 
 void onServiceResolved(
-    JNIEnv *env, const jclass clazz, const jstring jname, const jstring jhost, const jstring jip, const jint port, const jstring jprotocol)
+    JNIEnv *env,
+    const jclass clazz,
+    const jstring jname,
+    const jstring jhost,
+    const jstring jip,
+    const jint port,
+    const jstring jprotocol
+)
 {
     Q_UNUSED(clazz);
 
@@ -65,7 +78,13 @@ void onServiceResolved(
     const char *host = env->GetStringUTFChars(jhost, nullptr);
     const char *protocol = env->GetStringUTFChars(jprotocol, nullptr);
 
-    Mdns::instance()->onServiceResolved(QString::fromUtf8(name), QString::fromUtf8(host), QString::fromUtf8(ip), port, QString::fromUtf8(protocol));
+    Mdns::instance()->onServiceResolved(
+        QString::fromUtf8(name),
+        QString::fromUtf8(host),
+        QString::fromUtf8(ip),
+        port,
+        QString::fromUtf8(protocol)
+    );
 
     env->ReleaseStringUTFChars(jname, name);
     env->ReleaseStringUTFChars(jhost, host);
@@ -90,17 +109,31 @@ public:
         : m_instance(instance)
     {}
 
-    T &operator->() { return m_instance; }
+    T &operator->()
+    {
+        return m_instance;
+    }
 
-    auto &object() { return m_instance.m_object; }
+    auto &object()
+    {
+        return m_instance.m_object;
+    }
 
     void setup()
     {
         auto &instance = m_instance.m_object;
-        m_instance.jServerCertsPath = [&instance]() -> QString { return instance.callObjectMethod<jstring>("getServerCertsPath").toString(); };
-        m_instance.jClientPath = [&instance]() -> QString { return instance.callObjectMethod<jstring>("getClientPath").toString(); };
-        m_instance.jClientCertName = [&instance]() -> QString { return instance.callObjectMethod<jstring>("getClientCertName").toString(); };
-        m_instance.jClientKeyName = [&instance]() -> QString { return instance.callObjectMethod<jstring>("getClientKeyName").toString(); };
+        m_instance.jServerCertsPath = [&instance]() -> QString {
+            return instance.callObjectMethod<jstring>("getServerCertsPath").toString();
+        };
+        m_instance.jClientPath = [&instance]() -> QString {
+            return instance.callObjectMethod<jstring>("getClientPath").toString();
+        };
+        m_instance.jClientCertName = [&instance]() -> QString {
+            return instance.callObjectMethod<jstring>("getClientCertName").toString();
+        };
+        m_instance.jClientKeyName = [&instance]() -> QString {
+            return instance.callObjectMethod<jstring>("getClientKeyName").toString();
+        };
 
         m_instance.jServerCerts = [&instance]() -> FilesModel::MapType {
             FilesModel::MapType out{};
@@ -113,7 +146,7 @@ public:
                 const long lastModified = obj.getField<jlong>("lastModified");
                 const auto name = obj.getObjectField<jstring>("name").toString();
 
-                out.append({QDateTime::fromMSecsSinceEpoch(lastModified, QTimeZone::UTC), name, {}});
+                out.append({ QDateTime::fromMSecsSinceEpoch(lastModified, QTimeZone::UTC), name, {} });
             }
 
             return out;
@@ -131,7 +164,11 @@ public:
                 const auto hasCert = obj.getField<jboolean>("hasCert");
                 const auto hasKey = obj.getField<jboolean>("hasKey");
 
-                out.append({QDateTime::fromMSecsSinceEpoch(lastModified, QTimeZone::UTC), name, {{"cert", hasCert}, {"key", hasKey}}});
+                out.append(
+                    { QDateTime::fromMSecsSinceEpoch(lastModified, QTimeZone::UTC),
+                        name,
+                        { { "cert", hasCert }, { "key", hasKey } } }
+                );
             }
 
             return out;
@@ -151,20 +188,24 @@ public:
         };
         m_instance.jAddClientCert = [&instance](const QString &a, const QString &b) -> int {
             const auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
-            return instance.callMethod<jint, jstring, jstring>("addClientCert", ja.object<jstring>(), jb.object<jstring>());
+            return instance
+                .callMethod<jint, jstring, jstring>("addClientCert", ja.object<jstring>(), jb.object<jstring>());
         };
         m_instance.jAddClientKey = [&instance](const QString &a, const QString &b) -> int {
             const auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
-            return instance.callMethod<jint, jstring, jstring>("addClientKey", ja.object<jstring>(), jb.object<jstring>());
+            return instance
+                .callMethod<jint, jstring, jstring>("addClientKey", ja.object<jstring>(), jb.object<jstring>());
         };
 
         m_instance.jClientCertData = [&instance](const QString &a) -> QByteArray {
             const auto ja = QJniObject::fromString(a);
-            return QJniArray<jbyte>(instance.callObjectMethod<jbyte[]>("getClientCertData", ja.object<jstring>())).toContainer();
+            return QJniArray<jbyte>(instance.callObjectMethod<jbyte[]>("getClientCertData", ja.object<jstring>()))
+                .toContainer();
         };
         m_instance.jClientKeyData = [&instance](const QString &a) -> QByteArray {
             const auto ja = QJniObject::fromString(a);
-            return QJniArray<jbyte>(instance.callObjectMethod<jbyte[]>("getClientKeyData", ja.object<jstring>())).toContainer();
+            return QJniArray<jbyte>(instance.callObjectMethod<jbyte[]>("getClientKeyData", ja.object<jstring>()))
+                .toContainer();
         };
 
         m_instance.jTrustedCertsData = [&instance]() -> QList<QByteArray> {
@@ -182,7 +223,11 @@ public:
 
         m_instance.jUpdateClientEntry = [&instance](const QString &a, const QString &b) -> bool {
             const auto ja = QJniObject::fromString(a), jb = QJniObject::fromString(b);
-            return instance.callMethod<jboolean, jstring, jstring>("updateClientEntry", ja.object<jstring>(), jb.object<jstring>());
+            return instance.callMethod<jboolean, jstring, jstring>(
+                "updateClientEntry",
+                ja.object<jstring>(),
+                jb.object<jstring>()
+            );
         };
         m_instance.jValidClientEntries = [&instance]() -> QList<QString> {
             return QJniArray<jstring>(instance.callObjectMethod<jstring[]>("getValidClientEntries")).toContainer();
@@ -206,12 +251,15 @@ bool registerNativeMethods_MdnsHelper(const QJniObject &m_javaHelper)
         return false;
     }
 
-    const std::vector<JNINativeMethod> methods
-        = {{"nativeOnServiceFound", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", reinterpret_cast<void *>(onServiceFound)},
-           {"nativeOnServiceLost", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", reinterpret_cast<void *>(onServiceLost)},
-           {"nativeOnServiceResolved",
+    const std::vector<JNINativeMethod> methods = { { "nativeOnServiceFound",
+                                                       "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                                                       reinterpret_cast<void *>(onServiceFound) },
+        { "nativeOnServiceLost",
+            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+            reinterpret_cast<void *>(onServiceLost) },
+        { "nativeOnServiceResolved",
             "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)V",
-            reinterpret_cast<void *>(onServiceResolved)}};
+            reinterpret_cast<void *>(onServiceResolved) } };
     const auto regResult = env->RegisterNatives(clazz, methods.data(), static_cast<jint>(methods.size()));
     if (regResult != 0) {
         qWarning() << "Failed to register native methods for MdnsHelper:" << regResult;
@@ -238,7 +286,9 @@ bool registerNativeMethods_NetworkHelper(const QJniObject &m_javaHelper)
         return false;
     }
 
-    const std::vector<JNINativeMethod> methods = {{"nativeOnConnectivityChanged", "(Z)V", reinterpret_cast<void *>(onConnectivityChanged)}};
+    const std::vector<JNINativeMethod> methods = {
+        { "nativeOnConnectivityChanged", "(Z)V", reinterpret_cast<void *>(onConnectivityChanged) }
+    };
     const auto regResult = env->RegisterNatives(clazz, methods.data(), static_cast<jint>(methods.size()));
     if (regResult != 0) {
         qWarning() << "Failed to register native methods for NetworkHelper:" << regResult;
@@ -285,14 +335,22 @@ bool createNativeObject_MdnsHelper(QJniObject &m_javaHelper)
         return true;
     }
 
-    const auto activity = QJniObject::callStaticObjectMethod("org/qtproject/qt/android/QtNative", "activity", "()Landroid/app/Activity;");
+    const auto activity = QJniObject::callStaticObjectMethod(
+        "org/qtproject/qt/android/QtNative",
+        "activity",
+        "()Landroid/app/Activity;"
+    );
 
     if (!activity.isValid()) {
         qWarning() << "Failed to get Android activity";
         return false;
     }
 
-    m_javaHelper = QJniObject("eu/n1coc4cola/drming/MdnsHelper", "(Landroid/content/Context;)V", activity.object<jobject>());
+    m_javaHelper = QJniObject(
+        "eu/n1coc4cola/drming/MdnsHelper",
+        "(Landroid/content/Context;)V",
+        activity.object<jobject>()
+    );
 
     if (!m_javaHelper.isValid()) {
         qWarning() << "Failed to create MdnsHelper instance";
@@ -314,14 +372,22 @@ bool createNativeObject_NetworkHelper(QJniObject &m_javaHelper)
         return true;
     }
 
-    const auto activity = QJniObject::callStaticObjectMethod("org/qtproject/qt/android/QtNative", "activity", "()Landroid/app/Activity;");
+    const auto activity = QJniObject::callStaticObjectMethod(
+        "org/qtproject/qt/android/QtNative",
+        "activity",
+        "()Landroid/app/Activity;"
+    );
 
     if (!activity.isValid()) {
         qWarning() << "Failed to get Android activity";
         return false;
     }
 
-    m_javaHelper = QJniObject("eu/n1coc4cola/drming/NetworkHelper", "(Landroid/content/Context;)V", activity.object<jobject>());
+    m_javaHelper = QJniObject(
+        "eu/n1coc4cola/drming/NetworkHelper",
+        "(Landroid/content/Context;)V",
+        activity.object<jobject>()
+    );
 
     if (!m_javaHelper.isValid()) {
         qWarning() << "Failed to create NetworkHelper instance";
@@ -346,14 +412,22 @@ bool createNativeObject_FileHelper(Platform::FileProvider &provider)
         return true;
     }
 
-    const auto activity = QJniObject::callStaticObjectMethod("org/qtproject/qt/android/QtNative", "activity", "()Landroid/app/Activity;");
+    const auto activity = QJniObject::callStaticObjectMethod(
+        "org/qtproject/qt/android/QtNative",
+        "activity",
+        "()Landroid/app/Activity;"
+    );
 
     if (!activity.isValid()) {
         qWarning() << "Failed to get Android activity";
         return false;
     }
 
-    m_javaHelper = QJniObject("eu/n1coc4cola/drming/FileHelper", "(Landroid/content/Context;)V", activity.object<jobject>());
+    m_javaHelper = QJniObject(
+        "eu/n1coc4cola/drming/FileHelper",
+        "(Landroid/content/Context;)V",
+        activity.object<jobject>()
+    );
 
     if (!m_javaHelper.isValid()) {
         qWarning() << "Failed to create FileHelper instance";
@@ -377,14 +451,22 @@ bool createNativeObject_MulticastLockHelper(QJniObject &m_javaHelper)
         return true;
     }
 
-    const auto activity = QJniObject::callStaticObjectMethod("org/qtproject/qt/android/QtNative", "activity", "()Landroid/app/Activity;");
+    const auto activity = QJniObject::callStaticObjectMethod(
+        "org/qtproject/qt/android/QtNative",
+        "activity",
+        "()Landroid/app/Activity;"
+    );
 
     if (!activity.isValid()) {
         qWarning() << "Failed to get Android activity";
         return false;
     }
 
-    m_javaHelper = QJniObject("eu/n1coc4cola/drming/MulticastLockHelper", "(Landroid/content/Context;)V", activity.object<jobject>());
+    m_javaHelper = QJniObject(
+        "eu/n1coc4cola/drming/MulticastLockHelper",
+        "(Landroid/content/Context;)V",
+        activity.object<jobject>()
+    );
 
     if (!m_javaHelper.isValid()) {
         qWarning() << "Failed to create MulticastLockHelper instance";
@@ -400,14 +482,22 @@ bool createNativeObject_AndroidUi(QJniObject &m_javaHelper)
         return true;
     }
 
-    const auto activity = QJniObject::callStaticObjectMethod("org/qtproject/qt/android/QtNative", "activity", "()Landroid/app/Activity;");
+    const auto activity = QJniObject::callStaticObjectMethod(
+        "org/qtproject/qt/android/QtNative",
+        "activity",
+        "()Landroid/app/Activity;"
+    );
 
     if (!activity.isValid()) {
         qWarning() << "Failed to get Android activity";
         return false;
     }
 
-    m_javaHelper = QJniObject("eu/n1coc4cola/drming/AndroidUi", "(Landroid/content/Context;)V", activity.object<jobject>());
+    m_javaHelper = QJniObject(
+        "eu/n1coc4cola/drming/AndroidUi",
+        "(Landroid/content/Context;)V",
+        activity.object<jobject>()
+    );
 
     if (!m_javaHelper.isValid()) {
         qWarning() << "Failed to create AndroidUi instance";

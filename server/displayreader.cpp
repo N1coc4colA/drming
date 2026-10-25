@@ -20,7 +20,6 @@
 #include <ctrack.hpp>
 #endif
 
-
 namespace Drm {
 
 QString drmDeviceForConnector(const QString &connectorName)
@@ -33,9 +32,11 @@ QString drmDeviceForConnector(const QString &connectorName)
     }
 
     const QDir drmDir(QStringLiteral("/dev/dri"));
-    const auto cards = drmDir.entryInfoList({QStringLiteral("card[0-9]*")},
-                                            QDir::Files | QDir::Readable | QDir::System,
-                                            QDir::Name);
+    const auto cards = drmDir.entryInfoList(
+        { QStringLiteral("card[0-9]*") },
+        QDir::Files | QDir::Readable | QDir::System,
+        QDir::Name
+    );
 
     for (const QFileInfo &cardInfo : cards) {
         const QByteArray cardPathBytes = QFile::encodeName(cardInfo.absoluteFilePath());
@@ -57,9 +58,13 @@ QString drmDeviceForConnector(const QString &connectorName)
             }
 
             const QString sysfsName = QStringLiteral("%1-%2-%3")
-                                          .arg(cardInfo.fileName(),
-                                               QString::fromLatin1(drmModeGetConnectorTypeName(connector->connector_type)),
-                                               QString::number(connector->connector_type_id));
+                                          .arg(
+                                              cardInfo.fileName(),
+                                              QString::fromLatin1(
+                                                  drmModeGetConnectorTypeName(connector->connector_type)
+                                              ),
+                                              QString::number(connector->connector_type_id)
+                                          );
 
             if (connectorName == sysfsName) {
                 close(fd);
@@ -119,7 +124,6 @@ bool mapFramebuffer(void *&dataOut, const int drmFd, const uint32_t handle, cons
 }
 
 } // namespace Drm
-
 
 DisplayReader::DisplayReader(QString connectorName, const bool writableMapping)
     : m_connectorName(std::move(connectorName))
@@ -199,11 +203,12 @@ bool DisplayReader::ensureInitialised()
                 continue;
             }
 
-            const auto sysfsName = QStringLiteral("%1-%2-%3").arg(
-                QFileInfo(m_connectorPath).fileName(),
-                QString::fromLatin1(drmModeGetConnectorTypeName(connector->connector_type)),
-                QString::number(connector->connector_type_id)
-            );
+            const auto sysfsName = QStringLiteral("%1-%2-%3")
+                                       .arg(
+                                           QFileInfo(m_connectorPath).fileName(),
+                                           QString::fromLatin1(drmModeGetConnectorTypeName(connector->connector_type)),
+                                           QString::number(connector->connector_type_id)
+                                       );
 
             if (m_connectorName != sysfsName) {
                 connector.reset();
@@ -317,12 +322,12 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
         }
 
         CachedPrimary cp;
-        cp.width    = mfb->width;
-        cp.height   = mfb->height;
-        cp.stride   = mfb->pitches[0];
-        cp.format   = mfb->pixel_format;
-        cp.bpp      = (cp.format == DRM_FORMAT_RGB565) ? 16 : 32;
-        cp.size     = static_cast<size_t>(cp.stride) * cp.height;
+        cp.width = mfb->width;
+        cp.height = mfb->height;
+        cp.stride = mfb->pitches[0];
+        cp.format = mfb->pixel_format;
+        cp.bpp = (cp.format == DRM_FORMAT_RGB565) ? 16 : 32;
+        cp.size = static_cast<size_t>(cp.stride) * cp.height;
         cp.writable = m_writableMapping;
 
         if (!Drm::mapFramebuffer(cp.data, m_drmFd, mfb->handles[0], cp.size, cp.writable)) [[unlikely]] {
@@ -342,17 +347,17 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
 
     const auto &cp = *it;
 
-    fb.fd        = m_drmFd;      // borrowed
-    fb.data      = cp.data;      // borrowed
-    fb.size      = cp.size;
-    fb.buffer_fd = -1;           // not owned by the view
-    fb.width     = cp.width;
-    fb.height    = cp.height;
-    fb.stride    = cp.stride;
-    fb.format    = cp.format;
-    fb.bpp       = cp.bpp;
-    fb.fb_id     = bufferId;
-    fb.crtc_id   = m_crtcId;
+    fb.fd = m_drmFd;   // borrowed
+    fb.data = cp.data; // borrowed
+    fb.size = cp.size;
+    fb.buffer_fd = -1; // not owned by the view
+    fb.width = cp.width;
+    fb.height = cp.height;
+    fb.stride = cp.stride;
+    fb.format = cp.format;
+    fb.bpp = cp.bpp;
+    fb.fb_id = bufferId;
+    fb.crtc_id = m_crtcId;
 
     return true;
 }
@@ -383,8 +388,7 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
             continue;
         }
 
-        const Drm::DrmObjectPropsPtr props(
-            drmModeObjectGetProperties(m_drmFd, info.plane_id, DRM_MODE_OBJECT_PLANE));
+        const Drm::DrmObjectPropsPtr props(drmModeObjectGetProperties(m_drmFd, info.plane_id, DRM_MODE_OBJECT_PLANE));
         if (!props) {
             continue;
         }
@@ -441,14 +445,14 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
 
         const auto &cc = *it;
 
-        cursor.data      = cc.data;   // borrowed
-        cursor.size      = cc.size;
-        cursor.buffer_fd = -1;        // owned by cache
-        cursor.fd        = m_drmFd;   // borrowed
-        cursor.width     = cc.width;
-        cursor.height    = cc.height;
-        cursor.stride    = cc.stride;
-        cursor.format    = cc.format;
+        cursor.data = cc.data; // borrowed
+        cursor.size = cc.size;
+        cursor.buffer_fd = -1; // owned by cache
+        cursor.fd = m_drmFd;   // borrowed
+        cursor.width = cc.width;
+        cursor.height = cc.height;
+        cursor.stride = cc.stride;
+        cursor.format = cc.format;
         // plane->x/y is the src offset within the cursor buffer (typically 0,0)
         cursor.crtc_x = static_cast<int32_t>(crtcX) + static_cast<int32_t>(plane->x);
         cursor.crtc_y = static_cast<int32_t>(crtcY) + static_cast<int32_t>(plane->y);
@@ -464,7 +468,12 @@ void DisplayReader::releaseCursorFrameBuffer(CursorFrameBuffer &cursor)
     cursor = {};
 }
 
-void DisplayReader::compositeWithCursor(const QImage &primary, const CursorFrameBuffer &cursor, const DrmFormat::FormatDescriptor &fmtDesc, QImage &output)
+void DisplayReader::compositeWithCursor(
+    const QImage &primary,
+    const CursorFrameBuffer &cursor,
+    const DrmFormat::FormatDescriptor &fmtDesc,
+    QImage &output
+)
 {
     CTRACK;
 
@@ -507,7 +516,11 @@ void DisplayReader::compositeWithCursor(const QImage &primary, const CursorFrame
     painter.end();
 }
 
-void DisplayReader::compositeWithCursorInPlace(QImage &primary, const CursorFrameBuffer &cursor, const DrmFormat::FormatDescriptor &fmtDesc)
+void DisplayReader::compositeWithCursorInPlace(
+    QImage &primary,
+    const CursorFrameBuffer &cursor,
+    const DrmFormat::FormatDescriptor &fmtDesc
+)
 {
     CTRACK;
 
@@ -535,12 +548,14 @@ void DisplayReader::compositeWithCursorInPlace(QImage &primary, const CursorFram
     painter.end();
 }
 
-QImage DisplayReader::imageFromFrameBuffer(const uint8_t *data,
-                                           const uint32_t width,
-                                           const uint32_t height,
-                                           const uint32_t stride,
-                                           const DrmFormat::FormatDescriptor &fmtDesc,
-                                           const bool writable)
+QImage DisplayReader::imageFromFrameBuffer(
+    const uint8_t *data,
+    const uint32_t width,
+    const uint32_t height,
+    const uint32_t stride,
+    const DrmFormat::FormatDescriptor &fmtDesc,
+    const bool writable
+)
 {
     // Swizzles are one-way transforms; they must not run against the cached
     // DRM mapping or the next frame would be swizzled twice. Force a

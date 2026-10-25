@@ -40,7 +40,8 @@ bool DisplayManager::registerClient(NetworkClient *client)
             return false;
         }
 
-        const auto instance = Parameters::instance.targetScreen + "_" + QString(Settings::maximumDisplayCountLength - number.size(), '0') + number;
+        const auto instance = Parameters::instance.targetScreen + "_"
+            + QString(Settings::maximumDisplayCountLength - number.size(), '0') + number;
 
         if (!m_setup) {
             m_setup = new DispSetup(instance);

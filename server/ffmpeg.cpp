@@ -16,7 +16,6 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-
 namespace Ffmpeg {
 QString avError(const int err)
 {
@@ -36,30 +35,32 @@ AVPixelFormat setupLibX265(AVCodecContext *ctx)
         av_opt_set_int(ctx->priv_data, "crf", 20, 0);
 
         // Force no lookahead and no b-frames
-        av_opt_set(ctx->priv_data,
-                   "x265-params",
-                   ("bframes=0:"
-                    "rc-lookahead=0:"
-                    "lookahead-slices=0:"
-                    "scenecut=0:"
-                    "no-sao=1:"
-                    "no-deblock=1:"
-                    "no-strong-intra-smoothing=1:"
-                    "ref=1:"
-                    "me=dia:"
-                    "subme=0:"
-                    "merange=16:"
-                    "no-rect=1:"
-                    "no-amp=1:"
-                    "early-skip=1:"
-                    "fast-intra=1:"
-                    "no-weightb=1:"
-                    "no-weightp=1:"
-                    "no-open-gop=1:"
-                    "keyint="
-                    + std::to_string(ctx->gop_size) + ":" + "min-keyint=" + std::to_string(ctx->gop_size) + ":")
-                       .c_str(),
-                   0);
+        av_opt_set(
+            ctx->priv_data,
+            "x265-params",
+            ("bframes=0:"
+             "rc-lookahead=0:"
+             "lookahead-slices=0:"
+             "scenecut=0:"
+             "no-sao=1:"
+             "no-deblock=1:"
+             "no-strong-intra-smoothing=1:"
+             "ref=1:"
+             "me=dia:"
+             "subme=0:"
+             "merange=16:"
+             "no-rect=1:"
+             "no-amp=1:"
+             "early-skip=1:"
+             "fast-intra=1:"
+             "no-weightb=1:"
+             "no-weightp=1:"
+             "no-open-gop=1:"
+             "keyint="
+                + std::to_string(ctx->gop_size) + ":" + "min-keyint=" + std::to_string(ctx->gop_size) + ":")
+                .c_str(),
+            0
+        );
     }
     return AV_PIX_FMT_YUV420P;
 }
@@ -201,7 +202,7 @@ int Encoder::init(const int width, const int height, const QImage::Format format
         AVPixelFormat (*setupFunc)(AVCodecContext *);
     };
 
-    const EncoderCandidate candidates[] = {{"libx265", "libx265 (software)", setupLibX265}};
+    const EncoderCandidate candidates[] = { { "libx265", "libx265 (software)", setupLibX265 } };
 
     const AVCodec *found_codec = nullptr;
     EncoderCandidate chosen{};
@@ -222,8 +223,8 @@ int Encoder::init(const int width, const int height, const QImage::Format format
         // Set basic parameters for testing
         test_ctx->width = width;
         test_ctx->height = height;
-        test_ctx->time_base = (AVRational) {1, m_fps};
-        test_ctx->framerate = (AVRational) {m_fps, 1};
+        test_ctx->time_base = (AVRational){ 1, m_fps };
+        test_ctx->framerate = (AVRational){ m_fps, 1 };
         test_ctx->pix_fmt = m_dst_fmt = candidate.setupFunc(nullptr);
         // Intra frames are substantially more expensive than predictive
         // frames. Keep recovery points frequent enough for a live stream,
@@ -271,8 +272,8 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     // Common settings
     m_enc->width = width;
     m_enc->height = height;
-    m_enc->time_base = (AVRational) {1, m_fps};
-    m_enc->framerate = (AVRational) {m_fps, 1};
+    m_enc->time_base = (AVRational){ 1, m_fps };
+    m_enc->framerate = (AVRational){ m_fps, 1 };
     m_enc->pix_fmt = m_dst_fmt;
     m_enc->gop_size = std::max(m_fps * 2, 1);
     m_enc->max_b_frames = 0;
@@ -290,10 +291,12 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     if (chosen.displayName == "libx265 (software)") {
         av_opt_set_int(m_enc->priv_data, "rc_lookahead", 0, 0);
         av_opt_set_int(m_enc->priv_data, "lookahead_slices", 0, 0);
-        av_opt_set(m_enc->priv_data,
-                   "x265-params",
-                   "no-sao=1:no-deblock=1:no-strong-intra-smoothing=1:rc-lookahead=0:scenecut=0:bframes=0:lookahead-slices=0",
-                   0);
+        av_opt_set(
+            m_enc->priv_data,
+            "x265-params",
+            "no-sao=1:no-deblock=1:no-strong-intra-smoothing=1:rc-lookahead=0:scenecut=0:bframes=0:lookahead-slices=0",
+            0
+        );
     }
 
     // Apply the setup for the chosen encoder
@@ -313,7 +316,18 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     }
 
     // Scaling context
-    m_sws = sws_getContext(width, height, m_src_fmt, width, height, m_dst_fmt, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
+    m_sws = sws_getContext(
+        width,
+        height,
+        m_src_fmt,
+        width,
+        height,
+        m_dst_fmt,
+        SWS_FAST_BILINEAR,
+        nullptr,
+        nullptr,
+        nullptr
+    );
     if (!m_sws) {
         return AVERROR(EINVAL);
     }
@@ -327,14 +341,16 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     // will render it without expanding the range back out — i.e. flat,
     // washed-out colors. Keep this in sync with m_enc's color settings above.
     const int *coeffs = sws_getCoefficients(SWS_CS_ITU709);
-    sws_setColorspaceDetails(m_sws,
-                             coeffs,
-                             1, // src: unused for RGB input, kept consistent
-                             coeffs,
-                             1, // dst: 1 = full range, matches AVCOL_RANGE_JPEG above
-                             0,
-                             1 << 16,
-                             1 << 16);
+    sws_setColorspaceDetails(
+        m_sws,
+        coeffs,
+        1, // src: unused for RGB input, kept consistent
+        coeffs,
+        1, // dst: 1 = full range, matches AVCOL_RANGE_JPEG above
+        0,
+        1 << 16,
+        1 << 16
+    );
 
     m_yuv = av_frame_alloc();
     if (!m_yuv) {
@@ -421,7 +437,15 @@ int Encoder::encode(AVFrame *frame)
         return ret;
     }
 
-    sws_scale(m_sws, (const uint8_t *const *) frame->data, frame->linesize, 0, frame->height, m_yuv->data, m_yuv->linesize);
+    sws_scale(
+        m_sws,
+        (const uint8_t *const *)frame->data,
+        frame->linesize,
+        0,
+        frame->height,
+        m_yuv->data,
+        m_yuv->linesize
+    );
 
     m_yuv->pts = frame->pts;
 
@@ -455,7 +479,13 @@ int Encoder::encode(AVFrame *frame)
     return status;
 }
 
-void Encoder::push_image(const uint8_t *data, const int width, const int height, const QImage::Format format, const uint32_t stride)
+void Encoder::push_image(
+    const uint8_t *data,
+    const int width,
+    const int height,
+    const QImage::Format format,
+    const uint32_t stride
+)
 {
     CTRACK;
 

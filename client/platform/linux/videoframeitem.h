@@ -15,17 +15,18 @@ namespace Platform {
 class VideoFrameItem : public QQuickItem
 {
     Q_OBJECT
+
 public:
-    explicit VideoFrameItem(QQuickItem* parent = nullptr);
+    explicit VideoFrameItem(QQuickItem *parent = nullptr);
 
 protected:
-    QSGNode* updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*) override;
+    QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *) override;
 
 public Q_SLOTS:
-    void setImage(const QImage& image);
+    void setImage(const QImage &image);
 
 protected:
-    void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
+    void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
 
 private:
     static constexpr size_t MaxPresentationQueue = 2;

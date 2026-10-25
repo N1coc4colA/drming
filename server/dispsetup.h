@@ -18,9 +18,18 @@ public:
     /// Closes and disconnects the VKMS display, cleaning up configfs entries.
     void close();
 
-    [[nodiscard]] bool isSetup() const { return m_setup; }
-    [[nodiscard]] const QString &virtualConnectorName() const { return m_virtualConnectorName; }
-    [[nodiscard]] const QString &basePath() const { return m_basePath; }
+    [[nodiscard]] bool isSetup() const
+    {
+        return m_setup;
+    }
+    [[nodiscard]] const QString &virtualConnectorName() const
+    {
+        return m_virtualConnectorName;
+    }
+    [[nodiscard]] const QString &basePath() const
+    {
+        return m_basePath;
+    }
 
 private:
     bool makeEnvChecks() const;

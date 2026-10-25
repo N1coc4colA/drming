@@ -59,13 +59,14 @@ void AvahiPublisher::client_callback(AvahiClient *client, const AvahiClientState
         c->m_group,
         iface,
         c->m_isIpV6 ? AVAHI_PROTO_INET6 : AVAHI_PROTO_INET,
-        (AvahiPublishFlags) 0,
+        (AvahiPublishFlags)0,
         c->m_serviceName.toLocal8Bit(),
         c->m_protocol.toLocal8Bit(),
         nullptr,
         nullptr,
         c->m_port,
-        nullptr);
+        nullptr
+    );
 
     if (ret < 0) {
         qCritical() << "Avahi group creation error: " << avahi_strerror(ret);
@@ -74,7 +75,14 @@ void AvahiPublisher::client_callback(AvahiClient *client, const AvahiClientState
     }
 }
 
-AvahiPublisher::AvahiPublisher(const QNetworkInterface &iface, const bool isIpV6, QString serviceName, QString protocol, const uint16_t port, QObject *parent)
+AvahiPublisher::AvahiPublisher(
+    const QNetworkInterface &iface,
+    const bool isIpV6,
+    QString serviceName,
+    QString protocol,
+    const uint16_t port,
+    QObject *parent
+)
     : QObject(parent)
     , m_iface(iface)
     , m_isIpV6(isIpV6)
@@ -110,10 +118,11 @@ void AvahiPublisher::start()
     int error = 0;
     m_client = avahi_client_new(
         avahi_threaded_poll_get(m_poll),
-        (AvahiClientFlags) 0,
+        (AvahiClientFlags)0,
         reinterpret_cast<AvahiClientCallback>(&AvahiPublisher::client_callback),
         this,
-        &error);
+        &error
+    );
     if (!m_client) {
         qCritical() << "Avahi Client creation error: " << avahi_strerror(error);
         avahi_threaded_poll_free(m_poll);

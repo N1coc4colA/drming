@@ -8,9 +8,15 @@ struct CollectingReceiver
     int errorBatches = 0;
 
     template<typename T>
-    void processPacket(const T &p) { received.emplace_back(p); }
+    void processPacket(const T &p)
+    {
+        received.emplace_back(p);
+    }
 
-    void onPacketErrors() { ++errorBatches; }
+    void onPacketErrors()
+    {
+        ++errorBatches;
+    }
 };
 
 class TestPackets : public QObject
@@ -37,7 +43,7 @@ void TestPackets::emptyPacketRoundTrip()
     Packets::Reinit p;
     const auto bytes = Packets::Writer::generate(p);
     const auto got = roundTrip(bytes);
-    QCOMPARE(got.size(), std::size_t{1});
+    QCOMPARE(got.size(), std::size_t{ 1 });
     QVERIFY(std::holds_alternative<Packets::Reinit>(got.front()));
 }
 
@@ -45,23 +51,23 @@ void TestPackets::keyUpdateRoundTrip()
 {
     Packets::KeyUpdate p;
     p.keyStamp.data = -7;
-    p.key.data     = QByteArrayLiteral("0123456789abcdef");
+    p.key.data = QByteArrayLiteral("0123456789abcdef");
     const auto got = roundTrip(Packets::Writer::generate(p));
-    QCOMPARE(got.size(), std::size_t{1});
+    QCOMPARE(got.size(), std::size_t{ 1 });
     const auto &ku = std::get<Packets::KeyUpdate>(got.front());
-    QCOMPARE(ku.keyStamp.data, qint16{-7});
+    QCOMPARE(ku.keyStamp.data, qint16{ -7 });
     QCOMPARE(ku.key.data, QByteArrayLiteral("0123456789abcdef"));
 }
 
 void TestPackets::audioSourceRoundTrip()
 {
     Packets::AudioSource p;
-    p.ip.data   = QByteArray::fromHex("ef000001"); // 239.0.0.1
+    p.ip.data = QByteArray::fromHex("ef000001"); // 239.0.0.1
     p.port.data = 5004;
     p.isV4.data = true;
     const auto got = roundTrip(Packets::Writer::generate(p));
     const auto &a = std::get<Packets::AudioSource>(got.front());
-    QCOMPARE(a.port.data, quint16{5004});
+    QCOMPARE(a.port.data, quint16{ 5004 });
     QCOMPARE(a.isV4.data, true);
     QCOMPARE(a.ip.data, QByteArray::fromHex("ef000001"));
 }
@@ -70,7 +76,8 @@ void TestPackets::unknownTypeIsSkipped()
 {
     // Garbage type word: parser should resync, not crash, and count an error.
     QByteArray bogus;
-    bogus.append(char(0xff)); bogus.append(char(0xff));
+    bogus.append(char(0xff));
+    bogus.append(char(0xff));
 
     Packets::Reinit p;
     const auto valid = Packets::Writer::generate(p);
@@ -79,7 +86,7 @@ void TestPackets::unknownTypeIsSkipped()
     Packets::Parser<CollectingReceiver> parser(r);
     parser.pushData(bogus + valid);
 
-    QCOMPARE(r.received.size(), std::size_t{1});
+    QCOMPARE(r.received.size(), std::size_t{ 1 });
     QVERIFY(std::holds_alternative<Packets::Reinit>(r.received.front()));
 }
 

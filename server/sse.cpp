@@ -37,7 +37,7 @@ struct Mask4
 };
 
 // Named 32-bit swizzle masks
-constexpr Mask4 kSwapRB = {2, 1, 0, 3};   // ABGR/XBGR → ARGB/XRGB
+constexpr Mask4 kSwapRB = { 2, 1, 0, 3 }; // ABGR/XBGR → ARGB/XRGB
 
 struct ShuffleMask
 {
@@ -316,7 +316,7 @@ std::optional<FormatDescriptor> resolve(const uint32_t drmFourcc)
 
     for (const auto &e : kTable) {
         if (e.drmFourcc == drmFourcc) {
-            return FormatDescriptor{e.qtFormat, e.convert};
+            return FormatDescriptor{ e.qtFormat, e.convert };
         }
     }
 

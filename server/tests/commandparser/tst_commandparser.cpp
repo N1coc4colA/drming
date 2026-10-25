@@ -9,13 +9,13 @@ class TestCommandParser : public QObject
 private Q_SLOTS:
     void init()
     {
-        Parameters::instance = Parameters{};  // fresh per test
+        Parameters::instance = Parameters{}; // fresh per test
     }
 
     void defaultsAreAccepted()
     {
         CommandParser p;
-        QCOMPARE(p.parse({"drming"}), CommandParser::Continue);
+        QCOMPARE(p.parse({ "drming" }), CommandParser::Continue);
         QCOMPARE(Parameters::instance.port, 80);
         QCOMPARE(Parameters::instance.videoPort, 80);
         QCOMPARE(Parameters::instance.streamFormat, Opts::DisplayStreamType::h265);
@@ -25,73 +25,83 @@ private Q_SLOTS:
     void portBelowRangeRejected()
     {
         CommandParser p;
-        QCOMPARE(p.parse({"drming", "--port", "0"}), CommandParser::Failure);
+        QCOMPARE(p.parse({ "drming", "--port", "0" }), CommandParser::Failure);
     }
 
     void portAboveRangeRejected()
     {
         CommandParser p;
-        QCOMPARE(p.parse({"drming", "-p", "70000"}), CommandParser::Failure);
+        QCOMPARE(p.parse({ "drming", "-p", "70000" }), CommandParser::Failure);
     }
 
     void nonNumericQualityRejected()
     {
         CommandParser p;
-        QCOMPARE(p.parse({"drming", "-q", "high"}), CommandParser::Failure);
+        QCOMPARE(p.parse({ "drming", "-q", "high" }), CommandParser::Failure);
     }
 
     void qualityBoundariesAccepted()
     {
         CommandParser p;
-        QCOMPARE(p.parse({"drming", "-q", "-1"}), CommandParser::Continue);
+        QCOMPARE(p.parse({ "drming", "-q", "-1" }), CommandParser::Continue);
         QCOMPARE(Parameters::instance.qualityLevel, -1);
-        QCOMPARE(p.parse({"drming", "-q", "100"}), CommandParser::Continue);
+        QCOMPARE(p.parse({ "drming", "-q", "100" }), CommandParser::Continue);
         QCOMPARE(Parameters::instance.qualityLevel, 100);
     }
 
     void qualityOutsideRangeRejected()
     {
         CommandParser p;
-        QCOMPARE(p.parse({"drming", "-q", "-2"}), CommandParser::Failure);
-        QCOMPARE(p.parse({"drming", "-q", "101"}), CommandParser::Failure);
+        QCOMPARE(p.parse({ "drming", "-q", "-2" }), CommandParser::Failure);
+        QCOMPARE(p.parse({ "drming", "-q", "101" }), CommandParser::Failure);
     }
 
     void invalidAddressRejected()
     {
         CommandParser p;
-        QCOMPARE(p.parse({"drming", "--ip", "not-an-address"}), CommandParser::Failure);
+        QCOMPARE(p.parse({ "drming", "--ip", "not-an-address" }), CommandParser::Failure);
     }
 
     void invalidInterfaceRejected()
     {
         CommandParser p;
-        QCOMPARE(p.parse({"drming", "--iface", "does-not-exist"}), CommandParser::Failure);
+        QCOMPARE(p.parse({ "drming", "--iface", "does-not-exist" }), CommandParser::Failure);
     }
 
     void invalidStreamFormatRejected()
     {
         CommandParser p;
-        QCOMPARE(p.parse({"drming", "-f", "vp9"}), CommandParser::Failure);
+        QCOMPARE(p.parse({ "drming", "-f", "vp9" }), CommandParser::Failure);
     }
 
     void nonMulticastAudioIpRejected()
     {
         // Default audio IP is multicast; force a unicast one.
         CommandParser p;
-        QCOMPARE(p.parse({"drming", "--ip-audio", "192.168.1.1"}), CommandParser::Failure);
+        QCOMPARE(p.parse({ "drming", "--ip-audio", "192.168.1.1" }), CommandParser::Failure);
     }
 
     void validCustomConfiguration()
     {
         CommandParser p;
-        QCOMPARE(p.parse({
-                     "drming",
-                     "-f", "png",
-                     "-q", "95",
-                     "--port", "9999",
-                     "--ip-audio", "239.1.2.3",
-                     "--ip-video", "239.1.2.4",
-                 }), CommandParser::Continue);
+        QCOMPARE(
+            p.parse(
+                {
+                    "drming",
+                    "-f",
+                    "png",
+                    "-q",
+                    "95",
+                    "--port",
+                    "9999",
+                    "--ip-audio",
+                    "239.1.2.3",
+                    "--ip-video",
+                    "239.1.2.4",
+                }
+            ),
+            CommandParser::Continue
+        );
         QCOMPARE(Parameters::instance.streamFormat, Opts::DisplayStreamType::png);
         QCOMPARE(Parameters::instance.qualityLevel, 95);
         QCOMPARE(Parameters::instance.port, 9999);

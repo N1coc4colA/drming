@@ -1,0 +1,7 @@
+submodules/
+build/
+Build/
+build-*/
+cmake-build-*/
+client/build/
+server/build/

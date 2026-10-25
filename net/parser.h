@@ -21,7 +21,6 @@
 #include <ctrack.hpp>
 #endif
 
-
 namespace Packets {
 
 using Ordering = quint32;
@@ -97,20 +96,26 @@ inline constexpr bool is_instance_of_v<U<Vs...>, U> = std::true_type{};
 
 template<typename Receiver, typename Packet, typename = void>
 struct has_processPacket : std::false_type
-{};
+{
+};
 
 template<typename Receiver, typename Packet>
-struct has_processPacket<Receiver, Packet, std::void_t<decltype(std::declval<Receiver>().processPacket(std::declval<const Packet &>()))>>
-    : std::true_type
-{};
+struct has_processPacket<
+    Receiver,
+    Packet,
+    std::void_t<decltype(std::declval<Receiver>().processPacket(std::declval<const Packet &>()))>> : std::true_type
+{
+};
 
 template<typename Receiver, typename = void>
 struct has_packetErrors : std::false_type
-{};
+{
+};
 
 template<typename Receiver>
 struct has_packetErrors<Receiver, std::void_t<decltype(std::declval<Receiver>().packetErrors())>> : std::true_type
-{};
+{
+};
 
 template<class T, class Tuple>
 struct Index;
@@ -169,7 +174,6 @@ using fields_type = std::remove_reference_t<decltype(PacketType::fields)>;
 
 } // namespace details
 
-
 template<typename T, bool IsVariable = false, bool HasLimit = false>
 struct Field
 {
@@ -181,8 +185,14 @@ struct Field
 
     T data{};
 
-    inline T &operator->() { return data; }
-    inline const T &operator->() const { return data; }
+    inline T &operator->()
+    {
+        return data;
+    }
+    inline const T &operator->() const
+    {
+        return data;
+    }
 };
 
 // SizedField implies IsVariable = true. Whether it has limits is decided by
@@ -203,7 +213,11 @@ struct FixedField : Field<T, false, true>
 };
 
 // Fixed-size, runtime-bounded field: not variable, has limits.
-template<typename T, typename LimitType, LimitType DefaultMin = 0, LimitType DefaultMax = std::numeric_limits<LimitType>::max()>\
+template<
+    typename T,
+    typename LimitType,
+    LimitType DefaultMin = 0,
+    LimitType DefaultMax = std::numeric_limits<LimitType>::max()>
 struct BoundField : public Field<T, false, true>
 {
     LimitType min = DefaultMin;
@@ -227,7 +241,11 @@ struct VariableFixedField : SizedField<T, LimitType>
 };
 
 // Variable-size, runtime-bounded field: variable, has limits.
-template<typename T, typename LimitType, LimitType DefaultMin = 0, LimitType DefaultMax = std::numeric_limits<LimitType>::max()>
+template<
+    typename T,
+    typename LimitType,
+    LimitType DefaultMin = 0,
+    LimitType DefaultMax = std::numeric_limits<LimitType>::max()>
 struct VariableBoundField : public SizedField<T, LimitType>
 {
     static constexpr bool __has_limits = true;
@@ -251,7 +269,8 @@ template<typename EnumType>
         std::is_same_v<typename EnumType::LOWER, EnumType>;
     }
 struct EnumField : public FixedField<EnumType, EnumType, EnumType::LOWER, EnumType::UPPER>
-{};
+{
+};
 
 template<typename EnumType>
     requires requires() {
@@ -262,18 +281,24 @@ template<typename EnumType>
         std::is_same_v<typename EnumType::LOWER, EnumType>;
     }
 struct BoundEnumField : public BoundField<EnumType, EnumType, EnumType::LOWER, EnumType::UPPER>
-{};
+{
+};
 
-template<typename NumericType, NumericType Min = std::numeric_limits<NumericType>::min(), NumericType Max = std::numeric_limits<NumericType>::max()>
+template<
+    typename NumericType,
+    NumericType Min = std::numeric_limits<NumericType>::min(),
+    NumericType Max = std::numeric_limits<NumericType>::max()>
 struct NumericField : FixedField<NumericType, NumericType, Min, Max>
-{};
+{
+};
 
-template<typename NumericType,
-         NumericType DefaultMin = std::numeric_limits<NumericType>::min(),
-         NumericType DefaultMax = std::numeric_limits<NumericType>::max()>
+template<
+    typename NumericType,
+    NumericType DefaultMin = std::numeric_limits<NumericType>::min(),
+    NumericType DefaultMax = std::numeric_limits<NumericType>::max()>
 struct BoundNumericField : BoundField<NumericType, NumericType, DefaultMin, DefaultMax>
-{};
-
+{
+};
 
 struct HeartBeat
 {
@@ -300,7 +325,7 @@ struct KeyUpdate
     Field<Keystamp> keyStamp;
     VariableFixedField<QByteArray, quint64, 1, 2048> key;
 
-    static constexpr auto fields = std::tuple{&KeyUpdate::keyStamp, &KeyUpdate::key};
+    static constexpr auto fields = std::tuple{ &KeyUpdate::keyStamp, &KeyUpdate::key };
 };
 
 struct RequestAudioSource
@@ -317,7 +342,7 @@ struct AudioSource
     Field<quint16> port;
     Field<bool> isV4;
 
-    static constexpr auto fields = std::tuple{&AudioSource::ip, &AudioSource::port, &AudioSource::isV4};
+    static constexpr auto fields = std::tuple{ &AudioSource::ip, &AudioSource::port, &AudioSource::isV4 };
 };
 
 struct RequestVideoSource
@@ -334,7 +359,7 @@ struct VideoSource
     Field<quint16> port;
     Field<bool> isV4;
 
-    static constexpr auto fields = std::tuple{&VideoSource::ip, &VideoSource::port, &VideoSource::isV4};
+    static constexpr auto fields = std::tuple{ &VideoSource::ip, &VideoSource::port, &VideoSource::isV4 };
 };
 
 struct ServerImage
@@ -344,7 +369,7 @@ struct ServerImage
     VariableFixedField<QByteArray, quint64, 3, 4> format;
     VariableBoundField<QByteArray, quint64, 1, 8 * 1024 * 1024> data;
 
-    static constexpr auto fields = std::tuple{&ServerImage::format, &ServerImage::data};
+    static constexpr auto fields = std::tuple{ &ServerImage::format, &ServerImage::data };
 };
 
 struct RequestClientResolution
@@ -360,7 +385,7 @@ struct ClientResolution
     NumericField<quint32, 0, 1920> width;
     NumericField<quint32, 0, 1080> height;
 
-    static constexpr auto fields = std::tuple{&ClientResolution::width, &ClientResolution::height};
+    static constexpr auto fields = std::tuple{ &ClientResolution::width, &ClientResolution::height };
 };
 
 struct ServerBrightness
@@ -369,7 +394,7 @@ struct ServerBrightness
 
     NumericField<std::int16_t, 0, 10> brightness;
 
-    static constexpr auto fields = std::tuple{&ServerBrightness::brightness};
+    static constexpr auto fields = std::tuple{ &ServerBrightness::brightness };
 };
 
 struct ServerStream
@@ -378,7 +403,7 @@ struct ServerStream
 
     VariableBoundField<QByteArray, quint64, 1> data;
 
-    static constexpr auto fields = std::tuple{&ServerStream::data};
+    static constexpr auto fields = std::tuple{ &ServerStream::data };
 };
 
 struct SpeedInfo
@@ -387,7 +412,7 @@ struct SpeedInfo
 
     NumericField<std::int16_t, 0, 200> speed;
 
-    static constexpr auto fields = std::tuple{&SpeedInfo::speed};
+    static constexpr auto fields = std::tuple{ &SpeedInfo::speed };
 };
 
 struct ClientTelemetry
@@ -395,7 +420,7 @@ struct ClientTelemetry
     static constexpr auto type = Type::ClientTelemetry;
 
     /// actual decoded fps × 10
-    NumericField<quint16, 0, 1000>  fpsX10;
+    NumericField<quint16, 0, 1000> fpsX10;
     /// avg end-to-end latency
     NumericField<quint16, 0, 65535> latencyMsAvg;
     /// 95th-percentile latency
@@ -405,9 +430,9 @@ struct ClientTelemetry
     /// video receive rate, Kbit/s
     NumericField<quint16, 0, 65535> recvRateKbps;
     /// current decoder queue
-    NumericField<quint8,  0, 255>   decodeQueueDepth;
+    NumericField<quint8, 0, 255> decodeQueueDepth;
     /// current render queue
-    NumericField<quint8,  0, 255>   renderQueueDepth;
+    NumericField<quint8, 0, 255> renderQueueDepth;
 
     static constexpr auto fields = std::tuple{
         &ClientTelemetry::fpsX10,
@@ -420,21 +445,22 @@ struct ClientTelemetry
     };
 };
 
-using PacketVariant = std::variant<HeartBeat,
-                                   Reinit,
-                                   RequestKey,
-                                   KeyUpdate,
-                                   RequestAudioSource,
-                                   AudioSource,
-                                   RequestVideoSource,
-                                   VideoSource,
-                                   RequestClientResolution,
-                                   ClientResolution,
-                                   ServerBrightness,
-                                   ServerImage,
-                                   ServerStream,
-                                   SpeedInfo,
-                                   ClientTelemetry>;
+using PacketVariant = std::variant<
+    HeartBeat,
+    Reinit,
+    RequestKey,
+    KeyUpdate,
+    RequestAudioSource,
+    AudioSource,
+    RequestVideoSource,
+    VideoSource,
+    RequestClientResolution,
+    ClientResolution,
+    ServerBrightness,
+    ServerImage,
+    ServerStream,
+    SpeedInfo,
+    ClientTelemetry>;
 
 class Writer
 {
@@ -482,7 +508,8 @@ class Writer
 
     template<typename FieldType>
         requires FieldType::__is_field and FieldType::__is_variable
-    static qsizetype estimateFieldSize(const FieldType &f) {
+    static qsizetype estimateFieldSize(const FieldType &f)
+    {
         return sizeof(typename FieldType::size_type) + f.data.size();
     }
 
@@ -503,7 +530,7 @@ public:
 
         // Pre-size the output to avoid QByteArray growth reallocations.
         // Base + variable field sizes.
-        qsizetype estimate = sizeof(quint16);   // type prefix
+        qsizetype estimate = sizeof(quint16); // type prefix
         [&]<size_t... Is>(std::index_sequence<Is...>) {
             ((estimate += estimateFieldSize(t.*std::get<Is>(fields))), ...);
         }(std::make_index_sequence<std::tuple_size_v<decltype(fields)>>{});
@@ -533,10 +560,11 @@ public:
     }
 };
 
-template<typename Receiver,
-         const int ErrorLimit = 2,
-         std::size_t MaxVariableSize = 8 * 1024 * 1024,
-         bool DebugParsed = false>
+template<
+    typename Receiver,
+    const int ErrorLimit = 2,
+    std::size_t MaxVariableSize = 8 * 1024 * 1024,
+    bool DebugParsed = false>
 class Parser
 {
     using PacketTypes = typename details::variant_types<PacketVariant>::types;
@@ -548,7 +576,8 @@ class Parser
     };
 
     template<typename PacketType, size_t Index>
-    using FieldType = typename details::member_pointer_traits<std::tuple_element_t<Index, decltype(PacketType::fields)>>::member_type;
+    using FieldType =
+        typename details::member_pointer_traits<std::tuple_element_t<Index, decltype(PacketType::fields)>>::member_type;
 
     QByteArray m_array{};
     Type m_state = Type::None;
@@ -681,7 +710,7 @@ class Parser
     }
 
     template<typename PacketType, size_t Index>
-        requires (not (FieldType<PacketType, Index>::__is_field and FieldType<PacketType, Index>::__is_variable))
+        requires(not(FieldType<PacketType, Index>::__is_field and FieldType<PacketType, Index>::__is_variable))
     inline constexpr ParseOutput readVariable()
     {
         return True;
@@ -699,12 +728,12 @@ class Parser
         static constexpr size_t fieldCount = std::tuple_size_v<decltype(T::fields)>;
         static constexpr auto fieldTable = [] {
             return [&]<size_t... Is>(std::index_sequence<Is...>) {
-                return std::array<ParseOutput (Parser::*)(), fieldCount>{&Parser::read<T, Is>...};
+                return std::array<ParseOutput (Parser::*)(), fieldCount>{ &Parser::read<T, Is>... };
             }(std::make_index_sequence<fieldCount>{});
         }();
         static constexpr auto variableFieldTable = [] {
             return [&]<size_t... Is>(std::index_sequence<Is...>) {
-                return std::array<ParseOutput (Parser::*)(), fieldCount>{&Parser::readVariable<T, Is>...};
+                return std::array<ParseOutput (Parser::*)(), fieldCount>{ &Parser::readVariable<T, Is>... };
             }(std::make_index_sequence<fieldCount>{});
         }();
 
@@ -756,7 +785,9 @@ class Parser
             arr.fill(nullptr);
 
             [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                ((arr[static_cast<size_t>(std::tuple_element_t<Is, Types>::type)] = &Parser::instanceParsing<std::tuple_element_t<Is, Types>>), ...);
+                ((arr[static_cast<size_t>(std::tuple_element_t<Is, Types>::type)]
+                     = &Parser::instanceParsing<std::tuple_element_t<Is, Types>>),
+                    ...);
             }(std::make_index_sequence<N>{});
 
             return arr;
@@ -801,10 +832,19 @@ public:
         m_errorCount = 0;
     }
 
-    inline void waitFor(const Type t) { m_waitsFor.insert(t); }
+    inline void waitFor(const Type t)
+    {
+        m_waitsFor.insert(t);
+    }
 
-    inline void disable(const Type t) { m_disabled.insert(t); }
-    inline void enable(const Type t) { m_disabled.erase(t); }
+    inline void disable(const Type t)
+    {
+        m_disabled.insert(t);
+    }
+    inline void enable(const Type t)
+    {
+        m_disabled.erase(t);
+    }
     inline void clearRules()
     {
         m_disabled.clear();
@@ -827,7 +867,8 @@ public:
                     return;
                 }
 
-                if ((type > static_cast<quint16>(Type::UPPER) || type < static_cast<quint16>(Type::LOWER))) [[unlikely]] {
+                if ((type > static_cast<quint16>(Type::UPPER) || type < static_cast<quint16>(Type::LOWER)))
+                    [[unlikely]] {
                     if constexpr (details::has_packetErrors<Receiver>::value) {
                         ++m_errorCount;
                         if (m_errorCount > ErrorLimit) {
@@ -896,7 +937,11 @@ public:
 };
 
 // Limit is the maximum number of TS queues that can be handled simultaneously.
-template<typename OrderType = Ordering, typename TsType = Timestamp, TsType MaxTimestamps = 3, std::size_t PacketsLimit = 200>
+template<
+    typename OrderType = Ordering,
+    typename TsType = Timestamp,
+    TsType MaxTimestamps = 3,
+    std::size_t PacketsLimit = 200>
 class JitterBuffer
 {
     struct ChunkQueue
@@ -905,16 +950,20 @@ class JitterBuffer
 
         inline bool isComplete() const
         {
-            return !chunks.empty() && std::none_of(chunks.cbegin(), chunks.cend(), [](const auto &opt) { return !opt.has_value(); });
+            return !chunks.empty()
+                && std::none_of(chunks.cbegin(), chunks.cend(), [](const auto &opt) { return !opt.has_value(); });
         }
 
         inline QByteArray assemble() const
         {
             CTRACK;
 
-            const auto total = std::accumulate(chunks.cbegin(), chunks.cend(), qsizetype(0), [](qsizetype sum, const auto &opt) {
-                return sum + (opt ? opt->size() : 0);
-            });
+            const auto total = std::accumulate(
+                chunks.cbegin(),
+                chunks.cend(),
+                qsizetype(0),
+                [](qsizetype sum, const auto &opt) { return sum + (opt ? opt->size() : 0); }
+            );
 
             QByteArray out;
             out.reserve(total);
@@ -953,7 +1002,7 @@ public:
                 m_entries.erase(m_entries.begin()); // remove oldest
             }
 
-            m_entries.push_back(Entry{ts, ChunkQueue{}});
+            m_entries.push_back(Entry{ ts, ChunkQueue{} });
             it = std::prev(m_entries.end());
         }
 
@@ -996,7 +1045,10 @@ public:
     }
 
     // Clear all stored data.
-    inline void clear() { m_entries.clear(); }
+    inline void clear()
+    {
+        m_entries.clear();
+    }
 
     // Optional: check if a timestamp is already complete (for debugging).
     inline bool isComplete(const TsType ts) const

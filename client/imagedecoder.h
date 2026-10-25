@@ -11,7 +11,6 @@
 #include <mutex>
 #include <thread>
 
-
 class Telemetry;
 
 /**
@@ -33,7 +32,10 @@ public:
 
     /// Sets the callback invoked by the decoder thread for each decoded frame.
     void setFrameCallback(FrameCallback callback);
-    void setTelemetry(Telemetry *t) { m_telemetry = t; }
+    void setTelemetry(Telemetry *t)
+    {
+        m_telemetry = t;
+    }
 
     // Thread-safe: queues a new compressed frame, keeping at most 2 frames and dropping oldest
     void queueFrame(QByteArray data, QByteArray format, qint64 receiveNs);

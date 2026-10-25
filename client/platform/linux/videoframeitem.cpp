@@ -5,7 +5,7 @@
 
 namespace Platform {
 
-QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
+QRectF fitKeepAspect(const QSizeF &itemSize, const QSizeF &imgSize)
 {
     if (itemSize.isEmpty() || imgSize.isEmpty()) {
         return {};
@@ -21,16 +21,16 @@ QRectF fitKeepAspect(const QSizeF& itemSize, const QSizeF& imgSize)
     const auto x = (itemSize.width() - w) * 0.5;
     const auto y = (itemSize.height() - h) * 0.5;
 
-    return {x, y, w, h};
+    return { x, y, w, h };
 }
 
-VideoFrameItem::VideoFrameItem(QQuickItem* parent)
+VideoFrameItem::VideoFrameItem(QQuickItem *parent)
     : QQuickItem(parent)
 {
     setFlag(ItemHasContents, true);
 }
 
-void VideoFrameItem::setImage(const QImage& image)
+void VideoFrameItem::setImage(const QImage &image)
 {
     if (image.isNull()) {
         return;
@@ -51,7 +51,7 @@ void VideoFrameItem::setImage(const QImage& image)
     }
 }
 
-void VideoFrameItem::geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry)
+void VideoFrameItem::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
 {
     QQuickItem::geometryChange(newGeometry, oldGeometry);
 
@@ -60,11 +60,11 @@ void VideoFrameItem::geometryChange(const QRectF& newGeometry, const QRectF& old
     }
 }
 
-QSGNode* VideoFrameItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* data)
+QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data)
 {
     Q_UNUSED(data);
 
-    auto node = dynamic_cast<QSGSimpleTextureNode*>(oldNode);
+    auto node = dynamic_cast<QSGSimpleTextureNode *>(oldNode);
 
     bool textureChanged = false;
     QImage localImage{};

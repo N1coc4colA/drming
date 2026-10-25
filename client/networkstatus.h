@@ -12,7 +12,10 @@ class NetworkState : public QObject
 public:
     explicit NetworkState(QObject *parent = nullptr);
 
-    [[nodiscard]] bool getConnected() const { return m_connected; }
+    [[nodiscard]] bool getConnected() const
+    {
+        return m_connected;
+    }
 
     static NetworkState *instance();
 

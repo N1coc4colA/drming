@@ -8,18 +8,21 @@ namespace Platform {
 class OESMaterial : public QSGMaterial
 {
 public:
-    OESMaterial() { setFlag(Blending, false); }
+    OESMaterial()
+    {
+        setFlag(Blending, false);
+    }
 
-    QSGMaterialType* type() const override
+    QSGMaterialType *type() const override
     {
         static QSGMaterialType t;
         return &t;
     }
 
-    QSGMaterialShader* createShader(QSGRendererInterface::RenderMode) const override;
+    QSGMaterialShader *createShader(QSGRendererInterface::RenderMode) const override;
 
 private:
-    QSGTexture* texture = nullptr;
+    QSGTexture *texture = nullptr;
 
     friend class OESMaterialShader;
 };
@@ -33,17 +36,23 @@ public:
         setShaderFileName(FragmentStage, ":/shaders/oes.frag.qsb");
     }
 
-    void updateSampledImage(RenderState& state, const int binding, QSGTexture** texture, QSGMaterial* newMaterial, QSGMaterial*) override
+    void updateSampledImage(
+        RenderState &state,
+        const int binding,
+        QSGTexture **texture,
+        QSGMaterial *newMaterial,
+        QSGMaterial *
+    ) override
     {
         if (binding != 1) {
             return;
         }
 
-        *texture = static_cast<OESMaterial*>(newMaterial)->texture;
+        *texture = static_cast<OESMaterial *>(newMaterial)->texture;
     }
 };
 
-inline QSGMaterialShader* OESMaterial::createShader(const QSGRendererInterface::RenderMode) const
+inline QSGMaterialShader *OESMaterial::createShader(const QSGRendererInterface::RenderMode) const
 {
     return new OESMaterialShader;
 }
