@@ -64,6 +64,15 @@ StandardPage {
                     }
                     EasyButton {
                         display: AbstractButton.IconOnly
+                        icon.source: "qrc:/assets/document-save.svg"
+                        height: label.implicitHeight
+                        width: label.implicitHeight
+                        backgroundColor: "transparent"
+                        borderColor: "transparent"
+                        onClicked: fileProvider().exportServerCert(model.name)
+                    }
+                    EasyButton {
+                        display: AbstractButton.IconOnly
                         icon.source: "qrc:/assets/edit-delete.svg"
 
                         height: label.implicitHeight

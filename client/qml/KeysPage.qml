@@ -30,6 +30,12 @@ StandardPage {
                 } else {
                     infoDialog.model.info.key = true
                 }
+            } else if (operation === 4) {
+                if (result === 0)
+                    errorLabel.text = qsTr("Failed to export certificate file.")
+            } else if (operation === 5) {
+                if (result === 0)
+                    errorLabel.text = qsTr("Failed to export key file.")
             }
         }
     }
@@ -112,7 +118,11 @@ StandardPage {
 
                 visible: nameInput.length !== 0
             }
-            EasyButton {
+            RowLayout {
+                spacing: GlobalVars.spacingSmall
+                Layout.fillWidth: true
+
+                EasyButton {
                 color: infoDialog.model.info.key ? "#17c245" : "#ff3045"
                 icon.source: infoDialog.model.info.key ? "qrc:/assets/check.svg" : "qrc:/assets/warning-red.svg"
                 font.pixelSize: GlobalVars.fontSizeXSmall
@@ -139,6 +149,16 @@ StandardPage {
                     }
                     }
                 }
+                }
+                EasyButton {
+                    display: AbstractButton.IconOnly
+                    icon.source: "qrc:/assets/document-save.svg"
+                    visible: nameInput.length !== 0 && infoDialog.model.info.key
+                    onClicked: {
+                        errorLabel.text = ""
+                        fileProvider().exportClientKey(infoDialog.model.entryName)
+                    }
+                }
             }
 
             Label {
@@ -148,7 +168,11 @@ StandardPage {
                 visible: nameInput.length !== 0
             }
 
-            EasyButton {
+            RowLayout {
+                spacing: GlobalVars.spacingSmall
+                Layout.fillWidth: true
+
+                EasyButton {
                 color: infoDialog.model.info.cert ? "#17c245" : "#ff3045"
                 font.pixelSize: GlobalVars.fontSizeXSmall
                 icon.source: infoDialog.model.info.cert ? "qrc:/assets/check.svg" : "qrc:/assets/warning-red.svg"
@@ -174,6 +198,16 @@ StandardPage {
                     case 2: {
                         infoDialog.model.info.cert = true
                     }
+                    }
+                }
+                }
+                EasyButton {
+                    display: AbstractButton.IconOnly
+                    icon.source: "qrc:/assets/document-save.svg"
+                    visible: nameInput.length !== 0 && infoDialog.model.info.cert
+                    onClicked: {
+                        errorLabel.text = ""
+                        fileProvider().exportClientCert(infoDialog.model.entryName)
                     }
                 }
             }

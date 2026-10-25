@@ -32,6 +32,9 @@ public:
     Q_INVOKABLE virtual int addServerCert() = 0;
     Q_INVOKABLE virtual int addClientCert(const QString &name) = 0;
     Q_INVOKABLE virtual int addClientKey(const QString &name) = 0;
+    Q_INVOKABLE virtual int exportServerCert(const QString &name) = 0;
+    Q_INVOKABLE virtual int exportClientCert(const QString &name) = 0;
+    Q_INVOKABLE virtual int exportClientKey(const QString &name) = 0;
 
     Q_INVOKABLE virtual QStringList validClientEntries() = 0;
 

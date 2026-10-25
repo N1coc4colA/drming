@@ -21,6 +21,9 @@ public:
     int addServerCert() override;
     int addClientCert(const QString &name) override;
     int addClientKey(const QString &name) override;
+    int exportServerCert(const QString &name) override;
+    int exportClientCert(const QString &name) override;
+    int exportClientKey(const QString &name) override;
 
     QStringList validClientEntries() override;
 

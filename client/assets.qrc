@@ -17,5 +17,6 @@
         <file>assets/warning-red.svg</file>
         <file>assets/dialog-ok-apply.svg</file>
         <file>assets/go-down.svg</file>
+        <file>assets/document-save.svg</file>
     </qresource>
 </RCC>

@@ -227,6 +227,27 @@ int FileProvider::addClientKey(const QString &name)
     return 2;
 }
 
+int FileProvider::exportServerCert(const QString &name)
+{
+    const auto source = serverCertsPath() + name;
+    const auto target = QFileDialog::getSaveFileName(nullptr, tr("Export certificate"), name, "Certificate (*.crt)");
+    return !target.isEmpty() && QFile::copy(source, target) ? 2 : 0;
+}
+
+int FileProvider::exportClientCert(const QString &name)
+{
+    const auto source = clientPath() + name + "/" + clientCertName();
+    const auto target = QFileDialog::getSaveFileName(nullptr, tr("Export certificate"), "cert.crt", "Certificate (*.crt)");
+    return !target.isEmpty() && QFile::copy(source, target) ? 2 : 0;
+}
+
+int FileProvider::exportClientKey(const QString &name)
+{
+    const auto source = clientPath() + name + "/" + clientKeyName();
+    const auto target = QFileDialog::getSaveFileName(nullptr, tr("Export key"), "key.key", "Key (*.key *.pem)");
+    return !target.isEmpty() && QFile::copy(source, target) ? 2 : 0;
+}
+
 QStringList FileProvider::validClientEntries()
 {
     QStringList out{};

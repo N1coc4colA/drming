@@ -51,8 +51,28 @@ int FileProvider::addClientKey(const QString &name)
     return jStartFilePicker(2, name, "application/x-pem-key") ? -1 : 0;
 }
 
+int FileProvider::exportServerCert(const QString &name)
+{
+    return jStartFilePicker(3, name, "application/x-x509-ca-cert") ? -1 : 0;
+}
+
+int FileProvider::exportClientCert(const QString &name)
+{
+    return jStartFilePicker(4, name, "application/x-x509-ca-cert") ? -1 : 0;
+}
+
+int FileProvider::exportClientKey(const QString &name)
+{
+    return jStartFilePicker(5, name, "application/x-pem-file") ? -1 : 0;
+}
+
 void FileProvider::completeFileImport(int operation, const QString &name, const QString &source)
 {
+    if (operation >= 3) {
+        Q_EMIT fileImportFinished(operation, source == "2" ? 2 : 0);
+        return;
+    }
+
     if (source.isEmpty()) {
         Q_EMIT fileImportFinished(operation, 0);
         return;

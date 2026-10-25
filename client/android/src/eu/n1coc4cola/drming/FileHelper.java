@@ -14,6 +14,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -70,19 +71,16 @@ public class FileHelper {
             return false;
         }
 
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        // Android document providers often report PEM/KEY files as text or binary
-        // data instead of the application-specific MIME type supplied by callers.
-        intent.setType("*/*");
-        if ("application/x-pem-key".equals(mimeType)) {
-            intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
-                    "application/x-pem-file",
-                    "application/pem-certificate-chain",
-                    "text/plain",
-                    "application/octet-stream"
-            });
+        Intent intent;
+        if (operation >= 3) {
+            intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.putExtra(Intent.EXTRA_TITLE, exportFileName(operation));
+            intent.setType(mimeType);
         } else {
+            intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            // Android document providers often report PEM/KEY files as text or
+            // binary data instead of an application-specific MIME type.
+            intent.setType("*/*");
             intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
                     "application/x-x509-ca-cert",
                     "application/x-pem-file",
@@ -91,6 +89,7 @@ public class FileHelper {
                     "application/octet-stream"
             });
         }
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         pendingOperation = operation;
         pendingName = name == null ? "" : name;
@@ -109,6 +108,11 @@ public class FileHelper {
         }
 
         Uri uri = data.getData();
+        if (pendingOperation >= 3) {
+            nativeOnFileSelected(pendingOperation, pendingName, copyToUri(uri, pendingOperation, pendingName) ? "2" : "0");
+            return;
+        }
+
         try {
             getContextContentResolver().takePersistableUriPermission(
                     uri,
@@ -127,6 +131,38 @@ public class FileHelper {
     }
 
     private static native void nativeOnFileSelected(int operation, String name, String source);
+
+    private String exportFileName(int operation) {
+        if (operation == 3) {
+            return "certificate.crt";
+        }
+        return operation == 4 ? "cert.crt" : "key.key";
+    }
+
+    private boolean copyToUri(Uri target, int operation, String name) {
+        File source;
+        if (operation == 3) {
+            source = new File(serversDir, name);
+        } else {
+            source = new File(new File(clientsDir, name), operation == 4 ? CLIENT_CERT_NAME : CLIENT_KEY_NAME);
+        }
+
+        try (InputStream in = new FileInputStream(source);
+             OutputStream out = getContextContentResolver().openOutputStream(target)) {
+            if (out == null) {
+                return false;
+            }
+            byte[] buffer = new byte[8192];
+            int length;
+            while ((length = in.read(buffer)) > 0) {
+                out.write(buffer, 0, length);
+            }
+            return true;
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to export " + source + " to " + target, e);
+            return false;
+        }
+    }
 
     private String getNameFromUri(String uriString) {
         Uri uri = Uri.parse(uriString);
