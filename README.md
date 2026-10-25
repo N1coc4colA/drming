@@ -257,6 +257,10 @@ paths, user/group, executable location, and port values before installing it.
 - iOS and macOS are not supported.
 - The project has been tested on Fedora 43/44 and Android 14. Other
   distributions, kernels, Qt versions, and devices may require adjustments.
+- Currently, the H265 decoding has only been tested on one Samsung device.
+  When using other decoders such as the ones of Qualcomm, some adaptations
+  need to be performed (like CSD extraction before starting decoding). This
+  depends on your decoder and how it behaves.
 
 ## License and third-party code
 
