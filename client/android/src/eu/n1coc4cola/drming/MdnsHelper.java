@@ -12,7 +12,6 @@ public class MdnsHelper {
 
     private NsdManager nsdManager;
     private NsdManager.DiscoveryListener dtlsDiscoveryListener;
-    private NsdManager.DiscoveryListener sslDiscoveryListener;
 
     private boolean isDiscovering = false;
 
@@ -70,7 +69,6 @@ public class MdnsHelper {
         }
 
         dtlsDiscoveryListener = buildListener("dtls");
-        sslDiscoveryListener = buildListener("ssl");
 
         nsdManager.discoverServices("_drming._udp.", NsdManager.PROTOCOL_DNS_SD, dtlsDiscoveryListener);
 
@@ -81,9 +79,6 @@ public class MdnsHelper {
         if (isDiscovering && nsdManager != null) {
             if (dtlsDiscoveryListener != null) {
                 nsdManager.stopServiceDiscovery(dtlsDiscoveryListener);
-            }
-            if (sslDiscoveryListener != null) {
-                nsdManager.stopServiceDiscovery(sslDiscoveryListener);
             }
 
             isDiscovering = false;
