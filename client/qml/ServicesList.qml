@@ -89,7 +89,7 @@ EasyListView {
     }
 
     onVisibleChanged: function() {
-        if (!root.visible) {
+        if (!root.visible && root.model != undefined) {
             root.model.clear();
         }
     }
