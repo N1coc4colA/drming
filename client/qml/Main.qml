@@ -98,7 +98,10 @@ Window {
                 id: stream
                 visible: false
 
-                onBack: goBack()
+                onBack: {
+                    networkLink().close()
+                    goBack()
+                }
             }
         }
 
