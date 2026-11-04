@@ -19,27 +19,35 @@ public class MulticastLockHelper {
 
 			lock = wifiManager.createMulticastLock("drming.multicast.main");
 			lock.setReferenceCounted(true);
-        } else {
-            Log.e(TAG, "Context is null");
-        }
-    }
+		} else {
+			Log.e(TAG, "Context is null");
+		}
+	}
 
 	public void lock() {
 		if (locks == 0) {
 			Log.d(TAG, "Locking");
 			lock.acquire();
-
-			while (!lock.isHeld()) {
+			if (!lock.isHeld()) {
+				// Rare on AOSP, more likely on vendor ROMs. Log and continue —
+				// the acquire() call itself succeeded, so the lock may work for
+				// our purposes even if isHeld() reports false.
+				Log.w(TAG, "Lock did not report as held after acquire()");
 			}
 		}
-
 		locks++;
 	}
 
 	public void release() {
 		if (locks == 1) {
 			Log.d(TAG, "Unlocking");
-			lock.release();
+			try {
+				if (lock.isHeld()) {
+					lock.release();
+				}
+			} catch (Exception e) {
+				Log.w(TAG, "MulticastLock release threw: " + e.getMessage());
+			}
 		}
 		if (locks > 0) {
 			locks--;

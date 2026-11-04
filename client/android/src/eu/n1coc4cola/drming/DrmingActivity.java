@@ -9,4 +9,13 @@ public class DrmingActivity extends QtActivity {
         FileHelper.onActivityResultFromQt(requestCode, resultCode, data);
         super.onActivityResult(requestCode, resultCode, data);
     }
+
+    @Override
+    protected void onDestroy() {
+        nativeOnActivityDestroyed();
+        super.onDestroy();
+    }
+
+    // Native callbacks (must be registered from C++)
+    private static native void nativeOnActivityDestroyed();
 }

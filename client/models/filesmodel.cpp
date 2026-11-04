@@ -6,7 +6,7 @@ FilesModel::FilesModel(QObject *parent)
     : QAbstractListModel(parent)
 {}
 
-void FilesModel::setData(const MapType &newData)
+void FilesModel::setContent(const MapType &newData)
 {
     beginResetModel();
     m_files = newData;

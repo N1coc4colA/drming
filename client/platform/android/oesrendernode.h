@@ -38,14 +38,19 @@ public:
 private:
     void ensureProgram();
 
-    GLuint m_texId = 0;
-    QRectF m_rect;
+    QRectF m_rect{};
+    std::optional<GLuint> m_texId{};
 
-    GLuint m_program = 0;
-    GLint m_posAttr = -1;
-    GLint m_texAttr = -1;
-    GLint m_texUniform = -1;
-    GLint m_mvpUniform = -1;
+    struct Data
+    {
+        GLuint program = 0;
+        GLuint posAttr = 0;
+        GLuint texAttr = 0;
+        GLint texUniform = 0;
+        GLint mvpUniform = 0;
+    };
+
+    std::optional<Data> m_program{};
 };
 
 } // namespace Platform

@@ -14,12 +14,12 @@ FileProvider::FileProvider(QObject *parent)
 
 void FileProvider::loadServerCerts()
 {
-    m_serverFiles->setData(jServerCerts());
+    m_serverFiles->setContent(jServerCerts());
 }
 
 void FileProvider::loadClients()
 {
-    m_clientFiles->setData(jClients());
+    m_clientFiles->setContent(jClients());
 }
 
 void FileProvider::deleteServerCert(const QString &file)

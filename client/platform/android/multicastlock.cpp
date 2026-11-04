@@ -1,5 +1,7 @@
 #include "multicastlock.h"
 
+#include <QDebug>
+
 #include "native.h"
 
 namespace Platform {
@@ -19,6 +21,8 @@ void MulticastLock::lock()
 
 void MulticastLock::release()
 {
+    qDebug() << "Releasing";
+
     if (m_javaHelper.isValid()) {
         m_javaHelper.callMethod<void>("release");
     }

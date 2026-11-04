@@ -29,7 +29,7 @@ void ImageDecoder::setFrameCallback(FrameCallback callback)
     m_callback = std::move(callback);
 }
 
-void ImageDecoder::queueFrame(QByteArray data, QByteArray format, const qint64 receiveNs)
+void ImageDecoder::queueFrame(QByteArray data, QByteArray format, const quint64 receiveNs)
 {
     {
         std::lock_guard<std::mutex> lock(m_mutex);

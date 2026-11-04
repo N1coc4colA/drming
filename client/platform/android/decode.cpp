@@ -2,6 +2,8 @@
 
 #include <QDebug>
 
+#include <ctrack.hpp>
+
 #include "videoframeitem.h"
 
 #include "../net/telemetry.h"
@@ -11,6 +13,8 @@ namespace Platform {
 namespace {
 bool nextAnnexBNal(const uint8_t *data, const size_t size, size_t &cursor, size_t &nalStart, size_t &nalSize)
 {
+    CTRACK;
+
     while (cursor + 3 < size) {
         if (data[cursor] == 0x00 && data[cursor + 1] == 0x00) {
             const size_t startCodeSize = data[cursor + 2] == 0x01
@@ -52,6 +56,8 @@ bool nextAnnexBNal(const uint8_t *data, const size_t size, size_t &cursor, size_
 
 bool isKeyFrameH265(const uint8_t *data, const size_t size)
 {
+    CTRACK;
+
     size_t cursor = 0;
     size_t nalStart = 0;
     size_t nalSize = 0;
@@ -74,6 +80,8 @@ void extractCSDH265(
     std::vector<uint8_t> &pps
 )
 {
+    CTRACK;
+
     size_t cursor = 0;
     size_t nalStart = 0;
     size_t nalSize = 0;
@@ -101,11 +109,11 @@ VideoDecoder::~VideoDecoder()
     release();
 }
 
-int VideoDecoder::init(const int width, const int height)
+bool VideoDecoder::init(const int width, const int height)
 {
     if (m_initialized) {
         qDebug() << "Tried to re-init VideoDecoder while alreay init'd.";
-        return 0;
+        return true;
     }
 
     m_width = width;
@@ -126,15 +134,15 @@ int VideoDecoder::init(const int width, const int height)
     }
     case AMEDIA_ERROR_INVALID_PARAMETER: {
         qWarning() << "AImageReader_new failed:" << status;
-        return -1;
+        return false;
     }
     case AMEDIA_ERROR_UNKNOWN: {
         qWarning() << "AImageReader_new failed with unknown error.";
-        return -1;
+        return false;
     }
     default: {
         qWarning() << "AImageReader_new failed with unexpected error code:" << status;
-        return -1;
+        return false;
     }
     }
 
@@ -144,7 +152,7 @@ int VideoDecoder::init(const int width, const int height)
         qWarning() << "AImageReader_getWindow failed:" << status;
         AImageReader_delete(m_imageReader);
         m_imageReader = nullptr;
-        return -1;
+        return false;
     }
 
     // Set up the image listener (callback from decoder thread)
@@ -157,7 +165,7 @@ int VideoDecoder::init(const int width, const int height)
     m_codec = AMediaCodec_createDecoderByType("video/hevc");
     if (!m_codec) {
         qCritical() << "Failed to create MediaCodec decoder";
-        return -1;
+        return false;
     }
 
     m_format = AMediaFormat_new();
@@ -183,7 +191,7 @@ int VideoDecoder::init(const int width, const int height)
     status = AMediaCodec_configure(m_codec, m_format, m_window, nullptr, 0);
     if (status != AMEDIA_OK) {
         qCritical() << "AMediaCodec_configure with surface failed:" << status;
-        return -1;
+        return false;
     }
 
     qDebug() << "init() about to AMediaCodec_start";
@@ -191,12 +199,12 @@ int VideoDecoder::init(const int width, const int height)
     status = AMediaCodec_start(m_codec);
     if (status != AMEDIA_OK) {
         qCritical() << "AMediaCodec_start failed:" << status;
-        return -1;
+        return false;
     }
 
     m_initialized = true;
     qDebug() << "MediaCodec decoder initialized with AImageReader (zero-copy)";
-    return 0;
+    return true;
 }
 
 void VideoDecoder::release()
@@ -240,13 +248,12 @@ void VideoDecoder::release()
     // Destroy all cached EGL images and release our buffer references
     destroyEglImageCache();
 
-    if (m_oesTextureIds[0] != 0) {
-        glDeleteTextures(1, &m_oesTextureIds[0]);
-        m_oesTextureIds[0] = 0;
-    }
-    if (m_oesTextureIds[1] != 0) {
-        glDeleteTextures(1, &m_oesTextureIds[1]);
-        m_oesTextureIds[1] = 0;
+    if (m_oesTextureIds.has_value()) {
+        for (auto &tex : m_oesTextureIds.value()) {
+            glDeleteTextures(1, &tex);
+        }
+
+        m_oesTextureIds = {};
     }
 
     m_initialized = false;
@@ -274,57 +281,85 @@ void VideoDecoder::destroyEglImageCache()
     m_eglImageCache.clear();
 }
 
-int VideoDecoder::flush()
+bool VideoDecoder::flush()
 {
     if (m_codec) {
         AMediaCodec_flush(m_codec);
-        return 0;
+        return true;
     }
 
-    return -1;
+    return false;
 }
 
-int VideoDecoder::decode(const uint8_t *data, const size_t size)
+bool VideoDecoder::decode(const uint8_t *data, const size_t size)
 {
-    /*
-     * No dequeue, no m_codec guard: init() sets m_codec, and it must run
-     * BEFORE we try to touch the codec. Dequeue happens in decode_frame().
-     */
+    CTRACK;
 
     const bool needNalScan = m_needResync || !m_csdReady;
     const bool isKeyFrame = needNalScan ? isKeyFrameH265(data, size) : false;
 
-    // Initial decoder setup only. Do not re-init on every keyframe.
+    // Extract CSD from the first keyframe (or after a resync).
+    if (isKeyFrame && !m_csdReady) {
+        extractCSDH265(data, size, m_vps, m_sps, m_pps);
+        if (!m_vps.empty() && !m_sps.empty() && !m_pps.empty()) {
+            m_csdReady = true;
+            qDebug() << "CSD extracted: VPS=" << m_vps.size() << "SPS=" << m_sps.size() << "PPS=" << m_pps.size();
+        }
+    }
+
+    /*
+     * If we're stuck waiting for CSD, ask the server for a keyframe.
+     *
+     * The server emits IDRs every gop_size input frames. On this codec
+     * gop_size = m_fps * 2 = 130, but the source only produces ~11.8 fps,
+     * so wall-clock IDR interval is ~11 seconds. A client that joins the
+     * multicast group AFTER the last IDR has to wait up to 11 s before it
+     * can even initialize the codec — during which it's dropping every
+     * P-frame and showing nothing.
+     *
+     * Emit needsKeyframe() once per second while waiting. The server's
+     * RequestKeyframe handler forces the next encoded frame to be an IDR,
+     * which resets the clock.
+     */
+    if (!m_csdReady) {
+        const auto nowNs = steadyNowNs();
+        if (m_lastKeyframeRequestNs == 0 || nowNs - m_lastKeyframeRequestNs > 1'000'000'000LL) {
+            qDebug() << "No keyframe yet — requesting IDR";
+            m_lastKeyframeRequestNs = nowNs;
+            Q_EMIT needsKeyframe();
+        }
+    }
+
+    // Default resolution placeholder.
     if (!m_resolutionDetected) [[unlikely]] {
-        qWarning() << "No resolution detected, using default 1920x1080";
-        const auto ret = init(1920, 1080);
-        if (ret < 0) [[unlikely]]
-            return ret;
+        qDebug() << "Using default resolution 1920x1080 until SPS is parsed";
+        m_width = 1920;
+        m_height = 1080;
+        m_resolutionDetected = true;
     }
 
     if (!m_initialized) [[unlikely]] {
-        const int ret = init(m_width, m_height);
-        if (ret < 0) [[unlikely]]
-            return ret;
+        if (!m_csdReady) {
+            qDebug() << "No CSD";
+            return true;
+        }
+        const auto ret = init(m_width, m_height);
+        if (!ret) [[unlikely]] {
+            qDebug() << "Init failure";
+            return false;
+        }
     }
 
     if (isKeyFrame && m_needResync) {
         m_needResync = false;
     }
-
     if (m_needResync && !isKeyFrame) {
-        return 0;
-    }
-
-    if (isKeyFrame && !m_csdReady) {
-        extractCSDH265(data, size, m_vps, m_sps, m_pps);
-        if (!m_vps.empty() && !m_sps.empty() && !m_pps.empty()) {
-            m_csdReady = true;
-        }
+        qDebug() << "Resync stuff failed";
+        return true;
     }
 
     const auto ret = decode_frame(data, size, isKeyFrame);
-    if (ret < 0) [[unlikely]] {
+    if (!ret) [[unlikely]] {
         m_needResync = true;
         qDebug() << "Resync required.";
     }
@@ -332,8 +367,10 @@ int VideoDecoder::decode(const uint8_t *data, const size_t size)
     return ret;
 }
 
-int VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const bool isKeyFrame)
+bool VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const bool isKeyFrame)
 {
+    CTRACK;
+
     // Always queue input buffer (works for both paths)
     const auto inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 10000);
     if (inputIndex >= 0) [[likely]] {
@@ -350,38 +387,40 @@ int VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const boo
 
         m_needResync = true;
         Q_EMIT needsKeyframe();
-        return 0;
+        return true;
     } else {
         qWarning() << "Failed to dequeue input buffer, unexpected error occurred:" << inputIndex;
-        return -1;
+        return false;
     }
 
     size_t bufferSize = 0;
-    const auto inputBuffer = AMediaCodec_getInputBuffer(m_codec, inputIndex, &bufferSize);
+    const auto inputBuffer = AMediaCodec_getInputBuffer(m_codec, static_cast<size_t>(inputIndex), &bufferSize);
     if (!inputBuffer) {
         qWarning() << "Failed to get input buffer: " << inputBuffer;
-        return -1;
+        return false;
     }
     if (size > bufferSize) [[unlikely]] {
         // [TODO] handle buffer resizing.
         qWarning() << "Input data too large:" << size << ">" << bufferSize;
-        return -1;
+        return false;
     }
     memcpy(inputBuffer, data, size);
 
     const uint32_t flags = isKeyFrame ? AMEDIACODEC_BUFFER_FLAG_KEY_FRAME : 0;
     const auto status = AMediaCodec_queueInputBuffer(
         m_codec,
-        inputIndex,
+        static_cast<size_t>(inputIndex),
         0,
         size,
-        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
-            .count(),
+        static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+                .count()
+        ),
         flags
     );
     if (status != AMEDIA_OK) [[unlikely]] {
         qWarning() << "MC Failed to queue input buffer:" << status;
-        return -1;
+        return false;
     }
 
     AMediaCodecBufferInfo info{};
@@ -389,7 +428,7 @@ int VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const boo
         const auto outIdx = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 0);
         if (outIdx >= 0) [[likely]] {
             // render = true: hands the buffer to the ANativeWindow/AImageReader.
-            AMediaCodec_releaseOutputBuffer(m_codec, outIdx, true);
+            AMediaCodec_releaseOutputBuffer(m_codec, static_cast<size_t>(outIdx), true);
             continue; // more than one frame may be ready
         } else if (outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
             break;
@@ -404,11 +443,13 @@ int VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const boo
         }
     }
 
-    return 0;
+    return true;
 }
 
-void VideoDecoder::onImageAvailable(void *context, AImageReader *reader)
+void VideoDecoder::onImageAvailable(void *context, AImageReader *)
 {
+    CTRACK;
+
     auto self = static_cast<VideoDecoder *>(context);
     // Just set a flag; the actual acquisition happens on the render thread
     self->m_frameAvailable.store(true, std::memory_order_release);
@@ -420,6 +461,8 @@ bool VideoDecoder::consumeFrame()
         qDebug() << "Invalid consume.";
         return false;
     }
+
+    CTRACK;
 
     /*
      * Two-frame hold:
@@ -486,6 +529,8 @@ bool VideoDecoder::consumeFrame()
 
 void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
 {
+    CTRACK;
+
     const auto display = eglGetCurrentDisplay();
     if (display == EGL_NO_DISPLAY) [[unlikely]] {
         qWarning() << "No current EGL display";
@@ -523,9 +568,13 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
     }
 
     // Create both textures on first call, and set parameters on both.
-    if (m_oesTextureIds[0] == 0) [[unlikely]] {
-        glGenTextures(2, m_oesTextureIds);
-        for (const GLuint tex : m_oesTextureIds) {
+    if (!m_oesTextureIds.has_value()) [[unlikely]] {
+        m_oesTextureIds.emplace();
+        auto &content = m_oesTextureIds.value();
+
+        glGenTextures(2, content.data());
+
+        for (const auto tex : content) {
             glBindTexture(GL_TEXTURE_EXTERNAL_OES, tex);
             glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -540,7 +589,9 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
      * safe to point it at the new EGLImage.
      */
     m_textureIndex ^= 1;
-    glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_oesTextureIds[m_textureIndex]);
+
+    assert(m_oesTextureIds.has_value());
+    glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_oesTextureIds.value()[m_textureIndex]);
     glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, eglImage);
 }
 

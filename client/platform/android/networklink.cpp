@@ -2,6 +2,8 @@
 #include "decode.h"
 #include "videoframeitem.h"
 
+#include "helpers.h"
+
 namespace Platform {
 
 VideoLink::VideoLink(QObject *parent)
@@ -13,6 +15,8 @@ VideoLink::VideoLink(QObject *parent)
 
 void VideoLink::processPacket(const Packets::ClientResolution &res)
 {
+    CTRACK;
+
     m_waitedForResolution.store(true, std::memory_order_relaxed);
     setBounds<&Packets::ServerImage::data>(
         quint64(0),
@@ -22,9 +26,14 @@ void VideoLink::processPacket(const Packets::ClientResolution &res)
 
 void VideoLink::processPacket(const Packets::ServerStream &img)
 {
+    CTRACK;
+
+    qDebug() << "Got image";
+
     Q_EMIT activity();
 
     if (!m_item || !m_decoder) [[unlikely]] {
+        qDebug() << "Invalid stuff:" << !m_item << !m_decoder;
         return;
     }
 
@@ -45,6 +54,8 @@ void VideoLink::processPacket(const Packets::ServerStream &img)
 
 void VideoLink::processPacket(const Packets::ServerImage &img)
 {
+    CTRACK;
+
     Q_EMIT activity();
 
     if (!m_item) [[unlikely]] {
@@ -58,7 +69,7 @@ void VideoLink::processPacket(const Packets::ServerImage &img)
 
     const auto recvNs = steadyNowNs();
     if (m_telemetry) {
-        m_telemetry->recordReceived(img.data.data.size());
+        m_telemetry->recordReceived(to_unsigned(img.data.data.size()));
     }
 
     // Offload decompression and format conversion to background decoder thread with frame dropping
@@ -72,7 +83,7 @@ void VideoLink::setTelemetry(Telemetry *t)
 
     if (m_decoder) {
         m_decoder->setTelemetry(t);
-        m_decoder->setLatencyCallback([t](const qint64 ns) {
+        m_decoder->setLatencyCallback([t](const quint64 ns) {
             if (t) {
                 t->recordDecoded(ns);
             }
@@ -82,6 +93,8 @@ void VideoLink::setTelemetry(Telemetry *t)
 
 void VideoLink::onFrameSkipped()
 {
+    CTRACK;
+
     qDebug() << "JitterBuffer: skipped incomplete frame — requesting IDR";
     if (m_telemetry) {
         m_telemetry->recordDropped();
@@ -100,9 +113,10 @@ void VideoLink::setItem(VideoFrameItem *item)
         m_decoder = new VideoDecoder(this);
         if (m_telemetry) {
             m_decoder->setTelemetry(m_telemetry);
-            m_decoder->setLatencyCallback([t = m_telemetry](qint64 ns) {
-                if (t)
+            m_decoder->setLatencyCallback([t = m_telemetry](const quint64 ns) {
+                if (t) {
                     t->recordDecoded(ns);
+                }
             });
         }
 
@@ -117,13 +131,15 @@ void VideoLink::setItem(VideoFrameItem *item)
 
     // Connect image decoder callback to update UI safely on GUI thread
     m_imageDecoder.setFrameCallback([this](const QImage &image, qint64 receiveNs) {
+        CTRACK;
+
         if (m_item) {
             QMetaObject::invokeMethod(
                 m_item,
                 "setImage",
                 Qt::QueuedConnection,
                 Q_ARG(QImage, image),
-                Q_ARG(qint64, receiveNs)
+                Q_ARG(quint64, receiveNs)
             );
         }
     });
@@ -132,10 +148,13 @@ void VideoLink::setItem(VideoFrameItem *item)
     QMetaObject::invokeMethod(
         item,
         [this, item] {
+            CTRACK;
+
             if (m_telemetry) {
-                item->setLatencyCallback([t = m_telemetry](qint64 ns) {
-                    if (t)
+                item->setLatencyCallback([t = m_telemetry](const quint64 ns) {
+                    if (t) {
                         t->recordDecoded(ns);
+                    }
                 });
             }
             item->setDecoder(m_decoder);
@@ -147,10 +166,13 @@ void VideoLink::setItem(VideoFrameItem *item)
 NetworkLink::NetworkLink(QObject *parent)
     : ::NetworkLink(parent)
     , Parser(*this)
+    , m_lock(this)
+    , m_videoThread(this)
+    , m_audioThread(this)
+    , m_vlink(new VideoLink)
+    , m_alink(new AudioLink)
+    , m_requireCheck(this)
 {
-    m_vlink = new VideoLink();
-    m_alink = new AudioLink();
-
     m_vlink->moveToThread(&m_videoThread);
     m_alink->moveToThread(&m_audioThread);
 
@@ -172,6 +194,8 @@ NetworkLink::NetworkLink(QObject *parent)
         &VideoLink::keyframeRequested,
         this,
         [this]() {
+            CTRACK;
+
             static constexpr Packets::RequestKeyframe pkt{};
             write(Packets::Writer::generate(pkt));
         },
@@ -264,8 +288,16 @@ void NetworkLink::setItem(QObject *item)
     QMetaObject::invokeMethod(m_vlink, [this, vitem]() { m_vlink->setItem(vitem); });
 }
 
+void NetworkLink::closePlatform()
+{
+    QMetaObject::invokeMethod(m_alink, &AudioLink::close);
+    QMetaObject::invokeMethod(m_vlink, &VideoLink::close);
+}
+
 void NetworkLink::processPacket(const Packets::KeyUpdate &ku)
 {
+    CTRACK;
+
     qDebug() << "Got key" << ku.keyStamp.data << ku.key.data;
 
     m_inactivityTimer.stop();
@@ -278,6 +310,8 @@ void NetworkLink::processPacket(const Packets::KeyUpdate &ku)
 
 void NetworkLink::processPacket(const Packets::AudioSource &src)
 {
+    CTRACK;
+
     qDebug() << "Got audio source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':'
              << src.port.data;
 
@@ -300,6 +334,8 @@ void NetworkLink::processPacket(const Packets::AudioSource &src)
 
 void NetworkLink::processPacket(const Packets::VideoSource &src)
 {
+    CTRACK;
+
     qDebug() << "Got video source:" << QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData())) << ':'
              << src.port.data;
 

@@ -21,6 +21,8 @@
 #include <ctrack.hpp>
 #endif
 
+#include "../helpers.h"
+
 namespace Packets {
 
 using Ordering = quint32;
@@ -571,7 +573,7 @@ public:
 template<
     typename Receiver,
     const int ErrorLimit = 2,
-    std::size_t MaxVariableSize = 8 * 1024 * 1024,
+    size_t MaxVariableSize = 8 * 1024 * 1024,
     bool DebugParsed = false>
 class Parser
 {
@@ -623,7 +625,7 @@ class Parser
 
             m_array.remove(0, sizeof(field.size));
 
-            if (field.size > MaxVariableSize) [[unlikely]] {
+            if (checked_cast<size_t>(field.size) > MaxVariableSize) [[unlikely]] {
                 return False;
             }
 
@@ -639,9 +641,10 @@ class Parser
     {
         using Field = FieldType<PacketType, Index>;
         auto &packet = std::get<PacketType>(m_current);
-        auto &field = packet.*std::get<Index>(std::get<PacketType>(m_current).fields);
 
         if (m_array.size() >= static_cast<qsizetype>(sizeof(typename Field::data_type))) {
+            auto &field = packet.*std::get<Index>(std::get<PacketType>(m_current).fields);
+
             QDataStream stream(m_array);
             stream.setByteOrder(QDataStream::BigEndian);
             stream >> field.data;
@@ -660,9 +663,10 @@ class Parser
     {
         using Field = FieldType<PacketType, Index>;
         auto &packet = std::get<PacketType>(m_current);
-        auto &field = packet.*std::get<Index>(std::get<PacketType>(m_current).fields);
 
         if (m_array.size() >= static_cast<qsizetype>(sizeof(typename Field::data_type))) {
+            auto &field = packet.*std::get<Index>(std::get<PacketType>(m_current).fields);
+
             QDataStream stream(m_array);
             stream.setByteOrder(QDataStream::BigEndian);
             stream >> field.data;

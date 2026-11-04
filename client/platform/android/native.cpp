@@ -6,10 +6,16 @@
 #include <QJniObject>
 #include <QTimeZone>
 
+#include <ctrack.hpp>
+
 #include "../../mdns.h"
 #include "../../networkstatus.h"
 
 #include "fileprovider.h"
+
+namespace {
+std::atomic_bool ctrackPrinted = false;
+}
 
 template<typename T>
 class JavaProxy
@@ -32,6 +38,16 @@ public:
 private:
     T &m_instance;
 };
+
+void onActivityDestroyed()
+{
+
+    if (ctrackPrinted.exchange(true)) {
+        return;
+    }
+
+    qInfo().noquote() << QString::fromStdString(ctrack::result_as_string());
+}
 
 void onServiceFound(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jtype, const jstring jprotocol)
 {
@@ -533,6 +549,40 @@ bool createNativeObject_AndroidUi(QJniObject &m_javaHelper)
 
     if (!m_javaHelper.isValid()) {
         qWarning() << "Failed to create AndroidUi instance";
+        return false;
+    }
+
+    return true;
+}
+
+bool registerNativeMethods_DrmingActivity()
+{
+    const auto env = QJniEnvironment().jniEnv();
+    if (!env) {
+        return false;
+    }
+
+    const auto activity = QJniObject::callStaticObjectMethod(
+        "org/qtproject/qt/android/QtNative",
+        "activity",
+        "()Landroid/app/Activity;"
+    );
+    if (!activity.isValid()) {
+        return false;
+    }
+
+    const auto clazz = env->GetObjectClass(activity.object<jobject>());
+    if (!clazz) {
+        return false;
+    }
+
+    const JNINativeMethod method{ "nativeOnActivityDestroyed", "()V", reinterpret_cast<void *>(onActivityDestroyed) };
+
+    const auto result = env->RegisterNatives(clazz, &method, 1);
+    env->DeleteLocalRef(clazz);
+
+    if (result != 0) {
+        qWarning() << "Failed to register DrmingActivity native methods:" << result;
         return false;
     }
 

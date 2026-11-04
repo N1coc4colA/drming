@@ -27,7 +27,7 @@ class VideoFrameItem : public QQuickItem
     Q_OBJECT
 
 public:
-    using LatencyCallback = std::function<void(qint64 latencyNs)>;
+    using LatencyCallback = std::function<void(quint64 latencyNs)>;
     enum TextureMode {
         Invalid,
         OES,
@@ -47,7 +47,7 @@ public:
         m_telemetry = t;
     }
 
-    Q_INVOKABLE void setImage(const QImage &image, qint64 receiveNs);
+    Q_INVOKABLE void setImage(const QImage &image, quint64 receiveNs);
 
 protected:
     QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data) override;
@@ -58,7 +58,7 @@ private:
     struct QueueEntry
     {
         QImage image{};
-        qint64 receiveNs = 0;
+        quint64 receiveNs = 0;
     };
 
     AndroidUi *m_aui = nullptr;

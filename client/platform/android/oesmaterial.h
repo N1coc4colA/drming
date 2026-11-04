@@ -37,7 +37,7 @@ public:
     }
 
     void updateSampledImage(
-        RenderState &state,
+        RenderState &,
         const int binding,
         QSGTexture **texture,
         QSGMaterial *newMaterial,

@@ -22,6 +22,7 @@
 
 #include "parser.h"
 
+#include "../helpers.h"
 #include "../settings.h"
 
 #ifndef Q_MOC_RUN
@@ -251,7 +252,7 @@ private:
 
     static QByteArray generate(const qsizetype len)
     {
-        assert(len % sizeof(quint32) == 0);
+        assert(len >= 0 && static_cast<size_t>(len) % sizeof(quint32) == 0);
 
         QByteArray d(len, Qt::Uninitialized);
 
@@ -401,12 +402,13 @@ private:
         CTRACK;
 
         static constexpr qsizetype aesBlock = 16;
-        static constexpr auto innerSize = Settings::dtlsChunkSize - Settings::ivSize - sizeof(Packets::Keystamp)
+        static constexpr size_t innerSize = Settings::dtlsChunkSize - Settings::ivSize - sizeof(Packets::Keystamp)
             - sizeof(Packets::Ordering) * 2 - sizeof(Packets::Timestamp) - aesBlock;
-        static constexpr auto headerSize = sizeof(Packets::Ordering) * 2 + sizeof(Packets::Timestamp) + Settings::ivSize
-            + sizeof(Packets::Keystamp);
+        static constexpr size_t headerSize = sizeof(Packets::Ordering) * 2 + sizeof(Packets::Timestamp)
+            + Settings::ivSize + sizeof(Packets::Keystamp);
+        static constexpr qsizetype headerSize_s = to_signed(headerSize);
 
-        const int fd = static_cast<int>(socket.socketDescriptor());
+        const auto fd = static_cast<int>(socket.socketDescriptor());
         if (fd < 0) [[unlikely]] {
             return false;
         }
@@ -432,8 +434,8 @@ private:
             return false;
         }
 
-        const auto size = data.size();
-        const Packets::Ordering sizing = size / innerSize + (size % innerSize ? 1 : 0);
+        const auto size = widen<size_t>(data.size());
+        const auto sizing = narrow<Packets::Ordering>(size / innerSize + (size % innerSize ? 1 : 0));
         const auto iv = generateIV();
         const auto ks_be = qToBigEndian(m_keyCount);
         const auto ts_be = qToBigEndian(m_ts);
@@ -445,12 +447,14 @@ private:
         struct mmsghdr mmsgs[kBatch];
         struct iovec iovs[kBatch];
         QByteArray buffers[kBatch];
-        int inFlight = 0;
+        uint inFlight = 0;
 
         auto flush = [&]() -> bool {
-            if (inFlight == 0)
+            if (inFlight == 0) {
                 return true;
-            int sent = 0;
+            }
+
+            uint sent = 0;
             while (sent < inFlight) {
                 const int n = ::sendmmsg(fd, mmsgs + sent, inFlight - sent, 0);
                 if (n < 0) {
@@ -460,17 +464,18 @@ private:
                     inFlight = 0;
                     return false;
                 }
-                sent += n;
+
+                sent += to_unsigned(n);
             }
             inFlight = 0;
             return true;
         };
 
         Packets::Ordering order = 0;
-        qsizetype offset = 0;
+        size_t offset = 0;
         while (offset < size) {
             const auto order_be = qToBigEndian(order);
-            const auto chunkSize = std::min<qsizetype>(innerSize, size - offset);
+            const size_t chunkSize = std::min(innerSize, size - offset);
 
             QByteArray ciphertext{};
             const char *payload = nullptr;
@@ -489,11 +494,11 @@ private:
             }
 #else
             payload = data.constData() + offset;
-            payloadSize = chunkSize;
+            payloadSize = to_signed(chunkSize);
 #endif
 
             QByteArray &chunk = buffers[inFlight];
-            chunk = QByteArray(headerSize + payloadSize, Qt::Uninitialized);
+            chunk = QByteArray(headerSize_s + payloadSize, Qt::Uninitialized);
             char *p = chunk.data();
             std::memcpy(p, &order_be, sizeof(order_be));
             p += sizeof(order_be);
@@ -505,7 +510,7 @@ private:
             p += Settings::ivSize;
             std::memcpy(p, &ks_be, sizeof(ks_be));
             p += sizeof(ks_be);
-            std::memcpy(p, payload, payloadSize);
+            std::memcpy(p, payload, to_unsigned(payloadSize));
 
             iovs[inFlight].iov_base = chunk.data();
             iovs[inFlight].iov_len = static_cast<size_t>(chunk.size());
@@ -601,26 +606,26 @@ public:
         : m_storage(storage)
     {}
 
-    inline qint64 writeDtls(const QByteArray &data)
+    inline std::optional<quint64> writeDtls(const QByteArray &data)
     {
         CTRACK;
 
-        static constexpr auto innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) * 2
+        static constexpr size_t innerSize = Settings::dtlsChunkSize - sizeof(Packets::Ordering) * 2
             - sizeof(Packets::Timestamp);
         static constexpr auto headerSize = sizeof(Packets::Timestamp) + sizeof(Packets::Ordering) * 2;
 
-        const auto size = data.size();
-        const auto sizing = Packets::Ordering(size / innerSize + (size % innerSize ? 1 : 0));
+        const auto size = to_unsigned(data.size());
+        const auto sizing = narrow<Packets::Ordering>(size / innerSize + (size % innerSize ? 1 : 0));
         const auto sizing_be = qToBigEndian(sizing);
 
         Packets::Ordering order = 0;
-        qsizetype offset = 0;
+        size_t offset = 0;
         while (offset < size) {
-            const auto chunkSize = std::min<qsizetype>(innerSize, size - offset);
+            const size_t chunkSize = std::min<size_t>(innerSize, size - offset);
             const auto ts_be = qToBigEndian(m_ts);
             const auto order_be = qToBigEndian(order);
 
-            QByteArray chunk(headerSize + chunkSize, Qt::Uninitialized);
+            QByteArray chunk(to_signed(headerSize + chunkSize), Qt::Uninitialized);
             char *p = chunk.data();
             std::memcpy(p, &ts_be, sizeof(ts_be));
             p += sizeof(ts_be);
@@ -655,7 +660,7 @@ public:
                 }
 
                 m_ts++;
-                return -1;
+                return {};
             }
 
             offset += chunkSize;
@@ -663,6 +668,7 @@ public:
         }
 
         m_ts++;
+
         return offset;
     }
 

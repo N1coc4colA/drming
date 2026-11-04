@@ -43,7 +43,7 @@ class VideoDecoder : public QObject
     Q_OBJECT
 
 public:
-    using LatencyCallback = std::function<void(qint64 latencyNs)>;
+    using LatencyCallback = std::function<void(quint64 latencyNs)>;
 
     explicit VideoDecoder(QObject *parent = nullptr);
     ~VideoDecoder();
@@ -63,16 +63,20 @@ public:
     }
 
     // Decoder control
-    int init(int width = 0, int height = 0);
+    bool init(int width = 0, int height = 0);
     void release();
-    int flush();
-    int decode(const uint8_t *data, size_t size);
+    bool flush();
+    bool decode(const uint8_t *data, size_t size);
 
     // Texture-based rendering (called from the render thread).
     bool consumeFrame(); // returns true if new frame was consumed
-    GLuint oesTextureId() const
+    std::optional<GLuint> oesTextureId() const
     {
-        return m_oesTextureIds[m_textureIndex];
+        if (m_oesTextureIds.has_value()) {
+            return m_oesTextureIds.value()[m_textureIndex];
+        }
+
+        return {};
     }
 
     QSize textureSize() const
@@ -84,7 +88,7 @@ public:
     {
         m_latencyCallback = std::move(cb);
     }
-    void setLastInputNs(const qint64 ns)
+    void setLastInputNs(const quint64 ns)
     {
         m_lastInputNs.store(ns, std::memory_order_relaxed);
     }
@@ -104,10 +108,10 @@ private:
     int m_width = 0;
     int m_height = 0;
     /// OES texture handles
-    GLuint m_oesTextureIds[2] = { 0, 0 };
-    int m_textureIndex = 0;
+    std::optional<std::array<GLuint, 2>> m_oesTextureIds{};
+    size_t m_textureIndex = 0;
 
-    std::atomic<qint64> m_lastInputNs{ 0 };
+    std::atomic<quint64> m_lastInputNs{ 0 };
     LatencyCallback m_latencyCallback{};
 
     bool m_initialized = false;
@@ -126,6 +130,7 @@ private:
     ANativeWindow *m_window = nullptr;
 
     Telemetry *m_telemetry = nullptr;
+    quint64 m_lastKeyframeRequestNs = 0;
 
     // EGLImage cache: AImageReader has a fixed pool of buffers (maxImages below),
     // so we cache one EGLImageKHR per AHardwareBuffer identity instead of
@@ -139,11 +144,11 @@ private:
         EGLImageKHR image = EGL_NO_IMAGE_KHR;
         AHardwareBuffer *bufferRef = nullptr; // our own acquired reference
     };
-    std::unordered_map<AHardwareBuffer *, CachedImage> m_eglImageCache;
+    std::unordered_map<AHardwareBuffer *, CachedImage> m_eglImageCache{};
     void destroyEglImageCache();
 
     // Helper functions
-    int decode_frame(const uint8_t *data, size_t size, bool isKeyFrame);
+    bool decode_frame(const uint8_t *data, size_t size, bool isKeyFrame);
 
     // Called from AImageReader callback (decoder thread)
     static void onImageAvailable(void *context, AImageReader *reader);

@@ -14,5 +14,6 @@ bool createNativeObject_NetworkHelper(QJniObject &m_javaHelper);
 bool createNativeObject_FileHelper(Platform::FileProvider &provider);
 bool createNativeObject_MulticastLockHelper(QJniObject &m_javaHelper);
 bool createNativeObject_AndroidUi(QJniObject &m_javaHelper);
+bool registerNativeMethods_DrmingActivity();
 
 #endif // NATIVE_H

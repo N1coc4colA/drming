@@ -50,6 +50,8 @@ protected:
     void markActivity();
     void write(const QByteArray &data);
 
+    virtual void closePlatform() {};
+
 private Q_SLOTS:
     void onSslConnected();
     void onSslEncrypted();
@@ -72,10 +74,10 @@ protected:
 
     Telemetry m_telemetry{};
     QTimer m_telemetryTimer{};
-    qint64 m_lastTelemetryNs = 0;
+    quint64 m_lastTelemetryNs = 0;
 
 private:
-    QString m_protocol;
+    QString m_protocol{};
     QByteArray m_buffer{};
     QSslSocket *m_sslSocket = nullptr;
     QUdpSocket *m_udpSocket = nullptr;
@@ -93,7 +95,7 @@ private:
 
     void connectDtls(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, int port);
     void connectSsl(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, int port);
-    qint64 writeDtls(const QByteArray &data);
+    std::optional<quint64> writeDtls(const QByteArray &data);
     qint64 writeSsl(const QByteArray &data);
     void resetSessionState();
 

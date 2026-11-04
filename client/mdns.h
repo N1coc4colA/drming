@@ -10,12 +10,12 @@ struct ServiceInfo
 {
     using hash_type = QString;
 
-    QString name;
-    QString type;
-    QString host;
-    QString ip;
-    QString protocol;
-    int port;
+    QString name{};
+    QString type{};
+    QString host{};
+    QString ip{};
+    QString protocol{};
+    int port = -1;
 
     [[nodiscard]] hash_type toHashable() const
     {

@@ -25,7 +25,7 @@ class ImageDecoder : public QObject
     Q_OBJECT
 
 public:
-    using FrameCallback = std::function<void(const QImage &, qint64 receiveNs)>;
+    using FrameCallback = std::function<void(const QImage &, quint64 receiveNs)>;
 
     explicit ImageDecoder(QObject *parent = nullptr);
     ~ImageDecoder() override;
@@ -38,7 +38,7 @@ public:
     }
 
     // Thread-safe: queues a new compressed frame, keeping at most 2 frames and dropping oldest
-    void queueFrame(QByteArray data, QByteArray format, qint64 receiveNs);
+    void queueFrame(QByteArray data, QByteArray format, const quint64 receiveNs);
 
     /// Discards queued work and restores the decoder to its idle state.
     void reset();
@@ -50,19 +50,19 @@ private:
     {
         QByteArray data{};
         QByteArray format{};
-        qint64 receiveNs = 0;
+        quint64 receiveNs = 0;
     };
 
     static constexpr size_t MaxPendingFrames = 3;
 
     std::thread m_thread;
-    std::mutex m_mutex;
-    std::condition_variable m_cv;
-    std::deque<PendingFrame> m_pendingFrames;
+    std::mutex m_mutex{};
+    std::condition_variable m_cv{};
+    std::deque<PendingFrame> m_pendingFrames{};
     bool m_running = true;
 
-    std::mutex m_cbMutex;
-    FrameCallback m_callback;
+    std::mutex m_cbMutex{};
+    FrameCallback m_callback{};
 
     Telemetry *m_telemetry = nullptr;
 };

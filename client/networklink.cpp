@@ -104,6 +104,8 @@ void NetworkLink::close()
     m_inactivityTimer.stop();
     m_udpSocket->close();
     m_sslSocket->close();
+
+    closePlatform();
 }
 
 void NetworkLink::resetSessionState()
@@ -419,7 +421,7 @@ void NetworkLink::write(const QByteArray &data)
     }
 }
 
-qint64 NetworkLink::writeDtls(const QByteArray &data)
+std::optional<quint64> NetworkLink::writeDtls(const QByteArray &data)
 {
     return m_rw.writeDtls(data);
 }

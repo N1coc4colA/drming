@@ -80,7 +80,7 @@ protected:
 
 private:
     VideoDecoder *m_decoder = nullptr;
-    ImageDecoder m_imageDecoder;
+    ImageDecoder m_imageDecoder{};
     VideoFrameItem *m_item = nullptr;
     Telemetry *m_telemetry = nullptr;
     std::atomic<bool> m_waitedForResolution{ false };
@@ -130,6 +130,7 @@ public:
         if (m_vlink) {
             QMetaObject::invokeMethod(m_vlink, &VideoLink::clear);
         }
+
         Parser::clear();
     }
 
@@ -143,10 +144,13 @@ public:
 
     void setItem(QObject *item) override;
 
+protected:
+    void closePlatform() override;
+
 private:
-    MulticastLock m_lock;
-    QThread m_videoThread;
-    QThread m_audioThread;
+    MulticastLock m_lock{};
+    QThread m_videoThread{};
+    QThread m_audioThread{};
     VideoLink *m_vlink = nullptr;
     AudioLink *m_alink = nullptr;
     bool m_waitedForKey = false;

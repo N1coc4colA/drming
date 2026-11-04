@@ -34,7 +34,7 @@ public:
     Q_INVOKABLE [[nodiscard]] QVariantMap get(int index) const;
 
     /// Replaces the visible file snapshot and emits the required model changes.
-    void setData(const MapType &newData);
+    void setContent(const MapType &newData);
 
     [[nodiscard]] const MapType &internalData() const
     {

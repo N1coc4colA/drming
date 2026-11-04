@@ -7,6 +7,7 @@
 #include "palette.h"
 
 #ifdef Q_OS_ANDROID
+#include "platform/android/native.h"
 #include "platform/android/videoframeitem.h"
 #else
 #include "platform/linux/videoframeitem.h"
@@ -20,6 +21,7 @@ int main(int argc, char *argv[])
 
 #ifdef Q_OS_ANDROID
     QQuickWindow::setSceneGraphBackend("opengl");
+    registerNativeMethods_DrmingActivity();
 #endif
 
     // VideoFrame is implemented separately because Android and Linux use
@@ -39,6 +41,8 @@ int main(int argc, char *argv[])
     engine.loadFromModule("drming", "Main");
 
     QApplication::setPalette(readPalette(":/assets/palette.data"));
+
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, []() { qDebug().noquote() << ctrack::result_as_string(); });
 
     return QApplication::exec();
 }

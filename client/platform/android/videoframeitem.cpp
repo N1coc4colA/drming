@@ -5,6 +5,8 @@
 #include <QSGSimpleTextureNode>
 #include <QThread>
 
+#include <ctrack.hpp>
+
 #include "androidui.h"
 #include "decode.h"
 #include "oesrendernode.h"
@@ -15,6 +17,8 @@ namespace Platform {
 
 QRectF fitKeepAspect(const QSizeF &itemSize, const QSizeF &imgSize)
 {
+    CTRACK;
+
     if (itemSize.isEmpty() || imgSize.isEmpty()) [[unlikely]] {
         return {};
     }
@@ -52,11 +56,13 @@ void VideoFrameItem::setDecoder(VideoDecoder *decoder)
     }
 }
 
-void VideoFrameItem::setImage(const QImage &image, const qint64 receiveNs)
+void VideoFrameItem::setImage(const QImage &image, const quint64 receiveNs)
 {
     if (image.isNull()) [[unlikely]] {
         return;
     }
+
+    CTRACK;
 
     {
         QMutexLocker locker(&m_mtx);
@@ -89,6 +95,8 @@ void VideoFrameItem::geometryChange(const QRectF &newGeometry, const QRectF &old
 
 QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data)
 {
+    CTRACK;
+
     Q_UNUSED(data);
 
     if (m_textureMode != m_previousTextureMode) {
@@ -109,7 +117,7 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
 
             if (m_decoder->consumeFrame()) {
                 const auto texId = m_decoder->oesTextureId();
-                if (texId != 0) [[unlikely]] {
+                if (texId.has_value()) [[unlikely]] {
                     auto oesNode = node->childCount() ? static_cast<OESRenderNode *>(node->firstChild()) : nullptr;
                     if (!oesNode) [[unlikely]] {
                         oesNode = new OESRenderNode();
@@ -117,7 +125,7 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
                         node->appendChildNode(oesNode);
                     }
 
-                    oesNode->setTextureId(texId);
+                    oesNode->setTextureId(texId.value());
                     oesNode->setRect(fitKeepAspect(QSizeF(width(), height()), m_decoder->textureSize()));
                     oesNode->markDirty(QSGNode::DirtyMaterial);
                 }
