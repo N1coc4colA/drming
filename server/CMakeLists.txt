@@ -7,6 +7,31 @@ set(CMAKE_AUTORCC OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 23)
 
+add_compile_options(
+    -fsanitize=address,undefined
+    -fno-sanitize-recover=all
+    -fno-omit-frame-pointer
+    -g
+    -O1
+    -Wall -Wextra -Wpedantic
+    -Wconversion -Wshadow -Wformat=2
+    -Werror=format-security
+    -Wnull-dereference
+    -Warray-bounds
+    -Wvla
+    -fstack-protector-strong
+    -fstack-clash-protection
+    -fPIE
+    -D_FORTIFY_SOURCE=3
+)
+add_link_options(
+    -fsanitize=address,undefined
+    -pie
+    -Wl,-z,relro
+    -Wl,-z,now
+    -Wl,-z,noexecstack
+)
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Network DBus)
 find_package(Libdrm REQUIRED)
 find_package(PkgConfig REQUIRED)

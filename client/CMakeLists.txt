@@ -9,6 +9,29 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 23)
 
+add_compile_options(
+    -fno-sanitize-recover=all
+    -fno-omit-frame-pointer
+    -g
+    -O1
+    -Wall -Wextra -Wpedantic
+    -Wconversion -Wshadow -Wformat=2
+    -Werror=format-security
+    -Wnull-dereference
+    -Warray-bounds
+    -Wvla
+    -fstack-protector-strong
+    -fstack-clash-protection
+    -D_FORTIFY_SOURCE=3
+    -g -O0
+)
+add_link_options(
+    -Wl,-z,relro
+    -Wl,-z,now
+    -Wl,-z,noexecstack
+    -g -O0
+)
+
 option(ANDROID_MULTI_MODE "Build for all supported Android architectures." ON)
 if (ANDROID_MULTI_MODE)
     set(QT_ANDROID_BUILD_ALL_ABIS "TRUE")
@@ -37,6 +60,7 @@ set(DRMING_CLIENT_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/telemetry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/udp.h
     ../settings.h
+    ../helpers.h
 
     application.h
     fileprovider.h fileprovider.cpp
