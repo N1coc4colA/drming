@@ -116,9 +116,8 @@ public Q_SLOTS:
             const auto flags = iface.flags();
             const auto name = iface.name();
 
-            if (!flags.testFlags(
-                    QNetworkInterface::CanMulticast | QNetworkInterface::IsUp | QNetworkInterface::IsLoopBack
-                )) {
+            if (!flags.testFlag(QNetworkInterface::CanMulticast) || !flags.testFlag(QNetworkInterface::IsUp)
+                || flags.testFlag(QNetworkInterface::IsLoopBack) || flags.testFlag(QNetworkInterface::IsPointToPoint)) {
                 continue;
             }
 
@@ -354,15 +353,13 @@ private:
 
             qsizetype offset = 0;
 
-            const auto order = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(dgram.constData() + offset));
+            const auto order = read_be<Packets::Ordering>(dgram.constData() + offset);
             offset += sizeof(Packets::Ordering);
 
-            const auto sizing = qFromBigEndian(
-                *reinterpret_cast<const Packets::Ordering *>(dgram.constData() + offset)
-            );
+            const auto sizing = read_be<Packets::Ordering>(dgram.constData() + offset);
             offset += sizeof(Packets::Ordering);
 
-            const auto ts = qFromBigEndian(*reinterpret_cast<const Packets::Timestamp *>(dgram.constData() + offset));
+            const auto ts = read_be<Packets::Timestamp>(dgram.constData() + offset);
             offset += sizeof(Packets::Timestamp);
 
 #ifdef ENABLE_ENCRYPT
@@ -370,7 +367,7 @@ private:
 #endif
             offset += Settings::ivSize;
 
-            const auto ks = qFromBigEndian(*reinterpret_cast<const Packets::Keystamp *>(dgram.constData() + offset));
+            const auto ks = read_be<Packets::Keystamp>(dgram.constData() + offset);
             offset += sizeof(Packets::Keystamp);
 
             if (ks != m_ks) {
@@ -706,15 +703,13 @@ public:
             //   [ ts (Timestamp) ][ sizing (Ordering) ][ order (Ordering) ][ payload ]
             qsizetype offset = 0;
 
-            const auto ts = qFromBigEndian(*reinterpret_cast<const Packets::Timestamp *>(plain.constData() + offset));
+            const auto ts = read_be<Packets::Timestamp>(plain.constData() + offset);
             offset += sizeof(Packets::Timestamp);
 
-            const auto sizing = qFromBigEndian(
-                *reinterpret_cast<const Packets::Ordering *>(plain.constData() + offset)
-            );
+            const auto sizing = read_be<Packets::Ordering>(plain.constData() + offset);
             offset += sizeof(Packets::Ordering);
 
-            const auto order = qFromBigEndian(*reinterpret_cast<const Packets::Ordering *>(plain.constData() + offset));
+            const auto order = read_be<Packets::Ordering>(plain.constData() + offset);
             offset += sizeof(Packets::Ordering);
 
             // Strip transport metadata

@@ -1,10 +1,13 @@
 #ifndef HELPERS_H
 #define HELPERS_H
 
+#include <cstring>
 #include <limits>
 #include <optional>
 #include <stdexcept>
 #include <type_traits>
+
+#include <QtEndian>
 
 template<class Signed, class Unsigned>
 constexpr Signed to_signed(Unsigned u)
@@ -121,6 +124,14 @@ constexpr To checked_cast(From v)
     }
 
     return static_cast<To>(v);
+}
+
+template<typename T>
+T read_be(const void *p) noexcept
+{
+    T tmp;
+    std::memcpy(&tmp, p, sizeof(tmp));
+    return qFromBigEndian(tmp);
 }
 
 #endif // HELPERS_H
