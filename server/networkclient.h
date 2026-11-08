@@ -46,7 +46,7 @@ public:
     ~NetworkClient();
 
     /// Sends an encrypted datagram through the shared server socket.
-    qint64 write(const QByteArray &data);
+    std::optional<qint64> write(const QByteArray &data);
     void close();
 
     [[nodiscard]] QAbstractSocket::SocketState state() const;

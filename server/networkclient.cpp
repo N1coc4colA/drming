@@ -131,7 +131,7 @@ void NetworkClient::incomingEncryptedData(const QByteArray &encrypted)
     m_rw.processDtls(encrypted);
 }
 
-qint64 NetworkClient::write(const QByteArray &data)
+std::optional<qint64> NetworkClient::write(const QByteArray &data)
 {
     return m_rw.writeDtls(data);
 }
