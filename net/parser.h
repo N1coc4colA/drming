@@ -952,7 +952,7 @@ public:
 template<
     typename OrderType = Ordering,
     typename TsType = Timestamp,
-    const TsType MaxTimestamps = 5,
+    const TsType MaxTimestamps = 10,
     const std::size_t PacketsLimit = 200>
 class JitterBuffer
 {

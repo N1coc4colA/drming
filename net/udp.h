@@ -214,7 +214,7 @@ public Q_SLOTS:
     void rotateKey()
     {
         m_keyCount++;
-        m_keyCount %= std::numeric_limits<Packets::Keystamp>::max() - 1;
+        m_keyCount = static_cast<Packets::Keystamp>(m_keyCount % (std::numeric_limits<Packets::Keystamp>::max() - 1));
 
         setKey(
             QPasswordDigestor::deriveKeyPbkdf2(
@@ -326,7 +326,7 @@ private:
                 droppedAny = false;
             }
 
-            addData(std::move(*v));
+            addData(*v);
         }
     }
 

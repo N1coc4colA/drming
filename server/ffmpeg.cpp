@@ -47,6 +47,7 @@ AVPixelFormat setupLibX265(AVCodecContext *ctx)
         av_opt_set(ctx->priv_data, "preset", "fast", 0);
         av_opt_set(ctx->priv_data, "tune", "zerolatency", 0);
         av_opt_set(ctx->priv_data, "global_header", "1", 0);
+        av_opt_set_int(ctx->priv_data, "forced-idr", 1, 0);
 
         /*
          * The only three parameters we override on top of preset+tune:
@@ -199,7 +200,7 @@ Encoder::~Encoder()
     release();
 }
 
-int Encoder::init(const int width, const int height, const QImage::Format format, const uint32_t stride)
+int Encoder::init(const int width, const int height, const QImage::Format format, const qsizetype stride)
 {
     release();
 
@@ -227,9 +228,11 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     const AVCodec *found_codec = nullptr;
     EncoderCandidate chosen{};
     int lastError = 0;
+    bool instanciated = false;
 
     for (const auto &candidate : candidates) {
         const AVCodec *codec = avcodec_find_encoder_by_name(candidate.name);
+        qDebug() << "Candidate" << candidate.name << "codec:" << (codec ? "found" : "NOT FOUND");
         if (!codec) {
             continue;
         }
@@ -237,21 +240,31 @@ int Encoder::init(const int width, const int height, const QImage::Format format
         // Try to allocate and open the encoder
         AVCodecContext *test_ctx = avcodec_alloc_context3(codec);
         if (!test_ctx) {
+            qDebug() << "Encoder not found:" << codec;
             continue;
         }
+
+        instanciated = true;
 
         // Set basic parameters for testing
         test_ctx->width = width;
         test_ctx->height = height;
-        test_ctx->time_base = (AVRational){ 1, m_fps };
-        test_ctx->framerate = (AVRational){ m_fps, 1 };
+        test_ctx->time_base = AVRational{ 1, m_fps };
+        test_ctx->framerate = AVRational{ m_fps, 1 };
         test_ctx->pix_fmt = m_dst_fmt = candidate.setupFunc(nullptr);
         // Intra frames are substantially more expensive than predictive
         // frames. Keep recovery points frequent enough for a live stream,
         // without forcing one every few frames.
-        test_ctx->gop_size = std::max(m_fps * 2, 1);
+        test_ctx->gop_size = std::max(m_fps / 2, 1);
         test_ctx->max_b_frames = 0;
         test_ctx->bit_rate = 5 * 1000 * 1000;
+
+        if (m_dst_fmt == AV_PIX_FMT_NONE) {
+            qCritical() << "Encoder candidate returned no pixel format.";
+            lastError = AVERROR(EINVAL);
+            avcodec_free_context(&test_ctx);
+            continue;
+        }
 
         // Apply encoder-specific setup
         const auto result = candidate.setupFunc(test_ctx);
@@ -277,7 +290,14 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     }
 
     if (!found_codec) {
-        qCritical() << "No working HEVC encoder found! Last error:" << avError(lastError);
+        if (lastError) {
+            qCritical() << "No working HEVC encoder found! Last error:" << avError(lastError);
+        } else if (instanciated) {
+            qCritical() << "No working HEVC encoder found!";
+        } else {
+            qCritical() << "No HEVC encoder has been found at all!";
+        }
+
         return AVERROR_ENCODER_NOT_FOUND;
     }
 
@@ -292,10 +312,10 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     // Common settings
     m_enc->width = width;
     m_enc->height = height;
-    m_enc->time_base = (AVRational){ 1, m_fps };
-    m_enc->framerate = (AVRational){ m_fps, 1 };
+    m_enc->time_base = AVRational{ 1, m_fps };
+    m_enc->framerate = AVRational{ m_fps, 1 };
     m_enc->pix_fmt = m_dst_fmt;
-    m_enc->gop_size = std::max(m_fps, 1);
+    m_enc->gop_size = std::max(m_fps * 2, 1);
     m_enc->max_b_frames = 0;
     m_enc->thread_count = 0;
     m_enc->thread_type = FF_THREAD_SLICE;
@@ -360,23 +380,27 @@ int Encoder::init(const int width, const int height, const QImage::Format format
         1 << 16
     );
 
-    m_yuv = av_frame_alloc();
-    if (!m_yuv) {
-        return AVERROR(ENOMEM);
-    }
+    for (auto &yuv : m_yuv) {
+        yuv = av_frame_alloc();
+        if (!yuv) {
+            return AVERROR(ENOMEM);
+        }
 
-    m_yuv->format = m_dst_fmt;
-    m_yuv->width = width;
-    m_yuv->height = height;
+        yuv->format = m_dst_fmt;
+        yuv->width = width;
+        yuv->height = height;
 
-    m_yuv->color_primaries = m_enc->color_primaries;
-    m_yuv->color_trc = m_enc->color_trc;
-    m_yuv->colorspace = m_enc->colorspace;
-    m_yuv->color_range = m_enc->color_range;
+        yuv->color_primaries = m_enc->color_primaries;
+        yuv->color_trc = m_enc->color_trc;
+        yuv->colorspace = m_enc->colorspace;
+        yuv->color_range = m_enc->color_range;
 
-    ret = av_frame_get_buffer(m_yuv, 1);
-    if (ret < 0) {
-        return ret;
+        // 32-byte plane alignment: FFmpeg's own examples use this. Align=1
+        // works but defeats the SIMD fast paths in sws_scale and libx265.
+        ret = av_frame_get_buffer(yuv, 32);
+        if (ret < 0) {
+            return ret;
+        }
     }
 
     qDebug() << "Encoder initialized successfully with:" << chosen.displayName;
@@ -389,8 +413,10 @@ void Encoder::release()
         sws_freeContext(m_sws);
         m_sws = nullptr;
     }
-    if (m_yuv) {
-        av_frame_free(&m_yuv);
+    for (auto &yuv : m_yuv) {
+        if (yuv) {
+            av_frame_free(&yuv);
+        }
     }
     if (m_enc) {
         avcodec_free_context(&m_enc);
@@ -440,14 +466,17 @@ int Encoder::encode(AVFrame &frame)
 {
     CTRACK;
 
-    int ret = av_frame_make_writable(m_yuv);
+    auto *yuv = m_yuv[m_yuvIndex];
+    m_yuvIndex ^= 1;
+
+    int ret = av_frame_make_writable(yuv);
     if (ret < 0) {
         return ret;
     }
 
-    sws_scale(m_sws, (const uint8_t *const *)frame.data, frame.linesize, 0, frame.height, m_yuv->data, m_yuv->linesize);
+    sws_scale(m_sws, (const uint8_t *const *)frame.data, frame.linesize, 0, frame.height, yuv->data, yuv->linesize);
 
-    m_yuv->pts = frame.pts;
+    yuv->pts = frame.pts;
 
     /*
      * Force an IDR if a prior frame's transmission was truncated (EAGAIN).
@@ -459,10 +488,10 @@ int Encoder::encode(AVFrame &frame)
      * m_yuv is reused across frames, so pict_type must be cleared explicitly
      * on the non-forced path; otherwise the previous I-frame mark persists.
      */
-    m_yuv->pict_type = m_forceKeyframe.exchange(false, std::memory_order_relaxed) ? AV_PICTURE_TYPE_I
-                                                                                  : AV_PICTURE_TYPE_NONE;
+    yuv->pict_type = m_forceKeyframe.exchange(false, std::memory_order_relaxed) ? AV_PICTURE_TYPE_I
+                                                                                : AV_PICTURE_TYPE_NONE;
 
-    ret = avcodec_send_frame(m_enc, m_yuv);
+    ret = avcodec_send_frame(m_enc, yuv);
     if (ret < 0) [[unlikely]] {
         return ret;
     }
@@ -497,7 +526,7 @@ void Encoder::push_image(
     const int width,
     const int height,
     const QImage::Format format,
-    const uint32_t stride
+    const qsizetype stride
 )
 {
     CTRACK;

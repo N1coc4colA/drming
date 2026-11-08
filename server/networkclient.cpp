@@ -43,10 +43,10 @@ void NetworkClient::processPacket(const Packets::RequestAudioSource &)
     const auto v6 = ip.toIPv6Address();
 
     const auto isV4 = ip.protocol() == QAbstractSocket::IPv4Protocol;
-    const auto size = isV4 ? 4 : 16;
+    const size_t size = isV4 ? 4 : 16;
 
     src.isV4.data = isV4;
-    src.ip.data.resize(size);
+    src.ip.data.resize(static_cast<qsizetype>(size));
     std::memcpy(src.ip.data.data(), isV4 ? static_cast<const void *>(&v4) : static_cast<const void *>(&v6), size);
     src.port.data = Parameters::instance.audioPort;
 
@@ -62,10 +62,10 @@ void NetworkClient::processPacket(const Packets::RequestVideoSource &)
     const auto v6 = ip.toIPv6Address();
 
     const auto isV4 = ip.protocol() == QAbstractSocket::IPv4Protocol;
-    const auto size = isV4 ? 4 : 16;
+    const size_t size = isV4 ? 4 : 16;
 
     src.isV4.data = isV4;
-    src.ip.data.resize(size);
+    src.ip.data.resize(static_cast<qsizetype>(size));
     std::memcpy(src.ip.data.data(), isV4 ? static_cast<const void *>(&v4) : static_cast<const void *>(&v6), size);
     src.port.data = Parameters::instance.videoPort;
 

@@ -59,6 +59,7 @@ set(DRMING_SERVER_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/telemetry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/udp.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../settings.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../helpers.h
 
     avahi_publisher.h avahi_publisher.cpp
     commandparser.h commandparser.cpp

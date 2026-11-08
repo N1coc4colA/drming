@@ -28,7 +28,7 @@ QString avError(int err);
 class Encoder
 {
 public:
-    using PacketCallback = std::function<void(const uint8_t *data, size_t size, int64_t pts)>;
+    using PacketCallback = std::function<void(const uint8_t *data, int size, int64_t pts)>;
 
     explicit Encoder(PacketCallback callback, int fps);
     ~Encoder();
@@ -37,7 +37,7 @@ public:
     static AVPixelFormat formatFromQt(QImage::Format format);
 
     /// Encodes one frame and invokes the callback for each produced packet.
-    void push_image(const uint8_t *data, int width, int height, QImage::Format format, uint32_t stride);
+    void push_image(const uint8_t *data, int width, int height, QImage::Format format, qsizetype stride);
 
     /// Forces the next encoded frame to be an IDR. Safe to call from any thread.
     void forceKeyframe()
@@ -46,7 +46,7 @@ public:
     }
 
 private:
-    int init(int width, int height, QImage::Format format, uint32_t stride);
+    int init(int width, int height, QImage::Format format, qsizetype stride);
     void release();
     int flush();
     int encode(AVFrame &frame);
@@ -57,7 +57,8 @@ private:
     AVCodecContext *m_enc = nullptr;
     AVPacket *m_pkt = nullptr;
     struct SwsContext *m_sws = nullptr;
-    AVFrame *m_yuv = nullptr;
+    std::array<AVFrame *, 2> m_yuv = { nullptr, nullptr };
+    size_t m_yuvIndex = 0;
 
     int m_width = 0;
     int m_height = 0;
@@ -65,9 +66,9 @@ private:
     int64_t m_pts = 0;
 
     enum AVPixelFormat m_src_fmt = AV_PIX_FMT_NONE;
-    enum AVPixelFormat m_dst_fmt = AV_PIX_FMT_NV12; // AV_PIX_FMT_YUV420P;
+    enum AVPixelFormat m_dst_fmt = AV_PIX_FMT_NONE;
     QImage::Format m_format = QImage::Format_Invalid;
-    uint32_t m_stride = 0;
+    qsizetype m_stride = 0;
 
     std::atomic<bool> m_forceKeyframe{ false };
 };

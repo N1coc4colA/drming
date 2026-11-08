@@ -86,8 +86,12 @@ void Display::addClient(NetworkClient *client)
     qDebug() << "Client connected" << client->peerAddress() << client->peerPort();
 
     m_targetFps.store(Settings::maxForwardFps, std::memory_order_relaxed);
-
     client->setDisplay(this);
+
+    m_prevSize = {};
+    // This is here just to speed up things a bit.
+    forceKeyframe();
+
     onConnected();
 }
 
@@ -136,6 +140,7 @@ void Display::forward()
             primaryFailureNotice = true;
             qCritical() << "Failed to get primary";
         }
+
         return;
     }
     primaryFailureNotice = false;
@@ -145,11 +150,11 @@ void Display::forward()
     // stable buffer_id means a stable image. Skip the rest of forward()
     // entirely; on 46 µs getCrtc + ~1 µs compare, this is ~0.9 % CPU
     // at 200 Hz polling.
-    if (fb.fb_id == m_lastFbId) [[likely]] {
+    /*if (fb.fb_id == m_lastFbId) [[likely]] {
         DisplayReader::releaseVkmsFrameBuffer(fb);
         return;
     }
-    m_lastFbId = fb.fb_id;
+    m_lastFbId = fb.fb_id;*/
 
     // ---- existing body (composite, encode, send) ---------------------
     CursorFrameBuffer cursorFb{};
@@ -222,7 +227,7 @@ void Display::forward()
             .height = { static_cast<quint32>(finalImage->height()) },
         };
 
-        sendData(std::move(Packets::Writer::generate(res)));
+        sendData(Packets::Writer::generate(res));
     }
 
     const auto encodeStart = std::chrono::steady_clock::now();
@@ -325,7 +330,7 @@ private:
         qDebug() << duration;
         m_last = curr;
 
-        sendData(std::move(Packets::Writer::generate(servImg)));
+        sendData(Packets::Writer::generate(servImg));
     }
 };
 
@@ -335,7 +340,7 @@ public:
     DisplayH265(const QString &connectorName, StreamSocket &ss, const bool inPlaceComposite, QObject *parent = nullptr)
         : Display(connectorName, ss, inPlaceComposite, parent)
         , m_encoder(
-              [this](const uint8_t *data, size_t size, int64_t pts) { this->h265dataForward(data, size, pts); },
+              [this](const uint8_t *data, int size, int64_t pts) { this->h265dataForward(data, size, pts); },
               Settings::maxForwardFps
           )
     {}
@@ -353,7 +358,7 @@ private:
         m_encoder.push_image(result.bits(), result.width(), result.height(), result.format(), result.bytesPerLine());
     }
 
-    void h265dataForward(const uint8_t *data, const size_t size, const int64_t pts)
+    void h265dataForward(const uint8_t *data, const int size, const int64_t pts)
     {
         CTRACK;
 
@@ -364,9 +369,9 @@ private:
         payload.append("\x00\x00\x00\x01", 4);
         payload.append(reinterpret_cast<const char *>(data), static_cast<qsizetype>(size));
 
-        Packets::ServerStream stm{ .data = { std::move(payload) } };
+        Packets::ServerStream stm{ .data = { { { std::move(payload) } } } };
 
-        if (!sendData(std::move(Packets::Writer::generate(stm)))) {
+        if (!sendData(Packets::Writer::generate(stm))) {
             /*
              * Frame was truncated in transit (EAGAIN from sendmmsg). The client
              * cannot complete this timestamp in its jitter buffer and will hold

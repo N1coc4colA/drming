@@ -36,8 +36,8 @@ struct Parameters
     QNetworkInterface serviceIface;
 
     int port;
-    int audioPort;
-    int videoPort;
+    unsigned short audioPort;
+    unsigned short videoPort;
 
     int qualityLevel;
     int servedScreens = 0;
