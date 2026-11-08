@@ -323,7 +323,7 @@ bool VideoDecoder::decode(const uint8_t *data, const size_t size)
      */
     if (!m_csdReady) {
         const auto nowNs = steadyNowNs();
-        if (m_lastKeyframeRequestNs == 0 || nowNs - m_lastKeyframeRequestNs > 1'000'000'000LL) {
+        if (m_lastKeyframeRequestNs == 0 || nowNs - m_lastKeyframeRequestNs > 250'000'000LL) {
             qDebug() << "No keyframe yet — requesting IDR";
             m_lastKeyframeRequestNs = nowNs;
             Q_EMIT needsKeyframe();
@@ -362,6 +362,7 @@ bool VideoDecoder::decode(const uint8_t *data, const size_t size)
     if (!ret) [[unlikely]] {
         m_needResync = true;
         qDebug() << "Resync required.";
+        Q_EMIT needsKeyframe();
     }
 
     return ret;
@@ -446,14 +447,7 @@ bool VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const bo
     return true;
 }
 
-void VideoDecoder::onImageAvailable(void *context, AImageReader *)
-{
-    CTRACK;
-
-    auto self = static_cast<VideoDecoder *>(context);
-    // Just set a flag; the actual acquisition happens on the render thread
-    self->m_frameAvailable.store(true, std::memory_order_release);
-}
+void VideoDecoder::onImageAvailable(void *, AImageReader *) {}
 
 bool VideoDecoder::consumeFrame()
 {
@@ -484,13 +478,8 @@ bool VideoDecoder::consumeFrame()
     m_previousImage = m_pendingImage;
     m_pendingImage = nullptr;
 
-    const bool hadFrame = m_frameAvailable.exchange(false, std::memory_order_acq_rel);
-    if (!hadFrame) {
-        return false;
-    }
-
     AImage *image = nullptr;
-    auto status = AImageReader_acquireNextImage(m_imageReader, &image);
+    auto status = AImageReader_acquireLatestImage(m_imageReader, &image);
     switch (status) {
     case AMEDIA_OK:
         [[likely]]

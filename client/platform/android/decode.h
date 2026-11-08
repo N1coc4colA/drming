@@ -118,7 +118,6 @@ private:
     bool m_needResync = false;
     bool m_resolutionDetected = false;
     bool m_csdReady = false;
-    std::atomic<bool> m_frameAvailable{ false };
 
     // CSD (VPS/SPS/PPS)
     std::vector<uint8_t> m_vps, m_sps, m_pps;
