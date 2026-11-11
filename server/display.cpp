@@ -37,11 +37,15 @@ void Display::applyClientTelemetry(const Packets::ClientTelemetry &t)
 
     // Overload is sustained. A drop or a 60 ms p95 is normal jitter at 10-40 fps.
     // 3 consecutive samples (6 s) shows a capacity issue.
-    const bool overloaded = t.droppedFrames.data >= 3 || t.latencyMsP95.data > 60 || t.decodeQueueDepth.data > 4
-        || t.renderQueueDepth.data > 4;
+    const bool overloaded = t.droppedFrames.data >= Settings::overloadedDroppedFrames
+        || t.latencyMsP95.data > Settings::overloadedLatencyMsP95
+        || t.decodeQueueDepth.data > Settings::overloadedDecodeQueueDepth
+        || t.renderQueueDepth.data > Settings::overloadedRenderQueueDepth;
 
-    const bool healthy = t.droppedFrames.data == 0 && t.latencyMsP95.data < 30 && t.decodeQueueDepth.data < 2
-        && t.renderQueueDepth.data < 2;
+    const bool healthy = t.droppedFrames.data == Settings::healthyDroppedFrames
+        && t.latencyMsP95.data < Settings::healthyLatencyMsP95
+        && t.decodeQueueDepth.data < Settings::healthyDecodeQueueDepth
+        && t.renderQueueDepth.data < Settings::healthyRenderQueueDepth;
 
     if (overloaded) {
         if (++m_overloadStreak >= 3) {

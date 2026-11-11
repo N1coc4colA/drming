@@ -46,6 +46,16 @@ constexpr qint64 minForwardIntervalNs = 15'000'000LL;
 // Keeps client connections alive during idle content.
 constexpr int idleKeepAliveMSecs = 5000;
 
+constexpr quint16 overloadedDroppedFrames = 3;
+constexpr quint16 overloadedLatencyMsP95 = 60;
+constexpr quint8 overloadedDecodeQueueDepth = 4;
+constexpr quint8 overloadedRenderQueueDepth = 4;
+
+constexpr quint16 healthyDroppedFrames = 0;
+constexpr quint16 healthyLatencyMsP95 = 45;
+constexpr quint8 healthyDecodeQueueDepth = 3;
+constexpr quint8 healthyRenderQueueDepth = 3;
+
 } // namespace Settings
 
 #endif // SETTINGS_H
