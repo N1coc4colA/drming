@@ -213,9 +213,11 @@ NetworkLink::~NetworkLink()
 
     if (m_vlink) {
         QMetaObject::invokeMethod(m_vlink, &VideoLink::close, Qt::BlockingQueuedConnection);
+        m_vlink = nullptr;
     }
     if (m_alink) {
         QMetaObject::invokeMethod(m_alink, &AudioLink::close, Qt::BlockingQueuedConnection);
+        m_alink = nullptr;
     }
 
     m_videoThread.quit();
@@ -277,8 +279,12 @@ void NetworkLink::setItem(QObject *item)
 
 void NetworkLink::closePlatform()
 {
-    QMetaObject::invokeMethod(m_alink, &AudioLink::close);
-    QMetaObject::invokeMethod(m_vlink, &VideoLink::close);
+    if (m_alink) {
+        QMetaObject::invokeMethod(m_alink, &AudioLink::close);
+    }
+    if (m_vlink) {
+        QMetaObject::invokeMethod(m_vlink, &VideoLink::close);
+    }
 }
 
 void NetworkLink::processPacket(const Packets::KeyUpdate &ku)
