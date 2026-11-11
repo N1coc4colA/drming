@@ -7,6 +7,7 @@
 #include "videoframeitem.h"
 
 #include "../net/telemetry.h"
+#include "../settings.h"
 
 namespace Platform {
 
@@ -421,7 +422,7 @@ bool VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const bo
              * MediaCodec's input queue was full for the whole 0 ms timeout.
              * The frame is gone; count it so the server-side policy can react.
              */
-            if (++m_consecutiveTALs >= 5) {
+            if (++m_consecutiveTALs >= Settings::consecutiveTALLimit) {
                 if (m_telemetry) {
                     m_telemetry->recordDropped();
                 }

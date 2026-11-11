@@ -56,6 +56,8 @@ constexpr quint16 healthyLatencyMsP95 = 45;
 constexpr quint8 healthyDecodeQueueDepth = 3;
 constexpr quint8 healthyRenderQueueDepth = 3;
 
+constexpr int consecutiveTALLimit = 30;
+
 } // namespace Settings
 
 #endif // SETTINGS_H
