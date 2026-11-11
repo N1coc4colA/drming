@@ -347,9 +347,6 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
     }
 
     const auto &cp = *it;
-    if (cp.width != fb.width) {
-        qWarning() << "Width of the cached cursor image and width of the cursor descriptor does not match.";
-    }
 
     fb.fd = m_drmFd;   // borrowed
     fb.data = cp.data; // borrowed
