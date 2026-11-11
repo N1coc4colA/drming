@@ -59,7 +59,7 @@ bool DisplayManager::registerClient(NetworkClient *client)
         m_thread->start();
     }
 
-    m_thread->addClient(client);
+    QMetaObject::invokeMethod(m_thread, [this, client]() { m_thread->addClient(client); }, Qt::QueuedConnection);
 
     return true;
 }

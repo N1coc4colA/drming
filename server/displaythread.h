@@ -21,6 +21,8 @@ public:
     explicit DisplayThread(Display *display, QObject *parent = nullptr);
 
     /// Queues a client assignment on the display's owning thread.
+    /// This method must be called using QMetaObject::invokeMethod to make it
+    /// thread-safe.
     void addClient(NetworkClient *client);
 
 Q_SIGNALS:
