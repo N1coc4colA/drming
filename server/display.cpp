@@ -118,7 +118,7 @@ void Display::reinit()
     m_lastFbId = 0;
     if (m_pollTimer.isActive()) {
         m_pollTimer.stop();
-        QTimer::singleShot(1500, [this]() {
+        QTimer::singleShot(1500, this, [this]() {
             if (!m_clients.isEmpty()) {
                 const Packets::Reinit reinitPkt{};
                 sendData(Packets::Writer::generate(reinitPkt));
