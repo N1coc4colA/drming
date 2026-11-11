@@ -114,6 +114,7 @@ NetworkClient::NetworkClient(
     , m_port(port)
     , m_rw(*this, dtls, &sharedSocket.first, &sharedSocket.second)
     , m_timer(new QTimer(this))
+    , m_lastHeartBeat(std::chrono::system_clock::now())
 {
     assert(dtls);
 
