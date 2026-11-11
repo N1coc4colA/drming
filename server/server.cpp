@@ -84,6 +84,11 @@ bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, 
     return true;
 }
 
+void Server::setClientsOwner(QObject *owner)
+{
+    m_clientsOwner = owner;
+}
+
 void Server::close()
 {
     // Delete all clients
@@ -125,6 +130,7 @@ void Server::onDatagramReceived6()
 
 void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
 {
+    assert(m_clientsOwner != nullptr);
     CTRACK;
 
     auto &socket = pair.first;
@@ -170,7 +176,7 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
 
             if (dtls->isConnectionEncrypted()) {
                 qDebug() << "DTLS encryption established for" << sender << senderPort;
-                auto client = new NetworkClient(dtls, sender, senderPort, pair, this);
+                auto client = new NetworkClient(dtls, sender, senderPort, pair, m_clientsOwner);
                 m_pendingHandshakes.remove(key);
                 m_clients.insert(key, client);
                 connect(client, &NetworkClient::disconnected, this, &Server::onClientDisconnected);
@@ -202,7 +208,7 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
 
         if (dtls->isConnectionEncrypted()) {
             qDebug() << "DTLS encryption established for" << sender << senderPort;
-            auto client = new NetworkClient(dtls, sender, senderPort, pair, this);
+            auto client = new NetworkClient(dtls, sender, senderPort, pair, m_clientsOwner);
             m_pendingHandshakes.remove(key);
             m_clients.insert(key, client);
             connect(client, &NetworkClient::disconnected, this, &Server::onClientDisconnected);

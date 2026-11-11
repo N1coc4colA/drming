@@ -1,6 +1,7 @@
 #include "displaymanager.h"
 
 #include <QDebug>
+#include <QPointer>
 
 #include "../settings.h"
 
@@ -28,7 +29,7 @@ DisplayManager::~DisplayManager()
 
 bool DisplayManager::registerClient(NetworkClient *client)
 {
-    client->setParent(this);
+    assert(client->parent() == this);
 
     const auto number = QString::number(Parameters::instance.servedScreens);
     if (!m_thread) {
@@ -52,14 +53,30 @@ bool DisplayManager::registerClient(NetworkClient *client)
             return false;
         }
 
-        m_thread = new DisplayThread(generateNewDisplay(m_setup->virtualConnectorName(), m_ss, this), this);
+        auto *display = generateNewDisplay(m_setup->virtualConnectorName(), m_ss);
+        if (!display) {
+            qWarning() << "Failed to create display";
+            return false;
+        }
+
+        m_thread = new DisplayThread(display, this);
+        display->moveToThread(m_thread);
     }
 
     if (!m_thread->isRunning()) {
         m_thread->start();
     }
 
-    QMetaObject::invokeMethod(m_thread, [this, client]() { m_thread->addClient(client); }, Qt::QueuedConnection);
+    const QPointer guardedClient(client);
+    QMetaObject::invokeMethod(
+        m_thread,
+        [this, guardedClient]() {
+            if (guardedClient) {
+                m_thread->addClient(guardedClient);
+            }
+        },
+        Qt::QueuedConnection
+    );
 
     return true;
 }

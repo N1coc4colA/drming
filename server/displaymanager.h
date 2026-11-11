@@ -24,6 +24,7 @@ public:
     ~DisplayManager() override;
 
     /// Assigns a client to an existing display or creates a new display slot.
+    /// The parent object of client should be the instance of DisplayManager.
     bool registerClient(NetworkClient *client);
 
 private:

@@ -18,14 +18,14 @@ void NetworkClient::processPacket(const Packets::HeartBeat &)
 void NetworkClient::processPacket(const Packets::Reinit &)
 {
     if (m_display) [[likely]] {
-        m_display->reinit();
+        QMetaObject::invokeMethod(m_display, &Display::reinit, Qt::QueuedConnection);
     }
 }
 
 void NetworkClient::processPacket(const Packets::RequestClientResolution &)
 {
     if (m_display) [[likely]] {
-        m_display->requireResolutionInformation();
+        QMetaObject::invokeMethod(m_display, &Display::requireResolutionInformation, Qt::QueuedConnection);
     }
 }
 
@@ -86,14 +86,18 @@ void NetworkClient::processPacket(const Packets::ClientTelemetry &t)
 #endif
 
     if (m_display) {
-        m_display->applyClientTelemetry(t);
+        QMetaObject::invokeMethod(
+            m_display,
+            [display = m_display, t]() { display->applyClientTelemetry(t); },
+            Qt::QueuedConnection
+        );
     }
 }
 
 void NetworkClient::processPacket(const Packets::RequestKeyframe &)
 {
     if (m_display) {
-        m_display->forceKeyframe();
+        QMetaObject::invokeMethod(m_display, &Display::forceKeyframe, Qt::QueuedConnection);
     }
 }
 
@@ -169,6 +173,10 @@ void NetworkClient::checkHeartBeat()
 
 void NetworkClient::notifyKey()
 {
+    if (!m_display) {
+        return;
+    }
+
     auto &ss = m_display->streamSocket();
 
     Packets::KeyUpdate ku{};
@@ -182,10 +190,13 @@ void NetworkClient::notifyKey()
 
 void NetworkClient::setDisplay(Display *disp)
 {
+    assert(disp);
+
     if (m_display) {
         disconnect(&m_display->streamSocket(), &StreamSocket::keyChanged, this, &NetworkClient::notifyKey);
     }
 
     m_display = disp;
     connect(&m_display->streamSocket(), &StreamSocket::keyChanged, this, &NetworkClient::notifyKey);
+    notifyKey();
 }

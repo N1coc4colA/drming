@@ -69,6 +69,12 @@ public:
         return !m_clients.isEmpty();
     }
 
+    void setClientsOwner(QObject *);
+    inline QObject *getClientsOwner()
+    {
+        return m_clientsOwner;
+    }
+
 Q_SIGNALS:
     void noClient();
     void clientConnected(NetworkClient *client);
@@ -91,6 +97,8 @@ private:
     QHash<PeerKey, QDtls *> m_pendingHandshakes{};
 
     QSslConfiguration m_sslConfig{};
+
+    QObject *m_clientsOwner = nullptr;
 
     PeerKey peerKey(const QHostAddress &addr, quint16 port) const;
     void removeClient(NetworkClient *client);

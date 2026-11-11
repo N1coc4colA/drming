@@ -2,6 +2,7 @@
 
 #include <QBuffer>
 #include <QDtls>
+#include <QPointer>
 #include <QtEndian>
 
 #include <chrono>
@@ -21,6 +22,7 @@ Display::Display(const QString &connectorName, StreamSocket &ss, const bool inPl
     : QObject(parent)
     , m_ss(ss)
     , m_reader(connectorName, inPlaceComposite)
+    , m_pollTimer(this)
 {
     connect(&m_pollTimer, &QTimer::timeout, this, &Display::forward);
     m_pollTimer.setTimerType(Qt::PreciseTimer);
@@ -83,15 +85,22 @@ void Display::addClient(NetworkClient *client)
 
     qDebug() << "Adding client to display (B)";
 
-    client->setParent(this);
-
     m_clients.insert(client);
     connect(client, &NetworkClient::disconnected, this, &Display::onDisconnected);
 
     qDebug() << "Client connected" << client->peerAddress() << client->peerPort();
 
     m_targetFps.store(Settings::maxForwardFps, std::memory_order_relaxed);
-    client->setDisplay(this);
+    const QPointer guardedClient(client);
+    QMetaObject::invokeMethod(
+        client,
+        [guardedClient, this]() {
+            if (guardedClient) {
+                guardedClient->setDisplay(this);
+            }
+        },
+        Qt::QueuedConnection
+    );
 
     m_prevSize = {};
     // This is here just to speed up things a bit.

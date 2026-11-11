@@ -67,6 +67,7 @@ int main(int argc, char *argv[])
     StreamSocket audioSocket{};
 
     DisplayManager manager(videoSocket);
+    server.setClientsOwner(&manager);
 
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &server, &Server::close);
     QObject::connect(&server, &Server::clientConnected, [&manager](NetworkClient *client) {
