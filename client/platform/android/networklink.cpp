@@ -72,6 +72,10 @@ void VideoLink::onFrameSkipped()
 
 void VideoLink::setItem(VideoFrameItem *item)
 {
+    if (m_item == item) [[unlikely]] {
+        return;
+    }
+
     m_item = item;
 
     // Create hardware decoder if needed for H.265/video streams
@@ -119,6 +123,7 @@ void VideoLink::setItem(VideoFrameItem *item)
             CTRACK;
 
             if (m_telemetry) {
+                item->setTelemetry(m_telemetry);
                 item->setLatencyCallback([t = m_telemetry](const quint64 ns) {
                     if (t) {
                         t->recordDecoded(ns);
