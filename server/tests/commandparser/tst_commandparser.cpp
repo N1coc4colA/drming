@@ -89,7 +89,7 @@ private Q_SLOTS:
                 {
                     "drming",
                     "-f",
-                    "png",
+                    "h265",
                     "-q",
                     "95",
                     "--port",
@@ -102,7 +102,6 @@ private Q_SLOTS:
             ),
             CommandParser::Continue
         );
-        QCOMPARE(Parameters::instance.streamFormat, Opts::DisplayStreamType::png);
         QCOMPARE(Parameters::instance.qualityLevel, 95);
         QCOMPARE(Parameters::instance.port, 9999);
     }

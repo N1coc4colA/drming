@@ -86,7 +86,7 @@ private Q_SLOTS:
         cursor.crtc_x = 1;
         cursor.crtc_y = 1;
         DisplayReader::compositeWithCursor(primary, cursor, *descriptor, composite);
-        QCOMPARE(primary.pixelColor(1, 1), QColor(Qt::red));
+        QCOMPARE(composite.pixelColor(1, 1), QColor(Qt::red));
     }
 
     void frameBufferReleaseClearsState()
