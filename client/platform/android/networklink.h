@@ -54,6 +54,7 @@ public Q_SLOTS:
     void reset()
     {
         m_waitedForResolution = false;
+        clearRules();
         clear();
     }
 
