@@ -312,7 +312,7 @@ void NetworkLink::onTelemetryTimeout()
     write(Packets::Writer::generate(t));
 }
 
-std::optional<qint64> NetworkLink::write(const QByteArray &data)
+std::optional<quint64> NetworkLink::write(const QByteArray &data)
 {
     /*
      * Dispatch on encryption state, not on socket state: a UDP socket is
@@ -326,7 +326,7 @@ std::optional<qint64> NetworkLink::write(const QByteArray &data)
 
     qWarning() << "write() called before transport is ready";
 
-    return 0;
+    return {};
 }
 
 std::optional<quint64> NetworkLink::writeDtls(const QByteArray &data)
