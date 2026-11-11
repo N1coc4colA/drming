@@ -24,7 +24,6 @@ class VideoLink : public UdpStreamSocket, public Packets::Parser<VideoLink, Sett
 public:
     explicit VideoLink(QObject *parent = nullptr);
 
-    void processPacket(const Packets::ServerImage &img);
     void processPacket(const Packets::ServerStream &img);
     void processPacket(const Packets::ClientResolution &res);
     inline void onPacketErrors()
@@ -54,7 +53,6 @@ Q_SIGNALS:
 public Q_SLOTS:
     void reset()
     {
-        m_locked = false;
         m_waitedForResolution = false;
         clear();
     }
@@ -84,7 +82,6 @@ private:
     VideoFrameItem *m_item = nullptr;
     Telemetry *m_telemetry = nullptr;
     std::atomic<bool> m_waitedForResolution{ false };
-    bool m_locked = false;
 };
 
 class AudioLink : public UdpStreamSocket, public Packets::Parser<AudioLink, Settings::errorLimit>

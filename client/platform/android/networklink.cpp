@@ -18,10 +18,6 @@ void VideoLink::processPacket(const Packets::ClientResolution &res)
     CTRACK;
 
     m_waitedForResolution.store(true, std::memory_order_relaxed);
-    setBounds<&Packets::ServerImage::data>(
-        quint64(0),
-        static_cast<quint64>(res.width.data) * static_cast<quint64>(res.height.data) * 4
-    );
 }
 
 void VideoLink::processPacket(const Packets::ServerStream &img)
@@ -37,11 +33,6 @@ void VideoLink::processPacket(const Packets::ServerStream &img)
         return;
     }
 
-    if (!m_locked) [[unlikely]] {
-        disable(Packets::Type::ServerImage);
-        m_locked = true;
-    }
-
     const auto recvNs = steadyNowNs();
     if (m_telemetry) {
         m_telemetry->recordReceived(img.data.size);
@@ -50,30 +41,6 @@ void VideoLink::processPacket(const Packets::ServerStream &img)
 
     m_decoder->decode(reinterpret_cast<const uint8_t *>(img.data.data.constData()), img.data.size);
     QMetaObject::invokeMethod(m_item, "update", Qt::QueuedConnection);
-}
-
-void VideoLink::processPacket(const Packets::ServerImage &img)
-{
-    CTRACK;
-
-    Q_EMIT activity();
-
-    if (!m_item) [[unlikely]] {
-        return;
-    }
-
-    if (!m_locked) [[unlikely]] {
-        disable(Packets::Type::ServerStream);
-        m_locked = true;
-    }
-
-    const auto recvNs = steadyNowNs();
-    if (m_telemetry) {
-        m_telemetry->recordReceived(to_unsigned(img.data.data.size()));
-    }
-
-    // Offload decompression and format conversion to background decoder thread with frame dropping
-    m_imageDecoder.queueFrame(img.data.data, img.format.data, recvNs);
 }
 
 void VideoLink::setTelemetry(Telemetry *t)
@@ -246,7 +213,8 @@ NetworkLink::~NetworkLink()
 
 void NetworkLink::performRequirements()
 {
-    const auto ok = m_vlink && m_vlink->waitedForResolution() && m_waitedForKey;
+    const auto ok = m_vlink && m_vlink->waitedForResolution() && m_waitedForKey && m_waitedForAudioSource
+        && m_waitedForVideoSource;
 
     if (ok) {
         m_requireCheck.stop();
@@ -321,8 +289,17 @@ void NetworkLink::processPacket(const Packets::AudioSource &src)
              << src.port.data;
 
     m_inactivityTimer.stop();
-    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData()))
-                                    : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
+    QHostAddress addr{};
+    if (src.isV4.data) {
+        quint32 v4;
+        std::memcpy(&v4, src.ip.data.constData(), 4);
+        addr = QHostAddress(v4);
+    } else {
+        Q_IPV6ADDR v6;
+        std::memcpy(&v6, src.ip.data.constData(), 16);
+        addr = QHostAddress(v6);
+    }
+
     const quint16 port = src.port.data;
 
     m_waitedForAudioSource = true;
@@ -345,8 +322,17 @@ void NetworkLink::processPacket(const Packets::VideoSource &src)
              << src.port.data;
 
     m_inactivityTimer.stop();
-    const auto addr = src.isV4.data ? QHostAddress(*reinterpret_cast<const quint32 *>(src.ip.data.constData()))
-                                    : QHostAddress(*reinterpret_cast<const quint8 *>(src.ip.data.constData()));
+
+    QHostAddress addr{};
+    if (src.isV4.data) {
+        quint32 v4;
+        std::memcpy(&v4, src.ip.data.constData(), 4);
+        addr = QHostAddress(v4);
+    } else {
+        Q_IPV6ADDR v6;
+        std::memcpy(&v6, src.ip.data.constData(), 16);
+        addr = QHostAddress(v6);
+    }
     const quint16 port = src.port.data;
 
     m_waitedForVideoSource = true;
