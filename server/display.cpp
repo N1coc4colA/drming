@@ -305,6 +305,8 @@ bool Display::sendData(QByteArray output)
 
 void Display::disconnectAllClients()
 {
+    m_pollTimer.stop();
+
     if (!m_clients.isEmpty()) {
         for (const auto &client : m_clients) {
             client->close();
