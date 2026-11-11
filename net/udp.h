@@ -91,6 +91,7 @@ public Q_SLOTS:
         m_socket.connectToHost(address, port);
     }
 
+    // Supports only one address per net iface.
     void connectToMulticast(const QHostAddress &address, const quint16 port)
     {
         const auto proto = address.protocol();
@@ -105,6 +106,8 @@ public Q_SLOTS:
                 // [TODO] Propagate the error
                 return;
             }
+
+            m_multicastPort = port;
         } else {
             qWarning() << "Invalid protocol:" << proto;
             // [TOOD] Propagate the error
@@ -115,6 +118,10 @@ public Q_SLOTS:
         for (const auto &iface : QNetworkInterface::allInterfaces()) {
             const auto flags = iface.flags();
             const auto name = iface.name();
+
+            if (m_multicastInterfaces.contains(iface.hardwareAddress())) {
+                continue;
+            }
 
             if (!flags.testFlag(QNetworkInterface::CanMulticast) || !flags.testFlag(QNetworkInterface::IsUp)
                 || flags.testFlag(QNetworkInterface::IsLoopBack) || flags.testFlag(QNetworkInterface::IsPointToPoint)) {
@@ -131,6 +138,9 @@ public Q_SLOTS:
                 if (m_socket.joinMulticastGroup(address, iface)) {
                     qDebug() << "Joined multicast group" << address << "on interface" << iface.name();
                     joined = true;
+
+                    m_multicastInterfaces.insert(iface.hardwareAddress());
+                    m_multicastHostAddresses.insert(address);
                 }
             }
         }
@@ -182,6 +192,13 @@ public Q_SLOTS:
 
     void close()
     {
+        for (const auto &addr : m_multicastHostAddresses) {
+            m_socket.leaveMulticastGroup(addr);
+        }
+
+        m_multicastHostAddresses.clear();
+        m_multicastInterfaces.clear();
+
         m_socket.close();
     }
 
@@ -248,6 +265,10 @@ private:
     Packets::Keystamp m_ks = 0;
     QByteArray m_key;
     QAESEncryption m_aes = { QAESEncryption::AES_256, QAESEncryption::CBC, QAESEncryption::PKCS7 };
+
+    QSet<QString> m_multicastInterfaces{};
+    QSet<QHostAddress> m_multicastHostAddresses{};
+    quint16 m_multicastPort = 0;
 
     static QByteArray generate(const qsizetype len)
     {
@@ -648,6 +669,8 @@ public:
                 }
                 case QDtlsError::UnderlyingSocketError:
                 case QDtlsError::NoError: {
+                    qWarning() << "DTLS write transient error on ts" << m_ts << "order" << order
+                               << static_cast<int>(err) << m_storage.m_dtls->dtlsErrorString();
                     continue;
                 }
                 default: {

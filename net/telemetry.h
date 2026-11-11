@@ -30,6 +30,7 @@ public:
         quint16 recvRateKbps = 0;
         quint8 decodeQueueDepth = 0;
         quint8 renderQueueDepth = 0;
+        quint32 receivedFrames = 0;
     };
 
     void recordReceived(const quint64 bytes)
@@ -75,7 +76,11 @@ public:
         const auto framesDecoded = m_framesDecoded.exchange(0, std::memory_order_relaxed);
         const auto framesDropped = m_framesDropped.exchange(0, std::memory_order_relaxed);
         const auto bytesReceived = m_bytesReceived.exchange(0, std::memory_order_relaxed);
+        const auto framesReceived = m_framesReceived.exchange(0, std::memory_order_relaxed);
+
         (void)m_framesReceived.exchange(0, std::memory_order_relaxed);
+
+        s.receivedFrames = framesReceived;
 
         const double fps = framesDecoded * 1e9 / static_cast<double>(windowNs);
         s.fpsX10 = static_cast<quint16>(std::min(1000.0, fps * 10.0));
