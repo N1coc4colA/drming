@@ -2,8 +2,6 @@
 #include "decode.h"
 #include "videoframeitem.h"
 
-#include "helpers.h"
-
 namespace Platform {
 
 VideoLink::VideoLink(QObject *parent)
@@ -16,7 +14,11 @@ VideoLink::VideoLink(QObject *parent)
 VideoLink::~VideoLink()
 {
     if (m_item) {
-        m_item->setDecoder(nullptr);
+        QMetaObject::invokeMethod(
+            m_item,
+            [item = m_item]() { item->setDecoder(nullptr); },
+            Qt::BlockingQueuedConnection
+        );
     }
 }
 

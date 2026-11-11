@@ -23,7 +23,7 @@ class VideoLink : public UdpStreamSocket, public Packets::Parser<VideoLink, Sett
 
 public:
     explicit VideoLink(QObject *parent = nullptr);
-    ~VideoLink();
+    ~VideoLink() override;
 
     void processPacket(const Packets::ServerStream &img);
     void processPacket(const Packets::ClientResolution &res);
