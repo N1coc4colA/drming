@@ -650,4 +650,11 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
     glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, eglImage);
 }
 
+void VideoDecoder::invalidateGLResources()
+{
+    m_oesTextureIds = {};
+    m_eglImageCache.clear();
+    m_textureIndex = 0;
+}
+
 } // namespace Platform

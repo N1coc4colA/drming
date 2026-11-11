@@ -40,16 +40,23 @@ VideoFrameItem::VideoFrameItem(QQuickItem *parent)
     connect(this, &VideoFrameItem::visibleChanged, this, [this]() {
         isVisible() ? m_aui->enterFullScreen() : m_aui->leaveFullScreen();
     });
+    // In VideoFrameItem's ctor, if m_decoder is set:
+    connect(window(), &QQuickWindow::sceneGraphInvalidated, this, [this]() {
+        if (m_decoder) {
+            m_decoder->invalidateGLResources();
+        }
+    });
 }
 
 void VideoFrameItem::setDecoder(VideoDecoder *decoder)
 {
     m_decoder = decoder;
 
-    if (decoder) [[unlikely]] {
-        if (m_textureMode != TextureMode::OES) [[unlikely]] {
-            m_previousTextureMode = m_textureMode;
-            m_textureMode = TextureMode::OES;
+    const auto texMode = m_textureMode.load(std::memory_order_acquire);
+    if (decoder) [[likely]] {
+        if (texMode != TextureMode::OES) [[unlikely]] {
+            m_previousTextureMode.store(texMode, std::memory_order_release);
+            m_textureMode.store(TextureMode::OES, std::memory_order_release);
         }
 
         update();
@@ -75,9 +82,10 @@ void VideoFrameItem::setImage(const QImage &image, const quint64 receiveNs)
         }
     }
 
-    if (m_textureMode != TextureMode::Simple) [[unlikely]] {
-        m_previousTextureMode = m_textureMode;
-        m_textureMode = TextureMode::Simple;
+    const auto texMode = m_textureMode.load(std::memory_order_acquire);
+    if (texMode != TextureMode::Simple) [[unlikely]] {
+        m_previousTextureMode.store(texMode, std::memory_order_release);
+        m_textureMode.store(TextureMode::Simple, std::memory_order_release);
     }
 
     if (thread() == QThread::currentThread()) {
@@ -102,17 +110,19 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
 
     Q_UNUSED(data);
 
-    if (m_textureMode != m_previousTextureMode) {
+    const auto texMode = m_textureMode.load(std::memory_order_acquire);
+
+    if (texMode != m_previousTextureMode) {
         if (oldNode) {
             delete oldNode;
             oldNode = nullptr;
         }
-        m_previousTextureMode = m_textureMode;
+        m_previousTextureMode.store(texMode, std::memory_order_release);
     }
 
-    switch (m_textureMode) {
+    switch (texMode) {
     case TextureMode::OES: {
-        if (m_decoder) [[unlikely]] {
+        if (m_decoder) [[likely]] {
             auto node = static_cast<QSGNode *>(oldNode);
             if (!node) [[unlikely]] {
                 node = new QSGNode();

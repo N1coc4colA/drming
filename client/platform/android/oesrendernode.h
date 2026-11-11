@@ -21,6 +21,7 @@ public:
         m_rect = rect;
     }
 
+    void releaseResources() override;
     void render(const RenderState *state) override;
     inline QSGRenderNode::StateFlags changedStates() const override
     {

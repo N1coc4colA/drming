@@ -99,6 +99,8 @@ public:
         m_telemetry = t;
     }
 
+    void invalidateGLResources();
+
 Q_SIGNALS:
     void needsKeyframe();
 

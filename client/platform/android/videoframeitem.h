@@ -64,8 +64,8 @@ private:
     AndroidUi *m_aui = nullptr;
     VideoDecoder *m_decoder = nullptr;
 
-    TextureMode m_textureMode = TextureMode::Simple;
-    TextureMode m_previousTextureMode = TextureMode::Simple;
+    std::atomic<TextureMode> m_textureMode{ TextureMode::Simple };
+    std::atomic<TextureMode> m_previousTextureMode{ TextureMode::Simple };
 
     QMutex m_mtx{};
     std::deque<QueueEntry> m_frameQueue{};

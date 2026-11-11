@@ -83,6 +83,12 @@ void OESRenderNode::ensureProgram()
     prog.mvpUniform = glGetUniformLocation(prog.program, "uMvp");
 }
 
+void OESRenderNode::releaseResources()
+{
+    m_program.reset();
+    m_texId.reset();
+}
+
 void OESRenderNode::render(const RenderState *state)
 {
     if (!m_texId.has_value()) [[unlikely]] {
