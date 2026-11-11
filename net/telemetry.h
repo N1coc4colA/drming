@@ -78,8 +78,6 @@ public:
         const auto bytesReceived = m_bytesReceived.exchange(0, std::memory_order_relaxed);
         const auto framesReceived = m_framesReceived.exchange(0, std::memory_order_relaxed);
 
-        (void)m_framesReceived.exchange(0, std::memory_order_relaxed);
-
         s.receivedFrames = framesReceived;
 
         const double fps = framesDecoded * 1e9 / static_cast<double>(windowNs);
