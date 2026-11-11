@@ -255,9 +255,10 @@ int Encoder::init(const int width, const int height, const QImage::Format format
         // Intra frames are substantially more expensive than predictive
         // frames. Keep recovery points frequent enough for a live stream,
         // without forcing one every few frames.
-        test_ctx->gop_size = std::max(m_fps / 2, 1);
+        test_ctx->gop_size = std::max(m_fps * 2, 1);
         test_ctx->max_b_frames = 0;
-        test_ctx->bit_rate = 5 * 1000 * 1000;
+        // Ignored when setting CRF
+        // test_ctx->bit_rate = 5 * 1000 * 1000;
 
         if (m_dst_fmt == AV_PIX_FMT_NONE) {
             qCritical() << "Encoder candidate returned no pixel format.";
@@ -319,7 +320,8 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     m_enc->max_b_frames = 0;
     m_enc->thread_count = 0;
     m_enc->thread_type = FF_THREAD_SLICE;
-    m_enc->bit_rate = 5 * 1000 * 1000;
+    // Ignored when setting CRF.
+    // m_enc->bit_rate = 5 * 1000 * 1000;
     m_enc->color_primaries = AVCOL_PRI_BT709;
     m_enc->color_trc = AVCOL_TRC_BT709;
     m_enc->colorspace = AVCOL_SPC_BT709;
