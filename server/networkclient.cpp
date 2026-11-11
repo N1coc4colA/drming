@@ -114,7 +114,7 @@ NetworkClient::NetworkClient(
     , m_port(port)
     , m_rw(*this, dtls, &sharedSocket.first, &sharedSocket.second)
     , m_timer(new QTimer(this))
-    , m_lastHeartBeat(std::chrono::system_clock::now())
+    , m_lastHeartBeat(std::chrono::steady_clock::now())
 {
     assert(dtls);
 
@@ -160,12 +160,12 @@ QByteArray NetworkClient::digest() const
 void NetworkClient::notifyHeartBeat()
 {
     m_timer->start();
-    m_lastHeartBeat = std::chrono::system_clock::now();
+    m_lastHeartBeat = std::chrono::steady_clock::now();
 }
 
 void NetworkClient::checkHeartBeat()
 {
-    if ((std::chrono::system_clock::now() - m_lastHeartBeat) > systemTimeout) {
+    if ((std::chrono::steady_clock::now() - m_lastHeartBeat) > systemTimeout) {
         m_timer->stop();
         // Heartbeat timeout – close connection
         close();

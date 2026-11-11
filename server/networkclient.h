@@ -28,8 +28,8 @@ class NetworkClient : public QObject, public Packets::Parser<NetworkClient>
 {
     Q_OBJECT
 
-    using TimePoint = std::chrono::time_point<std::chrono::system_clock>;
-    using Duration = std::chrono::system_clock::duration;
+    using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+    using Duration = std::chrono::steady_clock::duration;
 
     static constexpr Duration systemTimeout = std::chrono::duration_cast<Duration>(
         std::chrono::duration<double>(Settings::inactivityTimeout / 1000.0)
