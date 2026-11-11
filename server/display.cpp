@@ -116,6 +116,9 @@ void Display::addClient(NetworkClient *client)
 void Display::reinit()
 {
     m_lastFbId = 0;
+    m_vkmsFrameDescriptor.reset();
+    m_cursorFrameDescriptor.reset();
+
     if (m_pollTimer.isActive()) {
         m_pollTimer.stop();
         QTimer::singleShot(1500, this, [this]() {
