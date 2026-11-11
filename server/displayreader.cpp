@@ -14,6 +14,7 @@
 
 #include <cstring>
 
+#include "helpers.h"
 #include "sse.h"
 
 #ifndef Q_MOC_RUN
@@ -346,6 +347,9 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
     }
 
     const auto &cp = *it;
+    if (cp.width != fb.width) {
+        qWarning() << "Width of the cached cursor image and width of the cursor descriptor does not match.";
+    }
 
     fb.fd = m_drmFd;   // borrowed
     fb.data = cp.data; // borrowed
@@ -454,8 +458,8 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
         cursor.stride = cc.stride;
         cursor.format = cc.format;
         // plane->x/y is the src offset within the cursor buffer (typically 0,0)
-        cursor.crtc_x = static_cast<int32_t>(crtcX) + static_cast<int32_t>(plane->x);
-        cursor.crtc_y = static_cast<int32_t>(crtcY) + static_cast<int32_t>(plane->y);
+        cursor.crtc_x = narrow<int32_t>(crtcX) + narrow<int32_t>(plane->x);
+        cursor.crtc_y = narrow<int32_t>(crtcY) + narrow<int32_t>(plane->y);
         return true;
     }
 
