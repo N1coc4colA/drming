@@ -27,7 +27,6 @@ public:
         QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "VideoLink connected."; });
     }
 
-    void processPacket(const Packets::ServerImage &img);
     void processPacket(const Packets::ServerStream &img);
     void processPacket(const Packets::ClientResolution &res);
     void setTelemetry(Telemetry *telemetry);
@@ -58,7 +57,6 @@ public:
     }
     void reset()
     {
-        m_locked = false;
         m_waitedForResolution = false;
         clear();
     }
@@ -84,7 +82,6 @@ private:
     VideoFrameItem *m_item = nullptr;
     Telemetry *m_telemetry = nullptr;
     bool m_waitedForResolution = false;
-    bool m_locked = false;
 };
 
 class AudioLink : Packets::Parser<AudioLink, Settings::errorLimit>, public UdpStreamSocket

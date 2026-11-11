@@ -314,47 +314,6 @@ void Display::disconnectAllClients()
     }
 }
 
-class DisplayImage : public Display
-{
-public:
-    DisplayImage(
-        const QString &connectorName,
-        StreamSocket &ss,
-        const QString &format,
-        const bool inPlaceComposite,
-        QObject *parent = nullptr
-    )
-        : Display(connectorName, ss, inPlaceComposite, parent)
-        , m_format(format.toLocal8Bit())
-    {}
-
-private:
-    const QByteArray m_format;
-    std::chrono::time_point<std::chrono::high_resolution_clock> m_last = std::chrono::high_resolution_clock::now();
-
-    void processImage(const QImage &result) override
-    {
-        CTRACK;
-
-        Packets::ServerImage servImg{};
-        servImg.format.data = m_format;
-        {
-            QBuffer buf(&servImg.data.data);
-            buf.open(QIODevice::WriteOnly);
-            result.save(&buf, m_format, Parameters::instance.qualityLevel);
-            buf.close();
-        }
-
-        const auto curr = std::chrono::high_resolution_clock::now();
-        const auto duration = duration_cast<std::chrono::microseconds>(curr - m_last);
-        // [CHRONO]
-        qDebug() << duration;
-        m_last = curr;
-
-        sendData(Packets::Writer::generate(servImg));
-    }
-};
-
 class DisplayH265 : public Display
 {
 public:
@@ -418,15 +377,6 @@ Display *generateNewDisplay(const QString &connectorName, StreamSocket &ss, QObj
     switch (Parameters::instance.streamFormat) {
     case Opts::DisplayStreamType::h265: {
         return new DisplayH265(connectorName, ss, inPlaceComposite, parent);
-    }
-    case Opts::DisplayStreamType::jpg: {
-        return new DisplayImage(connectorName, ss, "JPG", inPlaceComposite, parent);
-    }
-    case Opts::DisplayStreamType::png: {
-        return new DisplayImage(connectorName, ss, "PNG", inPlaceComposite, parent);
-    }
-    case Opts::DisplayStreamType::webp: {
-        return new DisplayImage(connectorName, ss, "WEBP", inPlaceComposite, parent);
     }
     }
 

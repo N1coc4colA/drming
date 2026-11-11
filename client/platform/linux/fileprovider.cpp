@@ -72,7 +72,7 @@ void FileProvider::loadServerCerts()
         data.append({ info.fileTime(QFileDevice::FileModificationTime), info.fileName(), {} });
     }
 
-    m_serverFiles->setData(data);
+    m_serverFiles->setContent(data);
 }
 
 void FileProvider::loadClients()
@@ -101,7 +101,7 @@ void FileProvider::loadClients()
         );
     }
 
-    m_clientFiles->setData(data);
+    m_clientFiles->setContent(data);
 }
 
 void FileProvider::deleteServerCert(const QString &fileName)

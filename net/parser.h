@@ -46,7 +46,6 @@ enum class Type : quint16 {
     ClientResolution,
 
     ServerBrightness,
-    ServerImage,
     ServerStream,
 
     SpeedInfo,
@@ -365,16 +364,6 @@ struct VideoSource
     static constexpr auto fields = std::tuple{ &VideoSource::ip, &VideoSource::port, &VideoSource::isV4 };
 };
 
-struct ServerImage
-{
-    static constexpr auto type = Type::ServerImage;
-
-    VariableFixedField<QByteArray, quint64, 3, 4> format;
-    VariableBoundField<QByteArray, quint64, 1, 8 * 1024 * 1024> data;
-
-    static constexpr auto fields = std::tuple{ &ServerImage::format, &ServerImage::data };
-};
-
 struct RequestClientResolution
 {
     static constexpr auto type = Type::RequestClientResolution;
@@ -466,7 +455,6 @@ using PacketVariant = std::variant<
     RequestClientResolution,
     ClientResolution,
     ServerBrightness,
-    ServerImage,
     ServerStream,
     SpeedInfo,
     ClientTelemetry,

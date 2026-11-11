@@ -70,7 +70,7 @@ public:
     {
         m_frameCallback = std::move(callback);
     }
-    void setLastInputNs(const qint64 ns)
+    void setLastInputNs(const quint64 ns)
     {
         m_lastInputNs = ns;
     }
@@ -87,7 +87,7 @@ private:
     FrameCallback m_frameCallback = nullptr;
     LatencyCallback m_latencyCallback = nullptr;
     Telemetry *m_telemetry = nullptr;
-    qint64 m_lastInputNs = 0;
+    quint64 m_lastInputNs = 0;
 
     int m_width = 0;
     int m_height = 0;
