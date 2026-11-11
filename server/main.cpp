@@ -74,7 +74,8 @@ int main(int argc, char *argv[])
         // An error occurred.
         if (!manager.registerClient(client)) {
             // If registration failed, drop client
-            client->deleteLater();
+            // Rest of the clean up will be performed automatically.
+            client->close();
         }
     });
     QObject::connect(&videoSocket, &StreamSocket::keyChanged, [&videoSocket, &audioSocket]() {
