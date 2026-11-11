@@ -455,8 +455,8 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
         cursor.stride = cc.stride;
         cursor.format = cc.format;
         // plane->x/y is the src offset within the cursor buffer (typically 0,0)
-        cursor.crtc_x = narrow<int32_t>(crtcX) + narrow<int32_t>(plane->x);
-        cursor.crtc_y = narrow<int32_t>(crtcY) + narrow<int32_t>(plane->y);
+        cursor.crtc_x = narrow<int32_t>(crtcX + plane->x);
+        cursor.crtc_y = narrow<int32_t>(crtcY + plane->y);
         return true;
     }
 
