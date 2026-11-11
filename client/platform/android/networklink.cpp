@@ -13,6 +13,13 @@ VideoLink::VideoLink(QObject *parent)
     QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "VideoLink connected."; });
 }
 
+VideoLink::~VideoLink()
+{
+    if (m_item) {
+        m_item->setDecoder(nullptr);
+    }
+}
+
 void VideoLink::processPacket(const Packets::ClientResolution &res)
 {
     CTRACK;
