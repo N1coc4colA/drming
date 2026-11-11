@@ -327,9 +327,6 @@ public:
 
     void forceKeyframe() override
     {
-        // [TMP]
-        qDebug() << "DisplayH265::forceKeyframe";
-
         Display::forceKeyframe();
         m_encoder.forceKeyframe();
     }
