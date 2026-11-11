@@ -40,7 +40,10 @@ int main(int argc, char *argv[])
 
     engine.loadFromModule("drming", "Main");
 
-    QApplication::setPalette(readPalette(":/assets/palette.data"));
+    const auto palette = readPalette(":/assets/palette.data");
+    if (palette.has_value()) {
+        QApplication::setPalette(palette.value());
+    }
 
     QObject::connect(&app, &QCoreApplication::aboutToQuit, []() { qDebug().noquote() << ctrack::result_as_string(); });
 

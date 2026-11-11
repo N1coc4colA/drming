@@ -42,9 +42,9 @@ public:
     void recordDecoded(const quint64 latencyNs)
     {
         const auto ms = latencyNs / 1'000'000;
-        if (ms >= 0 && ms < static_cast<qint64>(kHistogramBuckets)) {
+        if (ms >= 0 && ms < to_signed<qint64>(kHistogramBuckets)) {
             m_latencyHistogram[checked_cast<size_t>(ms)].fetch_add(1, std::memory_order_relaxed);
-        } else if (ms >= static_cast<qint64>(kHistogramBuckets)) {
+        } else if (ms >= to_signed<qint64>(kHistogramBuckets)) {
             // Clamp to last bucket rather than lose the sample.
             m_latencyHistogram[kHistogramBuckets - 1].fetch_add(1, std::memory_order_relaxed);
         }
@@ -100,10 +100,10 @@ public:
             s.latencyMsAvg = static_cast<quint16>(std::min<quint64>(65535, sumMs / totalSamples));
             const quint32 target = (totalSamples * 95u + 99u) / 100u; // ceil
             quint32 acc = 0;
-            for (int i = 0; i < kHistogramBuckets; ++i) {
+            for (quint16 i = 0; i < kHistogramBuckets; ++i) {
                 acc += counts[i];
                 if (acc >= target) {
-                    s.latencyMsP95 = static_cast<quint16>(i);
+                    s.latencyMsP95 = i;
                     break;
                 }
             }
@@ -116,7 +116,7 @@ public:
     }
 
 private:
-    static constexpr int kHistogramBuckets = 256; // 0..255 ms, 1 ms resolution
+    static constexpr quint16 kHistogramBuckets = 256; // 0..255 ms, 1 ms resolution
 
     std::atomic<quint32> m_framesReceived{ 0 };
     std::atomic<quint32> m_framesDecoded{ 0 };

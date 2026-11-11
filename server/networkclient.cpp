@@ -46,7 +46,7 @@ void NetworkClient::processPacket(const Packets::RequestAudioSource &)
     const size_t size = isV4 ? 4 : 16;
 
     src.isV4.data = isV4;
-    src.ip.data.resize(static_cast<qsizetype>(size));
+    src.ip.data.resize(checked_cast<qsizetype>(size));
     std::memcpy(src.ip.data.data(), isV4 ? static_cast<const void *>(&v4) : static_cast<const void *>(&v6), size);
     src.port.data = Parameters::instance.audioPort;
 
@@ -65,7 +65,7 @@ void NetworkClient::processPacket(const Packets::RequestVideoSource &)
     const size_t size = isV4 ? 4 : 16;
 
     src.isV4.data = isV4;
-    src.ip.data.resize(static_cast<qsizetype>(size));
+    src.ip.data.resize(checked_cast<qsizetype>(size));
     std::memcpy(src.ip.data.data(), isV4 ? static_cast<const void *>(&v4) : static_cast<const void *>(&v6), size);
     src.port.data = Parameters::instance.videoPort;
 
@@ -180,9 +180,10 @@ void NetworkClient::notifyKey()
 
     auto &ss = m_display->streamSocket();
 
-    Packets::KeyUpdate ku{};
-    ku.key.data = ss.getKey();
-    ku.keyStamp.data = ss.getKeystamp();
+    Packets::KeyUpdate ku{
+        .keyStamp{ ss.getKeystamp() },
+        .key{ { { ss.getKey() } } },
+    };
 
     qDebug() << "Sending key" << ku.keyStamp.data << ku.key.data;
 

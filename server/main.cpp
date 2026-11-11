@@ -97,7 +97,11 @@ int main(int argc, char *argv[])
     }
     audioSocket.setKey(videoSocket.getKey(), videoSocket.getKeystamp());
 
-    if (!server.listen(Parameters::instance.serviceIp, Parameters::instance.serviceIp, Parameters::instance.port)) {
+    if (!server.listen(
+            Parameters::instance.serviceIp,
+            Parameters::instance.serviceIp,
+            checked_cast<quint16>(Parameters::instance.port)
+        )) {
         return EXIT_FAILURE;
     }
 
@@ -106,8 +110,7 @@ int main(int argc, char *argv[])
             Parameters::instance.serviceIface,
             Parameters::instance.serviceIp.protocol() == QAbstractSocket::IPv6Protocol,
             Parameters::instance.serviceName,
-            "_drming._udp",
-            static_cast<uint16_t>(Parameters::instance.port),
+            checked_cast<uint16_t>(Parameters::instance.port),
             &app
         );
         publisher->start();

@@ -13,6 +13,7 @@ DisplayThread::~DisplayThread()
 {
     quit();
     wait();
+
     delete m_display;
 }
 

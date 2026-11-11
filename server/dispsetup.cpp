@@ -284,8 +284,7 @@ bool DispSetup::linkPlaneToCrtc(const QString &planePath, const QString &crtcPat
     const auto link = linkPath.toLocal8Bit();
     const auto tgt = crtcPath.toLocal8Bit();
 
-    int i = 0;
-    for (; i < Settings::maximumLPTries; i++) {
+    for (int i = 0; i < Settings::maximumLPTries; i++) {
         msleep(500);
 
         if (QFileInfo::exists(linkPath)) {

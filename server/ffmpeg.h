@@ -51,7 +51,7 @@ private:
     int flush();
     int encode(AVFrame &frame);
 
-    PacketCallback m_callback;
+    PacketCallback m_callback{};
 
     const AVCodec *m_codec = nullptr;
     AVCodecContext *m_enc = nullptr;

@@ -105,6 +105,12 @@ Q_SIGNALS:
     void needsKeyframe();
 
 private:
+    struct RetWithIdr
+    {
+        bool status = false;
+        bool needsIdr = false;
+    };
+
     mutable std::recursive_mutex m_codecMutex{};
     // Decoder state
     AMediaCodec *m_codec = nullptr;
@@ -148,6 +154,8 @@ private:
     // starved.
     static constexpr size_t kMaxCachedEglImages = 2;
 
+    RetWithIdr decode_locked(const uint8_t *data, size_t size);
+
     struct CachedImage
     {
         EGLImageKHR image = EGL_NO_IMAGE_KHR;
@@ -158,6 +166,7 @@ private:
 
     // Helper functions
     bool decode_frame(const uint8_t *data, size_t size, bool isKeyFrame);
+    RetWithIdr decode_frame_locked(const uint8_t *data, size_t size, bool isKeyFrame);
 
     // Called from AImageReader callback (decoder thread)
     static void onImageAvailable(void *context, AImageReader *reader);

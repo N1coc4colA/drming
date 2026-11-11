@@ -42,8 +42,8 @@ class FfmpegDecoder : public QObject
     Q_OBJECT
 
 public:
-    using FrameCallback = std::function<void(const QImage &image, qint64 receiveNs)>;
-    using LatencyCallback = std::function<void(qint64 latencyNs)>;
+    using FrameCallback = std::function<void(const QImage &image, quint64 receiveNs)>;
+    using LatencyCallback = std::function<void(quint64 latencyNs)>;
 
     explicit FfmpegDecoder(QObject *parent = nullptr);
     ~FfmpegDecoder();

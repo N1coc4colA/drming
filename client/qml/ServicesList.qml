@@ -49,7 +49,7 @@ EasyListView {
                     Label {
                         font.pixelSize: GlobalVars.fontSizeLarge
                         font.bold: true
-                        text: "(" + model.protocol + ") " + model.name
+                        text: model.name
                     }
 
                     Label {
@@ -80,7 +80,6 @@ EasyListView {
                     selectedService.ip = model.ip
                     selectedService.port = model.port
                     selectedService.type = model.type
-                    selectedService.protocol = model.protocol
 
                     root.serviceSelected(selectedService)
                 }

@@ -23,14 +23,14 @@ void VideoLink::processPacket(const Packets::ServerStream &img)
 
     if (!m_decoder) {
         m_decoder = new FfmpegDecoder(this);
-        m_decoder->setFrameCallback([this](const QImage &image, const qint64 receiveNs) {
+        m_decoder->setFrameCallback([this](const QImage &image, const quint64 receiveNs) {
             if (!image.isNull() && m_item) {
                 QMetaObject::invokeMethod(
                     m_item,
                     "setImage",
                     Qt::QueuedConnection,
                     Q_ARG(QImage, image),
-                    Q_ARG(qint64, receiveNs)
+                    Q_ARG(quint64, receiveNs)
                 );
             }
         });
@@ -50,27 +50,27 @@ void VideoLink::setItem(VideoFrameItem *item, QObject *owner)
 
     if (!m_decoder) {
         m_decoder = new FfmpegDecoder(owner);
-        m_decoder->setFrameCallback([this](const QImage &image, const qint64 receiveNs) {
+        m_decoder->setFrameCallback([this](const QImage &image, const quint64 receiveNs) {
             if (!image.isNull() && m_item) {
                 QMetaObject::invokeMethod(
                     m_item,
                     "setImage",
                     Qt::QueuedConnection,
                     Q_ARG(QImage, image),
-                    Q_ARG(qint64, receiveNs)
+                    Q_ARG(quint64, receiveNs)
                 );
             }
         });
     }
 
-    m_imageDecoder.setFrameCallback([this](const QImage &image, const qint64 receiveNs) {
+    m_imageDecoder.setFrameCallback([this](const QImage &image, const quint64 receiveNs) {
         if (m_item) {
             QMetaObject::invokeMethod(
                 m_item,
                 "setImage",
                 Qt::QueuedConnection,
                 Q_ARG(QImage, image),
-                Q_ARG(qint64, receiveNs)
+                Q_ARG(quint64, receiveNs)
             );
         }
     });
@@ -112,6 +112,9 @@ void VideoLink::onFrameSkipped()
 NetworkLink::NetworkLink(QObject *parent)
     : ::NetworkLink(parent)
     , Parser(*this)
+    , m_vlink(this)
+    , m_alink(this)
+    , m_requireCheck(this)
 {
     m_vlink.setTelemetry(&m_telemetry);
     QObject::connect(&m_vlink, &VideoLink::activity, this, &NetworkLink::markActivity, Qt::QueuedConnection);

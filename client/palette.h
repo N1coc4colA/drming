@@ -3,7 +3,7 @@
 
 #include <QPalette>
 
-void writePalette(const QString &fp);
-QPalette readPalette(const QString &fp);
+bool writePalette(const QString &fp);
+std::optional<QPalette> readPalette(const QString &fp);
 
 #endif // PALETTE_H

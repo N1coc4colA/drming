@@ -60,21 +60,19 @@ inline bool canOpenKey(const QString &path)
     return !openKey(path).isNull();
 }
 
-bool loadServerCertsConfig(QSslConfiguration &outConfig, const QString &srvCertPath, const QString &srvKeyPath)
+std::optional<QSslConfiguration> loadServerCertsConfig(const QString &srvCertPath, const QString &srvKeyPath)
 {
     const auto serverCert = openCertificate(srvCertPath);
     const auto serverKey = openKey(srvKeyPath);
     if (serverKey.isNull() || serverCert.isNull()) [[unlikely]] {
-        return false;
+        return {};
     }
 
     auto conf = QSslConfiguration::defaultDtlsConfiguration();
     conf.setLocalCertificate(serverCert);
     conf.setPrivateKey(serverKey);
     conf.setDtlsCookieVerificationEnabled(false);
-    outConfig = conf;
-
-    return true;
+    return conf;
 }
 
 #endif // CERTIFICATE_SUPPORT_H

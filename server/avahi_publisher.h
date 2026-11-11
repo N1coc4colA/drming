@@ -26,7 +26,6 @@ public:
         const QNetworkInterface &iface,
         bool isIpV6,
         QString serviceName,
-        QString protocol,
         uint16_t port,
         QObject *parent = nullptr
     );
@@ -45,14 +44,13 @@ private:
     QNetworkInterface m_iface;
     const bool m_isIpV6;
     QString m_serviceName{};
-    QString m_protocol{};
     AvahiEntryGroup *m_group = nullptr;
     AvahiThreadedPoll *m_poll = nullptr;
     AvahiClient *m_client = nullptr;
     std::atomic<bool> m_running = false;
     std::atomic<bool> m_ready = false;
 
-    const uint16_t m_port = -1;
+    const uint16_t m_port;
 
     static void group_callback(const AvahiEntryGroup *g, AvahiEntryGroupState state, const AvahiPublisher *c);
     static void client_callback(AvahiClient *client, AvahiClientState state, AvahiPublisher *c);

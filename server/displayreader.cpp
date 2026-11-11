@@ -490,12 +490,12 @@ void DisplayReader::compositeWithCursor(
 
         if (output.bytesPerLine() == primary.bytesPerLine()) {
             // Most likely case: same stride, contiguous buffer, only one memcpy needed.
-            std::memcpy(output.bits(), primary.constBits(), output.sizeInBytes());
+            std::memcpy(output.bits(), primary.constBits(), checked_cast<size_t>(output.sizeInBytes()));
         } else {
             // Unlikely: fall back to row-wise.
-            const int rowBytes = std::min(output.bytesPerLine(), primary.bytesPerLine());
+            const qsizetype rowBytes = std::min(output.bytesPerLine(), primary.bytesPerLine());
             for (int y = 0; y < primary.height(); ++y) {
-                std::memcpy(output.scanLine(y), primary.constScanLine(y), rowBytes);
+                std::memcpy(output.scanLine(y), primary.constScanLine(y), checked_cast<size_t>(rowBytes));
             }
         }
     }
@@ -568,19 +568,13 @@ QImage DisplayReader::imageFromFrameBuffer(
     if (effectiveWritable) {
         output = QImage(
             const_cast<uint8_t *>(data),
-            static_cast<int>(width),
-            static_cast<int>(height),
-            static_cast<int>(stride),
+            to_signed<int>(width),
+            to_signed<int>(height),
+            to_signed<int>(stride),
             fmtDesc.qtFormat
         );
     } else {
-        output = QImage(
-            data,
-            static_cast<int>(width),
-            static_cast<int>(height),
-            static_cast<int>(stride),
-            fmtDesc.qtFormat
-        );
+        output = QImage(data, to_signed<int>(width), to_signed<int>(height), to_signed<int>(stride), fmtDesc.qtFormat);
     }
 
     if (fmtDesc.convert) [[likely]] {

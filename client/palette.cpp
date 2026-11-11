@@ -4,24 +4,26 @@
 #include <QFile>
 #include <QGuiApplication>
 
-void writePalette(const QString &fp)
+bool writePalette(const QString &fp)
 {
     QFile save(fp);
     if (!save.open(QIODeviceBase::WriteOnly)) {
-        return;
+        return false;
     }
 
     QDataStream stream(&save);
     stream.setByteOrder(QDataStream::BigEndian);
 
     stream << qApp->palette();
+
+    return true;
 }
 
-QPalette readPalette(const QString &fp)
+std::optional<QPalette> readPalette(const QString &fp)
 {
     QFile save(fp);
     if (!save.open(QIODeviceBase::ReadOnly)) {
-        return qApp->palette();
+        return {};
     }
 
     QPalette palette{};

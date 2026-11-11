@@ -20,8 +20,8 @@ class VideoLink : public UdpStreamSocket, public Packets::Parser<VideoLink, Sett
     Q_OBJECT
 
 public:
-    explicit VideoLink()
-        : UdpStreamSocket(nullptr)
+    explicit VideoLink(QObject *parent = nullptr)
+        : UdpStreamSocket(parent)
         , Packets::Parser<VideoLink, Settings::errorLimit>(*this)
     {
         QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "VideoLink connected."; });
@@ -87,9 +87,9 @@ private:
 class AudioLink : Packets::Parser<AudioLink, Settings::errorLimit>, public UdpStreamSocket
 {
 public:
-    explicit AudioLink()
+    explicit AudioLink(QObject *parent = nullptr)
         : Packets::Parser<AudioLink, Settings::errorLimit>(*this)
-        , UdpStreamSocket(nullptr)
+        , UdpStreamSocket(parent)
     {
         QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "AudioLink connected."; });
     }
@@ -133,12 +133,12 @@ public:
     void setItem(QObject *item) override;
 
 private:
-    VideoLink m_vlink;
-    AudioLink m_alink;
+    VideoLink m_vlink{};
+    AudioLink m_alink{};
     bool m_waitedForKey = false;
     bool m_waitedForAudioSource = false;
     bool m_waitedForVideoSource = false;
-    QTimer m_requireCheck;
+    QTimer m_requireCheck{};
 
     void performRequirements();
 

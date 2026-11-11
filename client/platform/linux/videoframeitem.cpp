@@ -32,7 +32,7 @@ VideoFrameItem::VideoFrameItem(QQuickItem *parent)
     setFlag(ItemHasContents, true);
 }
 
-void VideoFrameItem::setImage(const QImage &image, const qint64 receiveNs)
+void VideoFrameItem::setImage(const QImage &image, const quint64 receiveNs)
 {
     if (image.isNull()) {
         return;

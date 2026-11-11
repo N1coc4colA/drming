@@ -157,7 +157,7 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
         }
 
         bool textureChanged = false;
-        QImage localImage;
+        QImage localImage{};
         bool hasMore = false;
 
         {

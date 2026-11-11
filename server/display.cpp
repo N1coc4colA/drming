@@ -32,8 +32,8 @@ Display::Display(const QString &connectorName, StreamSocket &ss, const bool inPl
 
 void Display::applyClientTelemetry(const Packets::ClientTelemetry &t)
 {
-    const int current = m_targetFps.load(std::memory_order_relaxed);
-    int next = current;
+    const auto current = m_targetFps.load(std::memory_order_relaxed);
+    auto next = current;
 
     // Overload is sustained. A drop or a 60 ms p95 is normal jitter at 10-40 fps.
     // 3 consecutive samples (6 s) shows a capacity issue.
@@ -242,8 +242,8 @@ void Display::forward()
     if (m_prevSize != finalImage->size()) [[unlikely]] {
         m_prevSize = finalImage->size();
         const Packets::ClientResolution res{
-            .width = { static_cast<quint32>(finalImage->width()) },
-            .height = { static_cast<quint32>(finalImage->height()) },
+            .width = { to_unsigned<quint32>(finalImage->width()) },
+            .height = { to_unsigned<quint32>(finalImage->height()) },
         };
 
         sendData(Packets::Writer::generate(res));

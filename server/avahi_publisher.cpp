@@ -9,6 +9,8 @@
 
 #include <net/if.h>
 
+#include "helpers.h"
+
 void AvahiPublisher::group_callback(const AvahiEntryGroup *g, const AvahiEntryGroupState state, const AvahiPublisher *c)
 {
     Q_UNUSED(g);
@@ -48,7 +50,7 @@ void AvahiPublisher::client_callback(AvahiClient *client, const AvahiClientState
     }
 
     const auto ifaceName = c->m_iface.name().toLocal8Bit();
-    auto iface = ifaceName.isEmpty() ? AVAHI_IF_UNSPEC : if_nametoindex(ifaceName.constData());
+    auto iface = ifaceName.isEmpty() ? AVAHI_IF_UNSPEC : to_signed(if_nametoindex(ifaceName.constData()));
     if (!ifaceName.isEmpty() && iface == 0) {
         qCritical() << "Interface not found for mDNS:" << c->m_iface.name();
         return;
@@ -59,9 +61,9 @@ void AvahiPublisher::client_callback(AvahiClient *client, const AvahiClientState
         c->m_group,
         iface,
         c->m_isIpV6 ? AVAHI_PROTO_INET6 : AVAHI_PROTO_INET,
-        (AvahiPublishFlags)0,
+        static_cast<AvahiPublishFlags>(0),
         c->m_serviceName.toLocal8Bit(),
-        c->m_protocol.toLocal8Bit(),
+        "_drming._udp",
         nullptr,
         nullptr,
         c->m_port,
@@ -79,7 +81,6 @@ AvahiPublisher::AvahiPublisher(
     const QNetworkInterface &iface,
     const bool isIpV6,
     QString serviceName,
-    QString protocol,
     const uint16_t port,
     QObject *parent
 )
@@ -87,7 +88,6 @@ AvahiPublisher::AvahiPublisher(
     , m_iface(iface)
     , m_isIpV6(isIpV6)
     , m_serviceName(std::move(serviceName))
-    , m_protocol(std::move(protocol))
     , m_port(port)
 {
     connect(this, &AvahiPublisher::started, [] { qInfo() << "Service publishing started."; });
@@ -118,7 +118,7 @@ void AvahiPublisher::start()
     int error = 0;
     m_client = avahi_client_new(
         avahi_threaded_poll_get(m_poll),
-        (AvahiClientFlags)0,
+        static_cast<AvahiClientFlags>(0),
         reinterpret_cast<AvahiClientCallback>(&AvahiPublisher::client_callback),
         this,
         &error

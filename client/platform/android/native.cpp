@@ -49,29 +49,27 @@ void onActivityDestroyed()
     qInfo().noquote() << QString::fromStdString(ctrack::result_as_string());
 }
 
-void onServiceFound(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jtype, const jstring jprotocol)
+void onServiceFound(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jtype)
 {
     Q_UNUSED(clazz);
 
     const char *name = env->GetStringUTFChars(jname, nullptr);
     const char *type = env->GetStringUTFChars(jtype, nullptr);
-    const char *protocol = env->GetStringUTFChars(jprotocol, nullptr);
 
-    Mdns::instance()->onServiceFound(QString::fromUtf8(name), QString::fromUtf8(type), QString::fromUtf8(protocol));
+    Mdns::instance()->onServiceFound(QString::fromUtf8(name), QString::fromUtf8(type));
 
     env->ReleaseStringUTFChars(jname, name);
     env->ReleaseStringUTFChars(jtype, type);
 }
 
-void onServiceLost(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jip, const jstring jprotocol)
+void onServiceLost(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jip)
 {
     Q_UNUSED(clazz);
 
     const char *name = env->GetStringUTFChars(jname, nullptr);
     const char *ip = env->GetStringUTFChars(jip, nullptr);
-    const char *protocol = env->GetStringUTFChars(jprotocol, nullptr);
 
-    Mdns::instance()->onServiceLost(QString::fromUtf8(name), QString::fromUtf8(ip), QString::fromUtf8(protocol));
+    Mdns::instance()->onServiceLost(QString::fromUtf8(name), QString::fromUtf8(ip));
 
     env->ReleaseStringUTFChars(jname, name);
     env->ReleaseStringUTFChars(jip, ip);
@@ -83,8 +81,7 @@ void onServiceResolved(
     const jstring jname,
     const jstring jhost,
     const jstring jip,
-    const jint port,
-    const jstring jprotocol
+    const jint port
 )
 {
     Q_UNUSED(clazz);
@@ -92,19 +89,12 @@ void onServiceResolved(
     const char *name = env->GetStringUTFChars(jname, nullptr);
     const char *ip = env->GetStringUTFChars(jip, nullptr);
     const char *host = env->GetStringUTFChars(jhost, nullptr);
-    const char *protocol = env->GetStringUTFChars(jprotocol, nullptr);
 
-    Mdns::instance()->onServiceResolved(
-        QString::fromUtf8(name),
-        QString::fromUtf8(host),
-        QString::fromUtf8(ip),
-        port,
-        QString::fromUtf8(protocol)
-    );
+    Mdns::instance()->onServiceResolved(QString::fromUtf8(name), QString::fromUtf8(host), QString::fromUtf8(ip), port);
 
     env->ReleaseStringUTFChars(jname, name);
-    env->ReleaseStringUTFChars(jhost, host);
     env->ReleaseStringUTFChars(jip, ip);
+    env->ReleaseStringUTFChars(jhost, host);
 }
 
 void onConnectivityChanged(const JNIEnv *env, const jclass clazz, const jboolean connected)
@@ -295,15 +285,13 @@ bool registerNativeMethods_MdnsHelper(const QJniObject &m_javaHelper)
         return false;
     }
 
-    const std::vector<JNINativeMethod> methods = { { "nativeOnServiceFound",
-                                                       "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-                                                       reinterpret_cast<void *>(onServiceFound) },
-        { "nativeOnServiceLost",
-            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-            reinterpret_cast<void *>(onServiceLost) },
+    const std::vector<JNINativeMethod> methods = {
+        { "nativeOnServiceFound", "(Ljava/lang/String;Ljava/lang/String;)V", reinterpret_cast<void *>(onServiceFound) },
+        { "nativeOnServiceLost", "(Ljava/lang/String;Ljava/lang/String;)V", reinterpret_cast<void *>(onServiceLost) },
         { "nativeOnServiceResolved",
-            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)V",
-            reinterpret_cast<void *>(onServiceResolved) } };
+            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V",
+            reinterpret_cast<void *>(onServiceResolved) }
+    };
     const auto regResult = env->RegisterNatives(clazz, methods.data(), static_cast<jint>(methods.size()));
     if (regResult != 0) {
         qWarning() << "Failed to register native methods for MdnsHelper:" << regResult;

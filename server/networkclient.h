@@ -90,8 +90,8 @@ private:
 
     DtlsReaderWriter<NetworkClient> m_rw;
 
-    QTimer *m_timer;
-    TimePoint m_lastHeartBeat;
+    QTimer *m_timer = nullptr;
+    TimePoint m_lastHeartBeat{};
 
     void checkHeartBeat();
     void notifyKey();

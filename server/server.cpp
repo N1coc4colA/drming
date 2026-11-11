@@ -16,9 +16,10 @@
 
 static PeerKey keyFor(const QHostAddress &a, const quint16 p)
 {
-    PeerKey k;
-    k.port = p;
-    k.proto = a.protocol();
+    PeerKey k{
+        .proto = a.protocol(),
+        .port = p,
+    };
 
     switch (k.proto) {
     case QAbstractSocket::IPv4Protocol: {
@@ -55,10 +56,14 @@ Server::~Server()
 
 bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, const quint16 port)
 {
-    if (!loadServerCertsConfig(m_sslConfig, Parameters::instance.serverCertPath, Parameters::instance.serverKeyPath)) {
+    const auto conf = loadServerCertsConfig(Parameters::instance.serverCertPath, Parameters::instance.serverKeyPath);
+
+    if (!conf) {
         qCritical() << "SSL config not loaded; DTLS connections may not use server certificate.";
         return false;
     }
+
+    m_sslConfig = conf.value();
 
     if (!address4.isNull()) {
         if (!m_socket4.first.bind(address4, port, QAbstractSocket::ShareAddress)) {

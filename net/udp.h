@@ -272,7 +272,7 @@ private:
 
     static QByteArray generate(const qsizetype len)
     {
-        assert(len >= 0 && static_cast<size_t>(len) % sizeof(quint32) == 0);
+        assert(len >= 0 && checked_cast<size_t>(len) % sizeof(quint32) == 0);
 
         QByteArray d(len, Qt::Uninitialized);
 
@@ -313,7 +313,7 @@ private:
         }
 
         // Set TTL directly on the socket instead of using Qt's datagram classes and repeatedly set it.
-        const int sockFd = static_cast<int>(socket.socketDescriptor());
+        const int sockFd = checked_cast<int>(socket.socketDescriptor());
         constexpr int ttl = 5;
         setsockopt(sockFd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
         setsockopt(sockFd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
@@ -426,7 +426,7 @@ private:
             + Settings::ivSize + sizeof(Packets::Keystamp);
         static constexpr qsizetype headerSize_s = to_signed(headerSize);
 
-        const auto fd = static_cast<int>(socket.socketDescriptor());
+        const auto fd = checked_cast<int>(socket.socketDescriptor());
         if (fd < 0) [[unlikely]] {
             return false;
         }
@@ -716,8 +716,9 @@ public:
             plain = m_storage.m_dtls->decryptDatagram(m_storage.m_socket, dgram);
         }
 
+        static constexpr qsizetype minPktSize = sizeof(Packets::Timestamp) + sizeof(Packets::Ordering) * 2;
         if (!plain.isEmpty()) {
-            if (plain.size() < static_cast<qsizetype>(sizeof(Packets::Timestamp) + sizeof(Packets::Ordering) * 2)) {
+            if (plain.size() < minPktSize) {
                 qWarning() << "Invalid DTLS decrypted packet size has been received:" << plain.size();
                 return;
             }
