@@ -36,6 +36,8 @@ public:
     {
         return m_item;
     }
+    // [NOTE]: Calling this multiple times may trigger a bug.
+    // Some changes are required before being able to re-attach.
     void setItem(VideoFrameItem *item);
 
     inline void clear()
