@@ -491,6 +491,10 @@ int Encoder::encode(AVFrame &frame)
     yuv->pict_type = m_forceKeyframe.exchange(false, std::memory_order_relaxed) ? AV_PICTURE_TYPE_I
                                                                                 : AV_PICTURE_TYPE_NONE;
 
+    if (yuv->pict_type == AV_PICTURE_TYPE_I) {
+        qDebug() << "Encoding forced IDR, pts =" << yuv->pts;
+    }
+
     ret = avcodec_send_frame(m_enc, yuv);
     if (ret < 0) [[unlikely]] {
         return ret;

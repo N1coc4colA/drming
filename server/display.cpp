@@ -66,6 +66,11 @@ void Display::applyClientTelemetry(const Packets::ClientTelemetry &t)
     }
 }
 
+void Display::forceKeyframe()
+{
+    m_forceNextFrame = true;
+}
+
 void Display::addClient(NetworkClient *client)
 {
     if (!client) [[unlikely]] {
@@ -150,11 +155,12 @@ void Display::forward()
     // stable buffer_id means a stable image. Skip the rest of forward()
     // entirely; on 46 µs getCrtc + ~1 µs compare, this is ~0.9 % CPU
     // at 200 Hz polling.
-    /*if (fb.fb_id == m_lastFbId) [[likely]] {
+    const bool force = m_forceNextFrame.exchange(false);
+    if (!force && fb.fb_id == m_lastFbId) [[likely]] {
         DisplayReader::releaseVkmsFrameBuffer(fb);
         return;
     }
-    m_lastFbId = fb.fb_id;*/
+    m_lastFbId = fb.fb_id;
 
     // ---- existing body (composite, encode, send) ---------------------
     CursorFrameBuffer cursorFb{};
@@ -347,6 +353,10 @@ public:
 
     void forceKeyframe() override
     {
+        // [TMP]
+        qDebug() << "DisplayH265::forceKeyframe";
+
+        Display::forceKeyframe();
         m_encoder.forceKeyframe();
     }
 

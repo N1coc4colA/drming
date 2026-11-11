@@ -27,8 +27,7 @@ public:
     }
 
     void applyClientTelemetry(const Packets::ClientTelemetry &t);
-    virtual void forceKeyframe()
-    {}
+    virtual void forceKeyframe();
 
 Q_SIGNALS:
     void nowFree();
@@ -63,6 +62,7 @@ private:
     std::optional<DrmFormat::FormatDescriptor> m_cursorFrameDescriptor{};
     std::optional<DrmFormat::FormatDescriptor> m_vkmsFrameDescriptor{};
 
+    std::atomic<bool> m_forceNextFrame{ false };
     std::atomic<int> m_targetFps{ Settings::maxForwardFps };
     int m_overloadStreak = 0;
     int m_healthyStreak = 0;
