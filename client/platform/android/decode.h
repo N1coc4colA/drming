@@ -6,6 +6,7 @@
 #include <QSize>
 
 #include <atomic>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -102,6 +103,7 @@ Q_SIGNALS:
     void needsKeyframe();
 
 private:
+    mutable std::recursive_mutex m_codecMutex{};
     // Decoder state
     AMediaCodec *m_codec = nullptr;
     AMediaFormat *m_format = nullptr;
@@ -110,6 +112,9 @@ private:
     /// OES texture handles
     std::optional<std::array<GLuint, 2>> m_oesTextureIds{};
     size_t m_textureIndex = 0;
+    int m_consecutiveTALs = 0;
+
+    std::atomic<quint8> m_framesInReader{ 0 };
 
     std::atomic<quint64> m_lastInputNs{ 0 };
     LatencyCallback m_latencyCallback{};
@@ -131,13 +136,16 @@ private:
     Telemetry *m_telemetry = nullptr;
     quint64 m_lastKeyframeRequestNs = 0;
 
-    // EGLImage cache: AImageReader has a fixed pool of buffers (maxImages below),
-    // so we cache one EGLImageKHR per AHardwareBuffer identity instead of
-    // creating/destroying an EGLImage every frame. We hold our own reference
-    // (AHardwareBuffer_acquire/_release) on each cached buffer so the pointer
-    // can't be reused by the system for a different allocation while cached
-    // (ABA hazard) — AImage_delete() only drops AImageReader's reference.
-    static constexpr size_t kMaxCachedImages = 6; // must match AImageReader_new's maxImages
+    // AImageReader's maxImages. Must be >= 2 so the render thread always has a
+    // free buffer to acquire. The throttle in decode_frame uses this - 1.
+    static constexpr size_t kImageReaderMaxImages = 6; // must match AImageReader_new's maxImages
+
+    // EGL image cache size. Each entry holds an AHardwareBuffer reference,
+    // preventing the AImageReader from recycling that buffer. Keep this
+    // strictly smaller than kImageReaderMaxImages so the reader is never
+    // starved.
+    static constexpr size_t kMaxCachedEglImages = 2;
+
     struct CachedImage
     {
         EGLImageKHR image = EGL_NO_IMAGE_KHR;

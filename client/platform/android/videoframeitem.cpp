@@ -69,6 +69,9 @@ void VideoFrameItem::setImage(const QImage &image, const quint64 receiveNs)
         m_frameQueue.push_back({ image, receiveNs });
         while (m_frameQueue.size() > MaxPresentationQueue) {
             m_frameQueue.pop_front(); // drop oldest frame
+            if (m_telemetry) {
+                m_telemetry->recordDropped();
+            }
         }
     }
 
@@ -156,6 +159,10 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
                 m_imageSize = localImage.size();
                 textureChanged = true;
                 hasMore = !m_frameQueue.empty();
+
+                if (m_telemetry) {
+                    m_telemetry->setRenderQueueDepth(narrow<quint8>(m_frameQueue.size()));
+                }
 
                 if (entry.receiveNs > 0 && m_latencyCallback) {
                     m_latencyCallback(steadyNowNs() - entry.receiveNs);

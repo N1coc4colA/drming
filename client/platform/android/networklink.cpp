@@ -112,6 +112,7 @@ void VideoLink::setItem(VideoFrameItem *item)
         qDebug() << "Creating video decoder";
         m_decoder = new VideoDecoder(this);
         if (m_telemetry) {
+            item->setTelemetry(m_telemetry);
             m_decoder->setTelemetry(m_telemetry);
             m_decoder->setLatencyCallback([t = m_telemetry](const quint64 ns) {
                 if (t) {
@@ -195,12 +196,16 @@ NetworkLink::NetworkLink(QObject *parent)
         this,
         [this]() {
             CTRACK;
-
             static constexpr Packets::RequestKeyframe pkt{};
-            write(Packets::Writer::generate(pkt));
+            // [NOTE]: Althogh the proper thing to do would be to have ret.value() < generated_size,
+            // for now we just check that some data's been written.
+            if (auto ret = write(Packets::Writer::generate(pkt)); !ret.has_value() || ret.value() <= 0) {
+                qWarning() << "Failed to send RequestKeyframe";
+            }
         },
         Qt::QueuedConnection
     );
+
     QObject::connect(m_vlink, &VideoLink::activity, this, &NetworkLink::markActivity, Qt::QueuedConnection);
 
     QObject::connect(this, &NetworkLink::connectionInitialised, this, [this]() {
@@ -233,9 +238,9 @@ NetworkLink::~NetworkLink()
     }
 
     m_videoThread.quit();
-    m_videoThread.wait();
-
     m_audioThread.quit();
+
+    m_videoThread.wait();
     m_audioThread.wait();
 }
 

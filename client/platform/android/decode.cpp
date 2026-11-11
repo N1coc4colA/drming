@@ -111,6 +111,8 @@ VideoDecoder::~VideoDecoder()
 
 bool VideoDecoder::init(const int width, const int height)
 {
+    std::lock_guard lock(m_codecMutex);
+
     if (m_initialized) {
         qDebug() << "Tried to re-init VideoDecoder while alreay init'd.";
         return true;
@@ -119,12 +121,13 @@ bool VideoDecoder::init(const int width, const int height)
     m_width = width;
     m_height = height;
     m_resolutionDetected = width > 0 && height > 0;
+    m_consecutiveTALs = 0;
 
     media_status_t status = AImageReader_new(
         width,
         height,
-        AIMAGE_FORMAT_YUV_420_888, // most common
-        kMaxCachedImages,
+        AIMAGE_FORMAT_PRIVATE, // most common
+        kImageReaderMaxImages,
         &m_imageReader
     );
     switch (status) {
@@ -209,6 +212,8 @@ bool VideoDecoder::init(const int width, const int height)
 
 void VideoDecoder::release()
 {
+    std::lock_guard lock(m_codecMutex);
+
     qDebug() << "release() called on" << this << "m_codec=" << (m_codec ? "non-null" : "null")
              << "m_initialized=" << m_initialized;
 
@@ -265,6 +270,8 @@ void VideoDecoder::release()
 
 void VideoDecoder::destroyEglImageCache()
 {
+    std::lock_guard lock(m_codecMutex);
+
     if (m_eglImageCache.empty()) {
         return;
     }
@@ -283,6 +290,8 @@ void VideoDecoder::destroyEglImageCache()
 
 bool VideoDecoder::flush()
 {
+    std::lock_guard lock(m_codecMutex);
+
     if (m_codec) {
         AMediaCodec_flush(m_codec);
         return true;
@@ -295,162 +304,212 @@ bool VideoDecoder::decode(const uint8_t *data, const size_t size)
 {
     CTRACK;
 
-    const bool needNalScan = m_needResync || !m_csdReady;
-    const bool isKeyFrame = needNalScan ? isKeyFrameH265(data, size) : false;
+    bool needsIdr = false;
+    const bool ret_val = [this, data, size, &needsIdr]() -> bool {
+        std::lock_guard lock(m_codecMutex);
 
-    // Extract CSD from the first keyframe (or after a resync).
-    if (isKeyFrame && !m_csdReady) {
-        extractCSDH265(data, size, m_vps, m_sps, m_pps);
-        if (!m_vps.empty() && !m_sps.empty() && !m_pps.empty()) {
-            m_csdReady = true;
-            qDebug() << "CSD extracted: VPS=" << m_vps.size() << "SPS=" << m_sps.size() << "PPS=" << m_pps.size();
+        const bool needNalScan = m_needResync || !m_csdReady;
+        const bool isKeyFrame = needNalScan ? isKeyFrameH265(data, size) : false;
+
+        // [TMP]
+        if (needNalScan) {
+            size_t c = 0, ns = 0, nl = 0;
+            QString types;
+            while (nextAnnexBNal(data, size, c, ns, nl)) {
+                if (!types.isEmpty()) {
+                    types += ',';
+                }
+                types += QString::number((data[ns] >> 1) & 0x3F);
+            }
+            qDebug().nospace() << "NAL types=[" << types << "] size=" << size;
         }
-    }
 
-    /*
-     * If we're stuck waiting for CSD, ask the server for a keyframe.
-     *
-     * The server emits IDRs every gop_size input frames. On this codec
-     * gop_size = m_fps * 2 = 130, but the source only produces ~11.8 fps,
-     * so wall-clock IDR interval is ~11 seconds. A client that joins the
-     * multicast group AFTER the last IDR has to wait up to 11 s before it
-     * can even initialize the codec — during which it's dropping every
-     * P-frame and showing nothing.
-     *
-     * Emit needsKeyframe() once per second while waiting. The server's
-     * RequestKeyframe handler forces the next encoded frame to be an IDR,
-     * which resets the clock.
-     */
-    if (!m_csdReady) {
-        const auto nowNs = steadyNowNs();
-        if (m_lastKeyframeRequestNs == 0 || nowNs - m_lastKeyframeRequestNs > 250'000'000LL) {
-            qDebug() << "No keyframe yet — requesting IDR";
-            m_lastKeyframeRequestNs = nowNs;
-            Q_EMIT needsKeyframe();
+        // Extract CSD from the first keyframe (or after a resync).
+        if (isKeyFrame && !m_csdReady) {
+            extractCSDH265(data, size, m_vps, m_sps, m_pps);
+            if (!m_vps.empty() && !m_sps.empty() && !m_pps.empty()) {
+                m_csdReady = true;
+                qDebug() << "CSD extracted: VPS=" << m_vps.size() << "SPS=" << m_sps.size() << "PPS=" << m_pps.size();
+            }
         }
-    }
 
-    // Default resolution placeholder.
-    if (!m_resolutionDetected) [[unlikely]] {
-        qDebug() << "Using default resolution 1920x1080 until SPS is parsed";
-        m_width = 1920;
-        m_height = 1080;
-        m_resolutionDetected = true;
-    }
+        /*
+         * If we're stuck waiting for CSD, ask the server for a keyframe.
+         *
+         * The server emits IDRs every gop_size input frames. On this codec
+         * gop_size = m_fps * 2 = 130, but the source only produces ~11.8 fps,
+         * so wall-clock IDR interval is ~11 seconds. A client that joins the
+         * multicast group AFTER the last IDR has to wait up to 11 s before it
+         * can even initialize the codec — during which it's dropping every
+         * P-frame and showing nothing.
+         *
+         * Emit needsKeyframe() once per second while waiting. The server's
+         * RequestKeyframe handler forces the next encoded frame to be an IDR,
+         * which resets the clock.
+         */
+        if (!m_csdReady || m_needResync) {
+            const auto nowNs = steadyNowNs();
+            if (m_lastKeyframeRequestNs == 0 || nowNs - m_lastKeyframeRequestNs > 250'000'000LL) {
+                qDebug() << "No keyframe yet — requesting IDR";
+                m_lastKeyframeRequestNs = nowNs;
+                needsIdr = true;
+            }
+        }
 
-    if (!m_initialized) [[unlikely]] {
-        if (!m_csdReady) {
-            qDebug() << "No CSD";
+        // Default resolution placeholder.
+        if (!m_resolutionDetected) [[unlikely]] {
+            qDebug() << "Using default resolution 1920x1080 until SPS is parsed";
+            m_width = 1920;
+            m_height = 1080;
+            m_resolutionDetected = true;
+        }
+
+        if (!m_initialized) [[unlikely]] {
+            if (!m_csdReady) {
+                qDebug() << "No CSD";
+                return true;
+            }
+            const auto ret = init(m_width, m_height);
+            if (!ret) [[unlikely]] {
+                qDebug() << "Init failure";
+                return false;
+            }
+        }
+
+        if (isKeyFrame && m_needResync) {
+            m_needResync = false;
+        }
+        if (m_needResync && !isKeyFrame) {
+            qDebug() << "Resync stuff failed";
             return true;
         }
-        const auto ret = init(m_width, m_height);
+
+        const auto ret = decode_frame(data, size, isKeyFrame);
         if (!ret) [[unlikely]] {
-            qDebug() << "Init failure";
-            return false;
+            m_needResync = true;
+            qDebug() << "Resync required.";
+            AMediaCodec_flush(m_codec);
+            m_framesInReader = 0;
+            needsIdr = true;
         }
-    }
 
-    if (isKeyFrame && m_needResync) {
-        m_needResync = false;
-    }
-    if (m_needResync && !isKeyFrame) {
-        qDebug() << "Resync stuff failed";
-        return true;
-    }
+        return ret;
+    }();
 
-    const auto ret = decode_frame(data, size, isKeyFrame);
-    if (!ret) [[unlikely]] {
-        m_needResync = true;
-        qDebug() << "Resync required.";
+    if (needsIdr) {
         Q_EMIT needsKeyframe();
     }
 
-    return ret;
+    return ret_val;
 }
 
 bool VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const bool isKeyFrame)
 {
     CTRACK;
 
-    // Always queue input buffer (works for both paths)
-    const auto inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 10000);
-    if (inputIndex >= 0) [[likely]] {
-        // Most likely case, we have a buffer, just continue.
-    } else if (inputIndex == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
-        qDebug() << "Dequeue input TAL: frame lost, requesting IDR";
-        /*
-         * MediaCodec's input queue was full for the whole 10 ms timeout.
-         * The frame is gone; count it so the server-side policy can react.
-         */
-        if (m_telemetry) {
-            m_telemetry->recordDropped();
-        }
+    bool needsIdr = false;
+    const bool ret_val = [this, data, size, isKeyFrame, &needsIdr]() -> bool {
+        std::lock_guard lock(m_codecMutex);
 
-        m_needResync = true;
-        Q_EMIT needsKeyframe();
-        return true;
-    } else {
-        qWarning() << "Failed to dequeue input buffer, unexpected error occurred:" << inputIndex;
-        return false;
-    }
+        // Always queue input buffer (works for both paths)
+        const auto inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 0);
+        if (inputIndex >= 0) [[likely]] {
+            // Most likely case, we have a buffer, just continue.
+        } else if (inputIndex == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
+            qDebug() << "Dequeue input TAL: frame lost, requesting IDR";
+            /*
+             * MediaCodec's input queue was full for the whole 0 ms timeout.
+             * The frame is gone; count it so the server-side policy can react.
+             */
+            if (++m_consecutiveTALs >= 5) {
+                if (m_telemetry) {
+                    m_telemetry->recordDropped();
+                }
 
-    size_t bufferSize = 0;
-    const auto inputBuffer = AMediaCodec_getInputBuffer(m_codec, static_cast<size_t>(inputIndex), &bufferSize);
-    if (!inputBuffer) {
-        qWarning() << "Failed to get input buffer: " << inputBuffer;
-        return false;
-    }
-    if (size > bufferSize) [[unlikely]] {
-        // [TODO] handle buffer resizing.
-        qWarning() << "Input data too large:" << size << ">" << bufferSize;
-        return false;
-    }
-    memcpy(inputBuffer, data, size);
+                m_needResync = true;
+                needsIdr = true;
+            }
 
-    const uint32_t flags = isKeyFrame ? AMEDIACODEC_BUFFER_FLAG_KEY_FRAME : 0;
-    const auto status = AMediaCodec_queueInputBuffer(
-        m_codec,
-        static_cast<size_t>(inputIndex),
-        0,
-        size,
-        static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
-                .count()
-        ),
-        flags
-    );
-    if (status != AMEDIA_OK) [[unlikely]] {
-        qWarning() << "MC Failed to queue input buffer:" << status;
-        return false;
-    }
-
-    AMediaCodecBufferInfo info{};
-    for (;;) {
-        const auto outIdx = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 0);
-        if (outIdx >= 0) [[likely]] {
-            // render = true: hands the buffer to the ANativeWindow/AImageReader.
-            AMediaCodec_releaseOutputBuffer(m_codec, static_cast<size_t>(outIdx), true);
-            continue; // more than one frame may be ready
-        } else if (outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
-            break;
-        } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
-            qDebug() << "Format changed!";
-            continue;
-        } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
-            continue;
+            return true;
         } else {
-            qWarning() << "Unexpected output result:" << outIdx;
-            break;
+            qWarning() << "Failed to dequeue input buffer, unexpected error occurred:" << inputIndex;
+            return false;
         }
+
+        m_consecutiveTALs = 0;
+
+        size_t bufferSize = 0;
+        const auto inputBuffer = AMediaCodec_getInputBuffer(m_codec, static_cast<size_t>(inputIndex), &bufferSize);
+        if (!inputBuffer) {
+            qWarning() << "Failed to get input buffer: " << inputBuffer;
+            return false;
+        }
+        if (size > bufferSize) [[unlikely]] {
+            // [TODO] handle buffer resizing.
+            qWarning() << "Input data too large:" << size << ">" << bufferSize;
+            return false;
+        }
+        memcpy(inputBuffer, data, size);
+
+        const uint32_t flags = isKeyFrame ? AMEDIACODEC_BUFFER_FLAG_KEY_FRAME : 0;
+        const auto status = AMediaCodec_queueInputBuffer(
+            m_codec,
+            static_cast<size_t>(inputIndex),
+            0,
+            size,
+            static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()
+            )
+                    .count()),
+            flags
+        );
+        if (status != AMEDIA_OK) [[unlikely]] {
+            qWarning() << "MC Failed to queue input buffer:" << status;
+            return false;
+        }
+
+        AMediaCodecBufferInfo info{};
+        for (;;) {
+            const auto outIdx = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 0);
+
+            if (outIdx >= 0) {
+                // render = true: hands the buffer to the ANativeWindow/AImageReader.
+                const bool render = m_framesInReader.load() < kImageReaderMaxImages - 1;
+                AMediaCodec_releaseOutputBuffer(m_codec, static_cast<size_t>(outIdx), render);
+                if (render) {
+                    m_framesInReader.fetch_add(1);
+                }
+
+                continue; // more than one frame may be ready
+            } else if (outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
+                break;
+            } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
+                qDebug() << "Format changed!";
+                continue;
+            } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
+                continue;
+            } else {
+                qWarning() << "Unexpected output result:" << outIdx;
+                break;
+            }
+        }
+
+        return true;
+    }();
+
+    if (needsIdr) {
+        Q_EMIT needsKeyframe();
     }
 
-    return true;
+    return ret_val;
 }
 
 void VideoDecoder::onImageAvailable(void *, AImageReader *) {}
 
 bool VideoDecoder::consumeFrame()
 {
+    std::lock_guard lock(m_codecMutex);
+
     if (!m_imageReader) {
         qDebug() << "Invalid consume.";
         return false;
@@ -510,6 +569,11 @@ bool VideoDecoder::consumeFrame()
         return false;
     }
 
+    m_framesInReader.fetch_sub(1);
+    if (m_telemetry) {
+        m_telemetry->setDecodeQueueDepth(m_framesInReader.load());
+    }
+
     updateTextureFromHardwareBuffer(hardwareBuffer);
     m_pendingImage = image;
 
@@ -518,6 +582,7 @@ bool VideoDecoder::consumeFrame()
 
 void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
 {
+    std::lock_guard lock(m_codecMutex);
     CTRACK;
 
     const auto display = eglGetCurrentDisplay();
@@ -545,7 +610,7 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
             return;
         }
 
-        if (m_eglImageCache.size() >= kMaxCachedImages) [[unlikely]] {
+        if (m_eglImageCache.size() >= kMaxCachedEglImages) [[unlikely]] {
             auto victim = m_eglImageCache.begin();
             eglDestroyImageKHR(display, victim->second.image);
             AHardwareBuffer_release(victim->second.bufferRef);

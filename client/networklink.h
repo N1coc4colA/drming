@@ -48,7 +48,7 @@ public Q_SLOTS:
 
 protected:
     void markActivity();
-    void write(const QByteArray &data);
+    std::optional<qint64> write(const QByteArray &data);
 
     virtual void closePlatform() {};
 

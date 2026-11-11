@@ -379,7 +379,7 @@ void NetworkLink::onTelemetryTimeout()
     const auto snap = m_telemetry.takeSnapshot(windowNs);
     m_lastTelemetryNs = nowNs;
 
-    if (snap.fpsX10 == 0 && snap.droppedFrames == 0 && snap.latencyMsAvg == 0) {
+    if (snap.receivedFrames == 0 && snap.droppedFrames == 0 && snap.latencyMsAvg == 0) {
         // nothing was rendered, don't wake the server
         return;
     }
@@ -404,7 +404,7 @@ void NetworkLink::onTelemetryTimeout()
     write(Packets::Writer::generate(t));
 }
 
-void NetworkLink::write(const QByteArray &data)
+std::optional<qint64> NetworkLink::write(const QByteArray &data)
 {
     /*
      * Dispatch on encryption state, not on socket state: a UDP socket is
@@ -413,12 +413,14 @@ void NetworkLink::write(const QByteArray &data)
      */
 
     if (m_dtls && m_dtls->isConnectionEncrypted()) {
-        writeDtls(data);
+        return writeDtls(data);
     } else if (m_sslSocket && m_sslSocket->isEncrypted()) {
-        writeSsl(data);
+        return writeSsl(data);
     } else {
         qWarning() << "write() called before transport is ready";
     }
+
+    return 0;
 }
 
 std::optional<quint64> NetworkLink::writeDtls(const QByteArray &data)
