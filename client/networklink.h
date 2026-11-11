@@ -43,7 +43,7 @@ public Q_SLOTS:
     /// Closes both transport channels and resets negotiated frame state.
     void close();
     /// Starts the TLS/DTLS handshake with a discovered server.
-    void connect(const QString &address, int port, const QString &clientName, const QString &protocolName);
+    void connect(const QString &address, int port, const QString &clientName);
     virtual void setItem(QObject *item) = 0;
 
 protected:
@@ -53,19 +53,11 @@ protected:
     virtual void closePlatform() {};
 
 private Q_SLOTS:
-    void onSslConnected();
-    void onSslEncrypted();
     void onUdpConnected();
-
     void onDtlsDisconnected();
-    void onSslDisconnected();
-
     void onDtlsDataAvailable();
-    void onSslDataAvailable();
-
     void onConnectionTimeout();
     void onError(QAbstractSocket::SocketError error);
-    void onSslError(const QSslError &error);
 
     void onTelemetryTimeout();
 
@@ -79,7 +71,6 @@ protected:
 private:
     QString m_protocol{};
     QByteArray m_buffer{};
-    QSslSocket *m_sslSocket = nullptr;
     QUdpSocket *m_udpSocket = nullptr;
     QDtls *m_dtls = nullptr;
 
@@ -94,9 +85,7 @@ private:
     bool m_connectionReady = false;
 
     void connectDtls(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, int port);
-    void connectSsl(const QSslConfiguration &sslConf, const QHostAddress &hostAddress, int port);
     std::optional<quint64> writeDtls(const QByteArray &data);
-    qint64 writeSsl(const QByteArray &data);
     void resetSessionState();
 
     friend class DtlsReader<NetworkLink>;

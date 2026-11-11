@@ -60,12 +60,7 @@ inline bool canOpenKey(const QString &path)
     return !openKey(path).isNull();
 }
 
-bool loadServerCertsConfig(
-    QSslConfiguration &outConfig,
-    const QString &protocol,
-    const QString &srvCertPath,
-    const QString &srvKeyPath
-)
+bool loadServerCertsConfig(QSslConfiguration &outConfig, const QString &srvCertPath, const QString &srvKeyPath)
 {
     const auto serverCert = openCertificate(srvCertPath);
     const auto serverKey = openKey(srvKeyPath);
@@ -73,14 +68,10 @@ bool loadServerCertsConfig(
         return false;
     }
 
-    auto conf = protocol == "dtls" ? QSslConfiguration::defaultDtlsConfiguration()
-                                   : QSslConfiguration::defaultConfiguration();
+    auto conf = QSslConfiguration::defaultDtlsConfiguration();
     conf.setLocalCertificate(serverCert);
     conf.setPrivateKey(serverKey);
-    if (protocol == "dtls") {
-        conf.setDtlsCookieVerificationEnabled(false);
-    }
-
+    conf.setDtlsCookieVerificationEnabled(false);
     outConfig = conf;
 
     return true;

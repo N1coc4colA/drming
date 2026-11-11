@@ -55,12 +55,7 @@ Server::~Server()
 
 bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, const quint16 port)
 {
-    if (!loadServerCertsConfig(
-            m_sslConfig,
-            "dtls",
-            Parameters::instance.serverCertPath,
-            Parameters::instance.serverKeyPath
-        )) {
+    if (!loadServerCertsConfig(m_sslConfig, Parameters::instance.serverCertPath, Parameters::instance.serverKeyPath)) {
         qCritical() << "SSL config not loaded; DTLS connections may not use server certificate.";
         return false;
     }
