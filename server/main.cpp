@@ -18,6 +18,7 @@ namespace {
 
 int sigFd[2] = { -1, -1 };
 
+/// Signal handler that writes a byte to the self-pipe to initiate shutdown.
 void requestShutdown(const int sig)
 {
     const char byte = 1;

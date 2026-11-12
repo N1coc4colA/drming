@@ -5,6 +5,7 @@
 
 namespace Platform {
 
+/// Tracks whether the network is currently usable.
 class NetworkState : public ::NetworkState
 {
     Q_OBJECT

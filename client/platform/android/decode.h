@@ -34,7 +34,7 @@ class Telemetry;
 namespace Platform {
 
 /**
- * MediaCodec decoder backed by an AImageReader/EGL zero-copy pipeline.
+ * H.265 MediaCodec decoder backed by an AImageReader/EGL zero-copy pipeline.
  *
  * Decoding and rendering use separate threads: the decoder publishes an
  * available hardware buffer and the scene graph consumes it on demand.
@@ -49,28 +49,35 @@ public:
     explicit VideoDecoder(QObject *parent = nullptr);
     ~VideoDecoder();
 
-    // Basic info
+    /// Returns the decoded frame width in pixels.
     int width() const
     {
         return m_width;
     }
+    /// Returns the decoded frame height in pixels.
     int height() const
     {
         return m_height;
     }
+    /// Reports whether the decoder is ready for input.
     bool isInitialized() const
     {
         return m_initialized;
     }
 
-    // Decoder control
+    /// Initializes the decoder for the requested frame size.
     bool init(int width = 0, int height = 0);
+    /// Releases resources used by the decoder.
     void release();
+    /// Discards queued decoder input and output.
     bool flush();
+    /// Submits encoded data to the decoder.
     bool decode(const uint8_t *data, size_t size);
 
-    // Texture-based rendering (called from the render thread).
-    bool consumeFrame(); // returns true if new frame was consumed
+    /// Publishes the next decoded frame to the render thread.
+    /// Returns true if new frame was consumed
+    bool consumeFrame();
+    /// Returns the current external OES texture handle.
     std::optional<GLuint> oesTextureId() const
     {
         if (m_oesTextureIds.has_value()) {
@@ -80,34 +87,42 @@ public:
         return {};
     }
 
+    /// Returns the dimensions of the decoded texture.
     QSize textureSize() const
     {
         return QSize(m_width, m_height);
     }
 
+    /// Sets the callback used to report decode latency.
     void setLatencyCallback(LatencyCallback cb)
     {
         m_latencyCallback = std::move(cb);
     }
+    /// Records when the latest encoded frame arrived.
     void setLastInputNs(const quint64 ns)
     {
         m_lastInputNs.store(ns, std::memory_order_relaxed);
     }
 
+    /// Associates telemetry used to record decoder timing.
     void setTelemetry(Telemetry *t)
     {
         m_telemetry = t;
     }
 
+    /// Invalidates graphics resources so they can be recreated.
     void invalidateGLResources();
 
 Q_SIGNALS:
     void needsKeyframe();
 
 private:
+    /// Reports decoder status and whether an IDR frame is required.
     struct RetWithIdr
     {
+        /// Whether decode completed successfully.
         bool status = false;
+        /// Whether an IDR keyframe is required to recover decoder state.
         bool needsIdr = false;
     };
 
@@ -154,24 +169,30 @@ private:
     // starved.
     static constexpr size_t kMaxCachedEglImages = 2;
 
+    /// Submits encoded data while holding the codec lock.
     RetWithIdr decode_locked(const uint8_t *data, size_t size);
 
+    /// Associates an EGL image with its retained hardware buffer.
     struct CachedImage
     {
+        /// EGLImage wrapping the hardware buffer.
         EGLImageKHR image = EGL_NO_IMAGE_KHR;
+        /// Retained reference to the AHardwareBuffer.
         AHardwareBuffer *bufferRef = nullptr; // our own acquired reference
     };
     std::unordered_map<AHardwareBuffer *, CachedImage> m_eglImageCache{};
+    /// Releases cached EGL images and their buffer references.
     void destroyEglImageCache();
 
-    // Helper functions
+    /// Decodes one frame and reports whether an IDR is needed.
     bool decode_frame(const uint8_t *data, size_t size, bool isKeyFrame);
+    /// Decodes one frame while holding the codec lock.
     RetWithIdr decode_frame_locked(const uint8_t *data, size_t size, bool isKeyFrame);
 
-    // Called from AImageReader callback (decoder thread)
+    /// Called from AImageReader callback (decoder thread)
     static void onImageAvailable(void *context, AImageReader *reader);
 
-    // Called from render thread to update the texture
+    /// Updates the external texture from a hardware buffer.
     void updateTextureFromHardwareBuffer(AHardwareBuffer *buffer);
 };
 

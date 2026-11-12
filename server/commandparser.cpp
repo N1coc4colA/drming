@@ -9,6 +9,7 @@
 #include "helpers.h"
 #include "parameters.h"
 
+/// Returns a string list of valid names for enum type T.
 template<typename T>
 QStringList possibleValues()
 {
@@ -104,6 +105,7 @@ CommandParser::CommandParser()
     );
 }
 
+/// Validates and parses a network port number string.
 template<typename T>
 CommandParser::Exit validatePort(const QString &port, T &out)
 {
@@ -124,6 +126,7 @@ CommandParser::Exit validatePort(const QString &port, T &out)
     return CommandParser::Continue;
 }
 
+/// Validates that an address belongs to IPv4 or IPv6.
 bool validateIpProto(const QHostAddress &addr)
 {
     const auto proto = addr.protocol();

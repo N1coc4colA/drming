@@ -27,6 +27,7 @@ public:
     void addClient(NetworkClient *client);
 
 Q_SIGNALS:
+    /// Emitted when all clients have disconnected and the thread is free.
     void nowFree(DisplayThread *);
 
 private:

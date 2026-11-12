@@ -25,6 +25,7 @@ QString avError(const int err)
     return errbuf;
 }
 
+/// Configures libx265 encoder parameters on the given codec context.
 AVPixelFormat setupLibX265(AVCodecContext *ctx)
 {
     if (ctx) {

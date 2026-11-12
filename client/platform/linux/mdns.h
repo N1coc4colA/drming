@@ -7,6 +7,7 @@ namespace Platform {
 
 class AvahiDiscoverer;
 
+/// Coordinates multicast DNS service discovery.
 class Mdns : public ::Mdns
 {
     Q_OBJECT
@@ -15,10 +16,13 @@ public:
     explicit Mdns(QObject *parent = nullptr);
     ~Mdns() override;
 
+    /// Starts service discovery.
     void startDiscovery() override;
+    /// Stops service discovery and releases its listeners.
     void stopDiscovery() override;
 
 private:
+    /// Avahi discovery backend implementation.
     AvahiDiscoverer *m_avahi = nullptr;
 
 Q_SIGNALS:

@@ -14,13 +14,16 @@
 #include "fileprovider.h"
 
 namespace {
+/// Tracks whether ctrack results have already been printed.
 std::atomic_bool ctrackPrinted = false;
 }
 
+/// Wraps a Java helper for native access.
 template<typename T>
 class JavaProxy
 {
 public:
+    /// Wraps the Java helper for native access.
     explicit JavaProxy(T &instance)
         : m_instance(instance)
     {}
@@ -39,6 +42,7 @@ private:
     T &m_instance;
 };
 
+/// Releases native resources when the activity is destroyed.
 void onActivityDestroyed()
 {
 
@@ -49,6 +53,7 @@ void onActivityDestroyed()
     qInfo().noquote() << QString::fromStdString(ctrack::result_as_string());
 }
 
+/// Forwards a newly discovered service to native code.
 void onServiceFound(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jtype)
 {
     Q_UNUSED(clazz);
@@ -62,6 +67,7 @@ void onServiceFound(JNIEnv *env, const jclass clazz, const jstring jname, const 
     env->ReleaseStringUTFChars(jtype, type);
 }
 
+/// Notifies native code that a discovered service disappeared.
 void onServiceLost(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jip)
 {
     Q_UNUSED(clazz);
@@ -75,6 +81,7 @@ void onServiceLost(JNIEnv *env, const jclass clazz, const jstring jname, const j
     env->ReleaseStringUTFChars(jip, ip);
 }
 
+/// Forwards the resolved service address and port to native code.
 void onServiceResolved(
     JNIEnv *env,
     const jclass clazz,
@@ -97,6 +104,7 @@ void onServiceResolved(
     env->ReleaseStringUTFChars(jhost, host);
 }
 
+/// Forwards connectivity changes to the native network state.
 void onConnectivityChanged(const JNIEnv *env, const jclass clazz, const jboolean connected)
 {
     Q_UNUSED(env);
@@ -105,6 +113,7 @@ void onConnectivityChanged(const JNIEnv *env, const jclass clazz, const jboolean
     NetworkState::instance()->onConnectivityChanged(connected);
 }
 
+/// Imports the file selected by the Android picker.
 void onFileSelected(
     JNIEnv *env,
     const jclass clazz,
@@ -123,11 +132,13 @@ void onFileSelected(
 }
 
 template<>
+/// Wraps a Java helper for native access.
 class JavaProxy<Platform::FileProvider>
 {
     using T = Platform::FileProvider;
 
 public:
+    /// Wraps the Java helper for native access.
     explicit JavaProxy(T &instance)
         : m_instance(instance)
     {}
@@ -142,6 +153,7 @@ public:
         return m_instance.m_object;
     }
 
+    /// Binds Java callbacks and accessors to native operations.
     void setup()
     {
         auto &instance = m_instance.m_object;
@@ -272,6 +284,7 @@ private:
     T &m_instance;
 };
 
+/// Registers JNI callbacks for mDNS discovery.
 bool registerNativeMethods_MdnsHelper(const QJniObject &m_javaHelper)
 {
     const auto env = QJniEnvironment().jniEnv();
@@ -305,6 +318,7 @@ bool registerNativeMethods_MdnsHelper(const QJniObject &m_javaHelper)
     return true;
 }
 
+/// Registers the JNI connectivity callback.
 bool registerNativeMethods_NetworkHelper(const QJniObject &m_javaHelper)
 {
     const auto env = QJniEnvironment().jniEnv();
@@ -334,6 +348,7 @@ bool registerNativeMethods_NetworkHelper(const QJniObject &m_javaHelper)
     return true;
 }
 
+/// Registers JNI callbacks for file operations.
 bool registerNativeMethods_FileHelper(const QJniObject &m_javaHelper)
 {
     const auto env = QJniEnvironment().jniEnv();

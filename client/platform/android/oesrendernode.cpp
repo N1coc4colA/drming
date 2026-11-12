@@ -6,6 +6,7 @@
 
 namespace Platform {
 namespace {
+/// Vertex shader code.
 constexpr auto kVertexShader = R"(
     attribute highp vec4 aPosition;
     attribute highp vec2 aTexCoord;
@@ -17,6 +18,7 @@ constexpr auto kVertexShader = R"(
     }
 )";
 
+/// Fragment shader code.
 constexpr auto kFragmentShader = R"(
     #extension GL_OES_EGL_image_external : require
     precision mediump float;
@@ -27,6 +29,7 @@ constexpr auto kFragmentShader = R"(
     }
 )";
 
+/// Compiles a GLES shader and reports errors.
 GLuint compileShader(const GLenum type, const char *src)
 {
     const auto shader = glCreateShader(type);

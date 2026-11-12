@@ -15,6 +15,7 @@
 
 namespace Platform {
 
+/// Computes a centered rectangle that preserves image aspect ratio.
 QRectF fitKeepAspect(const QSizeF &itemSize, const QSizeF &imgSize)
 {
     CTRACK;
@@ -63,6 +64,7 @@ void VideoFrameItem::setDecoder(VideoDecoder *decoder)
     }
 }
 
+
 void VideoFrameItem::setImage(const QImage &image, const quint64 receiveNs)
 {
     if (image.isNull()) [[unlikely]] {
@@ -75,7 +77,7 @@ void VideoFrameItem::setImage(const QImage &image, const quint64 receiveNs)
         QMutexLocker locker(&m_mtx);
         m_frameQueue.push_back({ image, receiveNs });
         while (m_frameQueue.size() > MaxPresentationQueue) {
-            m_frameQueue.pop_front(); // drop oldest frame
+            m_frameQueue.pop_front(); // drop the oldest frame
             if (m_telemetry) {
                 m_telemetry->recordDropped();
             }
@@ -95,6 +97,7 @@ void VideoFrameItem::setImage(const QImage &image, const quint64 receiveNs)
     }
 }
 
+
 void VideoFrameItem::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
 {
     QQuickItem::geometryChange(newGeometry, oldGeometry);
@@ -103,6 +106,7 @@ void VideoFrameItem::geometryChange(const QRectF &newGeometry, const QRectF &old
         update();
     }
 }
+
 
 QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data)
 {

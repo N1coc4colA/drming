@@ -144,6 +144,7 @@ void AvahiPublisher::start()
     Q_EMIT dispatchStarted();
 }
 
+/// Stops service advertising and releases Avahi client resources.
 void AvahiPublisher::stop()
 {
     if (!m_running.exchange(false)) {

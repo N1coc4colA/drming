@@ -9,6 +9,7 @@
 
 #include "../helpers.h"
 
+/// Returns the current steady clock timestamp in nanoseconds.
 inline quint64 steadyNowNs()
 {
     // I do not see how the system's time may be negative...
@@ -18,27 +19,39 @@ inline quint64 steadyNowNs()
     );
 }
 
+/// Aggregates network streaming, decode latency, and queue depth telemetry metrics.
 class Telemetry
 {
 public:
+    /// Snapshot of aggregated telemetry metrics over a measurement window.
     struct Snapshot
     {
+        /// Decoded frame rate multiplied by 10 (e.g. 600 = 60.0 fps).
         quint16 fpsX10 = 0;
+        /// Average end-to-end frame latency in milliseconds.
         quint16 latencyMsAvg = 0;
+        /// 95th-percentile frame latency in milliseconds.
         quint16 latencyMsP95 = 0;
+        /// Number of dropped frames during the snapshot window.
         quint16 droppedFrames = 0;
+        /// Network receive data rate in kilobits per second.
         quint16 recvRateKbps = 0;
+        /// Current depth of the decoder input queue.
         quint8 decodeQueueDepth = 0;
+        /// Current depth of the presentation render queue.
         quint8 renderQueueDepth = 0;
+        /// Total number of frames received during the snapshot window.
         quint32 receivedFrames = 0;
     };
 
+    /// Records an incoming network frame and its byte payload size.
     void recordReceived(const quint64 bytes)
     {
         m_framesReceived.fetch_add(1, std::memory_order_relaxed);
         m_bytesReceived.fetch_add(bytes, std::memory_order_relaxed);
     }
 
+    /// Records the decode latency of a single frame in nanoseconds.
     void recordDecoded(const quint64 latencyNs)
     {
         const auto ms = latencyNs / 1'000'000;
@@ -52,20 +65,24 @@ public:
         m_framesDecoded.fetch_add(1, std::memory_order_relaxed);
     }
 
+    /// Records a dropped frame event.
     void recordDropped()
     {
         m_framesDropped.fetch_add(1, std::memory_order_relaxed);
     }
 
+    /// Updates the instantaneous decoder queue depth.
     void setDecodeQueueDepth(const quint8 d)
     {
         m_decodeQueueDepth.store(d, std::memory_order_relaxed);
     }
+    /// Updates the instantaneous render presentation queue depth.
     void setRenderQueueDepth(const quint8 d)
     {
         m_renderQueueDepth.store(d, std::memory_order_relaxed);
     }
 
+    /// Computes and returns an aggregated telemetry snapshot over the given time window in nanoseconds.
     Snapshot takeSnapshot(const quint64 windowNs)
     {
         Snapshot s{};

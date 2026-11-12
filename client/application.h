@@ -35,6 +35,7 @@ public:
         });
     }
 
+    /// Returns the active application instance.
     static Application *instance()
     {
         return qobject_cast<Application *>(qApp);
@@ -67,7 +68,9 @@ public:
     }
 
 private:
+    /// Transport retained for the active server connection, when created.
     NetworkLink *m_networkLink = nullptr;
+    /// Model retained for discovered services, when requested by QML.
     ServicesModel *m_servicesModel = nullptr;
 };
 

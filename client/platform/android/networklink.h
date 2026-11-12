@@ -17,6 +17,7 @@ namespace Platform {
 class VideoDecoder;
 class VideoFrameItem;
 
+/// Receives and decodes the video stream.
 class VideoLink : public UdpStreamSocket, public Packets::Parser<VideoLink, Settings::errorLimit>
 {
     Q_OBJECT
@@ -27,19 +28,26 @@ public:
 
     void processPacket(const Packets::ServerStream &img);
     void processPacket(const Packets::ClientResolution &res);
+    /// Clears parser state after packet errors.
     inline void onPacketErrors()
     {
         Parser::clear();
     }
 
+    /// Returns the item displaying decoded frames.
     inline VideoFrameItem *item()
     {
         return m_item;
     }
-    // [NOTE]: Calling this multiple times may trigger a bug.
-    // Some changes are required before being able to re-attach.
+
+    /**
+     * Associates the QML item that displays decoded frames.
+     * [NOTE]: Calling this multiple times may trigger a bug.
+     * Some changes are required before being able to re-attach.
+     */
     void setItem(VideoFrameItem *item);
 
+    /// Clears buffered parser and decoder state.
     inline void clear()
     {
         Parser::clear();
@@ -47,6 +55,7 @@ public:
         clearJitterBuffer();
     }
 
+    /// Associates telemetry used to record decoder timing.
     void setTelemetry(Telemetry *t);
 
 Q_SIGNALS:
@@ -54,6 +63,7 @@ Q_SIGNALS:
     void activity();
 
 public Q_SLOTS:
+    /// Resets the stream and waits for a new resolution.
     void reset()
     {
         m_waitedForResolution = false;
@@ -62,22 +72,29 @@ public Q_SLOTS:
     }
 
 public:
+    /// Reports whether the stream resolution has arrived.
     inline bool waitedForResolution() const
     {
         return m_waitedForResolution.load(std::memory_order_relaxed);
     }
 
+    /// Adds encoded bytes to the packet parser.
     void addData(QByteArray data) override
     {
         Parser::pushData(std::move(data));
     }
 
+    /// Waits until the requested packet type is available.
     inline auto waitFor(auto v)
     {
         return Parser::waitFor(v);
     }
 
 protected:
+    /**
+     * Implementation for UdpStreamSocket.
+     * Requests a keyframe after an incomplete frame.
+     */
     void onFrameSkipped() override;
 
 private:
@@ -88,6 +105,7 @@ private:
     std::atomic<bool> m_waitedForResolution{ false };
 };
 
+/// Receives and parses the audio stream.
 class AudioLink : public UdpStreamSocket, public Packets::Parser<AudioLink, Settings::errorLimit>
 {
     Q_OBJECT
@@ -100,21 +118,25 @@ public:
         QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "AudioLink connected."; });
     }
 
+    /// Clears parser state after packet errors.
     inline void onPacketErrors()
     {
         Parser::clear();
     }
+    /// Clears buffered parser and decoder state.
     inline void clear()
     {
         Parser::clear();
     }
 
+    /// Adds encoded bytes to the packet parser.
     void addData(QByteArray data) override
     {
         Parser::pushData(std::move(data));
     }
 };
 
+/// Routes audio and video packets to their decoders.
 class NetworkLink : public ::NetworkLink, Packets::Parser<NetworkLink, Settings::errorLimit>
 {
     Q_OBJECT
@@ -123,6 +145,7 @@ public:
     explicit NetworkLink(QObject *parent);
     ~NetworkLink() override;
 
+    /// Processes the packet and updates stream state.
     inline void processPacket(const Packets::Reinit &)
     {
         if (m_alink) {
@@ -138,14 +161,17 @@ public:
     void processPacket(const Packets::KeyUpdate &ku);
     void processPacket(const Packets::AudioSource &src);
     void processPacket(const Packets::VideoSource &src);
+    /// Clears parser state after packet errors.
     inline void onPacketErrors()
     {
         Parser::clear();
     }
 
+    /// Associates the QML item that displays decoded frames.
     void setItem(QObject *item) override;
 
 protected:
+    /// Closes the platform network links.
     void closePlatform() override;
 
 private:
@@ -159,8 +185,10 @@ private:
     bool m_waitedForVideoSource = false;
     QTimer m_requireCheck;
 
+    /// Requests any stream sources that are still missing.
     void performRequirements();
 
+    /// Clears stale packets before queuing new data.
     inline void pushData(QByteArray additional) override
     {
         Parser::clear();

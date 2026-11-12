@@ -29,6 +29,7 @@ using Ordering = quint32;
 using Timestamp = quint16;
 using Keystamp = qint16;
 
+/// Packet type identifiers for network serialization.
 enum class Type : quint16 {
     None = 0,
 
@@ -176,6 +177,7 @@ using fields_type = std::remove_reference_t<decltype(PacketType::fields)>;
 
 } // namespace details
 
+/// Base wrapper for a packet field during serialization.
 template<typename T, bool IsVariable = false, bool HasLimit = false>
 struct Field
 {
@@ -199,6 +201,7 @@ struct Field
 
 // SizedField implies IsVariable = true. Whether it has limits is decided by
 // the concrete variable field templates below.
+/// Field wrapper with an explicit length prefix.
 template<typename T, typename SizeType>
 struct SizedField : public Field<T, true>
 {
@@ -207,6 +210,7 @@ struct SizedField : public Field<T, true>
 };
 
 // Fixed-size, compile-time-bounded field: not variable, has limits.
+/// Compile-time fixed-size bounded field.
 template<typename T, typename LimitType, LimitType Min, LimitType Max>
 struct FixedField : Field<T, false, true>
 {
@@ -215,6 +219,7 @@ struct FixedField : Field<T, false, true>
 };
 
 // Fixed-size, runtime-bounded field: not variable, has limits.
+/// Runtime-bounded field.
 template<
     typename T,
     typename LimitType,
@@ -233,6 +238,7 @@ struct BoundField : public Field<T, false, true>
 };
 
 // Variable-size, compile-time-bounded field: variable, has limits.
+/// Variable-size field with compile-time limits.
 template<typename T, typename LimitType, LimitType Min, LimitType Max>
 struct VariableFixedField : SizedField<T, LimitType>
 {
@@ -243,6 +249,7 @@ struct VariableFixedField : SizedField<T, LimitType>
 };
 
 // Variable-size, runtime-bounded field: variable, has limits.
+/// Variable-size field with runtime-configurable limits.
 template<
     typename T,
     typename LimitType,
@@ -262,6 +269,7 @@ struct VariableBoundField : public SizedField<T, LimitType>
     }
 };
 
+/// Field constrained to a compile-time enum range.
 template<typename EnumType>
     requires requires() {
         std::is_enum_v<EnumType>;
@@ -274,6 +282,7 @@ struct EnumField : public FixedField<EnumType, EnumType, EnumType::LOWER, EnumTy
 {
 };
 
+/// Field constrained to a runtime enum range.
 template<typename EnumType>
     requires requires() {
         std::is_enum_v<EnumType>;
@@ -286,6 +295,7 @@ struct BoundEnumField : public BoundField<EnumType, EnumType, EnumType::LOWER, E
 {
 };
 
+/// Numeric field constrained to static compile-time min and max bounds.
 template<
     typename NumericType,
     NumericType Min = std::numeric_limits<NumericType>::min(),
@@ -294,6 +304,7 @@ struct NumericField : FixedField<NumericType, NumericType, Min, Max>
 {
 };
 
+/// Numeric field with runtime-configurable min and max bounds.
 template<
     typename NumericType,
     NumericType DefaultMin = std::numeric_limits<NumericType>::min(),
@@ -302,24 +313,28 @@ struct BoundNumericField : BoundField<NumericType, NumericType, DefaultMin, Defa
 {
 };
 
+/// Keepalive heartbeat packet.
 struct HeartBeat
 {
     static constexpr auto type = Type::HeartBeat;
     static constexpr auto fields = std::tuple{};
 };
 
+/// Stream reinitialization request packet.
 struct Reinit
 {
     static constexpr auto type = Type::Reinit;
     static constexpr auto fields = std::tuple{};
 };
 
+/// Requests the encryption key from the peer.
 struct RequestKey
 {
     static constexpr auto type = Type::RequestKey;
     static constexpr auto fields = std::tuple{};
 };
 
+/// Transmits an updated encryption key.
 struct KeyUpdate
 {
     static constexpr auto type = Type::KeyUpdate;
@@ -330,12 +345,14 @@ struct KeyUpdate
     static constexpr auto fields = std::tuple{ &KeyUpdate::keyStamp, &KeyUpdate::key };
 };
 
+/// Requests the audio stream source endpoint.
 struct RequestAudioSource
 {
     static constexpr auto type = Type::RequestAudioSource;
     static constexpr auto fields = std::tuple{};
 };
 
+/// Transmits the audio source endpoint.
 struct AudioSource
 {
     static constexpr auto type = Type::AudioSource;
@@ -347,12 +364,14 @@ struct AudioSource
     static constexpr auto fields = std::tuple{ &AudioSource::ip, &AudioSource::port, &AudioSource::isV4 };
 };
 
+/// Requests the video stream source endpoint.
 struct RequestVideoSource
 {
     static constexpr auto type = Type::RequestVideoSource;
     static constexpr auto fields = std::tuple{};
 };
 
+/// Transmits the video source endpoint.
 struct VideoSource
 {
     static constexpr auto type = Type::VideoSource;
@@ -364,12 +383,14 @@ struct VideoSource
     static constexpr auto fields = std::tuple{ &VideoSource::ip, &VideoSource::port, &VideoSource::isV4 };
 };
 
+/// Requests the client's supported display resolution.
 struct RequestClientResolution
 {
     static constexpr auto type = Type::RequestClientResolution;
     static constexpr auto fields = std::tuple{};
 };
 
+/// Transmits the client display resolution.
 struct ClientResolution
 {
     static constexpr auto type = Type::ClientResolution;
@@ -380,6 +401,7 @@ struct ClientResolution
     static constexpr auto fields = std::tuple{ &ClientResolution::width, &ClientResolution::height };
 };
 
+/// Transmits server display brightness level.
 struct ServerBrightness
 {
     static constexpr auto type = Type::ServerBrightness;
@@ -389,6 +411,7 @@ struct ServerBrightness
     static constexpr auto fields = std::tuple{ &ServerBrightness::brightness };
 };
 
+/// Transmits an encoded video frame chunk.
 struct ServerStream
 {
     static constexpr auto type = Type::ServerStream;
@@ -398,6 +421,7 @@ struct ServerStream
     static constexpr auto fields = std::tuple{ &ServerStream::data };
 };
 
+/// Transmits transmission speed metrics.
 struct SpeedInfo
 {
     static constexpr auto type = Type::SpeedInfo;
@@ -407,6 +431,7 @@ struct SpeedInfo
     static constexpr auto fields = std::tuple{ &SpeedInfo::speed };
 };
 
+/// Transmits client playback and rendering telemetry metrics.
 struct ClientTelemetry
 {
     static constexpr auto type = Type::ClientTelemetry;
@@ -437,6 +462,7 @@ struct ClientTelemetry
     };
 };
 
+/// Requests an immediate IDR keyframe from the encoder.
 struct RequestKeyframe
 {
     static constexpr auto type = Type::RequestKeyframe;
@@ -460,6 +486,7 @@ using PacketVariant = std::variant<
     ClientTelemetry,
     RequestKeyframe>;
 
+/// Serializes structured packet types into big-endian byte buffers.
 class Writer
 {
     template<typename FieldType>
@@ -519,6 +546,7 @@ class Writer
     }
 
 public:
+    /// Serializes a packet instance into a binary QByteArray.
     template<typename T>
     static QByteArray generate(T &t)
     {
@@ -563,6 +591,7 @@ template<
     const int ErrorLimit = 2,
     size_t MaxVariableSize = 8 * 1024 * 1024,
     bool DebugParsed = false>
+/// Stateful streaming packet parser that deserializes and dispatches packets.
 class Parser
 {
     using PacketTypes = typename details::variant_types<PacketVariant>::types;
@@ -815,16 +844,19 @@ class Parser
     }
 
 public:
+    /// Constructs a parser dispatching parsed packets to the receiver.
     explicit Parser(Receiver &receiver)
         : m_receiver(receiver)
     {}
 
+    /// Feeds raw bytes into the parser and executes parsing.
     inline void pushData(const QByteArray &additional)
     {
         m_array.append(additional);
         parse();
     }
 
+    /// Clears buffered data and resets parser state.
     void clear()
     {
         m_array.clear();
@@ -832,25 +864,30 @@ public:
         m_errorCount = 0;
     }
 
+    /// Discards incoming packets until the specified packet type is received.
     inline void waitFor(const Type t)
     {
         m_waitsFor.insert(t);
     }
 
+    /// Disables processing for the given packet type.
     inline void disable(const Type t)
     {
         m_disabled.insert(t);
     }
+    /// Enables processing for the given packet type.
     inline void enable(const Type t)
     {
         m_disabled.erase(t);
     }
+    /// Clears all packet wait and disable rules.
     inline void clearRules()
     {
         m_disabled.clear();
         m_waitsFor.clear();
     }
 
+    /// Processes buffered bytes into complete packets.
     void parse()
     {
         while (true) {
@@ -929,6 +966,7 @@ public:
         }
     }
 
+    /// Configures validation bounds for a packet field.
     template<auto ptr>
     inline void setBounds(const auto min, const auto max)
     {
@@ -942,6 +980,7 @@ template<
     typename TsType = Timestamp,
     const TsType MaxTimestamps = 10,
     const std::size_t PacketsLimit = 200>
+/// Reassembles out-of-order and fragmented packet chunks.
 class JitterBuffer
 {
     struct ChunkQueue

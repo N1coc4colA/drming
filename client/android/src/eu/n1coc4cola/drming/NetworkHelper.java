@@ -7,11 +7,16 @@ import android.net.NetworkRequest;
 import android.net.NetworkCapabilities;
 import android.util.Log;
 
+/** Reports Android network connectivity to native code. */
 public class NetworkHelper {
+    /** Log tag. */
     private static final String TAG = "NetworkHelper";
 
+    /** Callback receiving connectivity status updates. */
     private ConnectivityManager.NetworkCallback networkCallback;
+    /** System connectivity manager. */
     private ConnectivityManager cm;
+    /** Network request filter used for listening to connectivity changes. */
     private NetworkRequest request;
 
     public NetworkHelper(Context context) {
@@ -40,5 +45,6 @@ public class NetworkHelper {
     }
 
     // Native callbacks (must be registered from C++)
+    /** Notifies native code when network connectivity changes. */
     private static native void nativeOnConnectivityChanged(boolean connectivity);
 }

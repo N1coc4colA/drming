@@ -23,6 +23,7 @@
 
 namespace Drm {
 
+/// Resolves the DRM device file path associated with the given connector name.
 QString drmDeviceForConnector(const QString &connectorName)
 {
     CTRACK;
@@ -136,6 +137,7 @@ DisplayReader::~DisplayReader()
     teardown();
 }
 
+/// Frees cached buffer mappings and closes DRM resources.
 void DisplayReader::teardown()
 {
     for (auto &c : m_primaryBuffers) {

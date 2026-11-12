@@ -12,6 +12,7 @@
 namespace Platform {
 
 namespace {
+/// Finds the next Annex-B NAL unit in the byte stream.
 bool nextAnnexBNal(const uint8_t *data, const size_t size, size_t &cursor, size_t &nalStart, size_t &nalSize)
 {
     CTRACK;
@@ -55,6 +56,7 @@ bool nextAnnexBNal(const uint8_t *data, const size_t size, size_t &cursor, size_
     return false;
 }
 
+/// Checks whether an H.265 NAL unit is a key frame.
 bool isKeyFrameH265(const uint8_t *data, const size_t size)
 {
     CTRACK;
@@ -73,6 +75,7 @@ bool isKeyFrameH265(const uint8_t *data, const size_t size)
     return false;
 }
 
+/// Extracts codec configuration data from H.265 headers.
 void extractCSDH265(
     const uint8_t *data,
     const size_t size,

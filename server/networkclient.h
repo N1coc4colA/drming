@@ -47,17 +47,22 @@ public:
 
     /// Sends an encrypted datagram through the shared server socket.
     std::optional<qint64> write(const QByteArray &data);
+    /// Closes the DTLS session and disconnects the client.
     void close();
 
+    /// Returns the state of the underlying UDP socket.
     [[nodiscard]] QAbstractSocket::SocketState state() const;
+    /// Returns the remote peer IP address.
     [[nodiscard]] QHostAddress peerAddress() const
     {
         return m_address;
     }
+    /// Returns the remote peer port.
     [[nodiscard]] quint16 peerPort() const
     {
         return m_port;
     }
+    /// Returns the SHA-256 digest of the peer certificate.
     [[nodiscard]] QByteArray digest() const;
 
     // Packet processing stubs (only HeartBeat and Reinit are handled)
@@ -72,6 +77,7 @@ public:
     void onPacketErrors()
     {}
 
+    /// Updates the timestamp of the most recently received heartbeat.
     void notifyHeartBeat();
 
     /// Associates this client with the virtual display that serves its frames.
@@ -81,6 +87,7 @@ public:
     void incomingEncryptedData(const QByteArray &encrypted);
 
 Q_SIGNALS:
+    /// Emitted when the client is disconnected.
     void disconnected();
 
 private:
@@ -91,9 +98,12 @@ private:
     DtlsReaderWriter<NetworkClient> m_rw;
 
     QTimer *m_timer = nullptr;
+    /// Timestamp of the last received client heartbeat.
     TimePoint m_lastHeartBeat{};
 
+    /// Checks whether the client heartbeat has timed out and disconnects if so.
     void checkHeartBeat();
+    /// Sends the current session key update to the client.
     void notifyKey();
 };
 

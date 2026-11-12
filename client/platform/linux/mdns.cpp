@@ -16,9 +16,11 @@
 
 namespace Platform {
 
+/// Discovers mDNS services using Avahi on Linux.
 class AvahiDiscoverer
 {
 public:
+    /// Initializes the Avahi client and service browser for mDNS discovery.
     explicit AvahiDiscoverer(Mdns &manager)
         : m_manager(manager)
     {

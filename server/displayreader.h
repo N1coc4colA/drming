@@ -30,15 +30,16 @@ class DisplayReader
 public:
     explicit DisplayReader(QString connectorName, bool writableMapping = false);
     ~DisplayReader();
-
     DisplayReader(const DisplayReader &) = delete;
     DisplayReader &operator=(const DisplayReader &) = delete;
 
+    /// Returns true if memory mapping is writable and in-place compositing is supported.
     bool supportsInPlaceComposite() const
     {
         return m_writableMapping;
     }
 
+    /// Retrieves and maps the current primary plane framebuffer.
     bool getVkmsFrameBuffer(VkmsFrameBuffer &fb);
 
     /**
@@ -47,6 +48,7 @@ public:
      */
     static void releaseVkmsFrameBuffer(VkmsFrameBuffer &fb);
 
+    /// Retrieves and maps the current cursor plane framebuffer.
     bool getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFrameBuffer &primary);
 
     /// No-op on the borrowed view; the underlying mapping lives in the cache.
@@ -94,56 +96,90 @@ public:
     );
 
 private:
+    /// Cached memory mapping and metadata for a primary DRM plane.
     struct CachedPrimary
     {
+        /// Memory-mapped pixel data pointer.
         void *data = nullptr;
+        /// Memory-mapped buffer size in bytes.
         size_t size = 0;
+        /// Plane width in pixels.
         uint32_t width = 0;
+        /// Plane height in pixels.
         uint32_t height = 0;
+        /// Pixel row stride in bytes.
         uint32_t stride = 0;
+        /// DRM FourCC pixel format.
         uint32_t format = 0;
+        /// Bits per pixel.
         uint32_t bpp = 0;
+        /// Whether the buffer mapping is writable.
         bool writable = false;
     };
 
+    /// Cached memory mapping and metadata for a cursor DRM plane.
     struct CachedCursor
     {
+        /// Memory-mapped pixel data pointer.
         void *data = nullptr;
+        /// Memory-mapped buffer size in bytes.
         size_t size = 0;
+        /// Cursor width in pixels.
         uint32_t width = 0;
+        /// Cursor height in pixels.
         uint32_t height = 0;
+        /// Cursor row stride in bytes.
         uint32_t stride = 0;
+        /// DRM FourCC pixel format.
         uint32_t format = 0;
     };
 
+    /// DRM property IDs identifying a cursor plane on the CRTC.
     struct CursorPlaneInfo
     {
+        /// DRM plane ID.
         uint32_t plane_id = 0;
+        /// DRM property ID for plane type.
         uint32_t typePropId = 0;
+        /// DRM property ID for CRTC X coordinate.
         uint32_t crtcXPropId = 0;
+        /// DRM property ID for CRTC Y coordinate.
         uint32_t crtcYPropId = 0;
     };
 
+    /// Maximum number of primary buffer mappings retained in cache.
     static constexpr int kMaxCachedPrimaries = 8;
+    /// Maximum number of cursor buffer mappings retained in cache.
     static constexpr int kMaxCachedCursors = 4;
 
+    /// Initializes the DRM file descriptor, connector, CRTC, and cursor planes.
+    /// Returns false on failure.
     bool ensureInitialised();
+    /// Discovers cursor planes compatible with the active CRTC.
     void discoverCursorPlanes();
     void teardown();
 
+    /// Target display connector name.
     const QString m_connectorName{};
+    /// DRM device file path for the connector.
     QString m_connectorPath{};
 
+    /// Open file descriptor for the DRM device.
     int m_drmFd = -1;
+    /// Active CRTC identifier.
     uint32_t m_crtcId = 0;
+    /// Whether framebuffer mappings are requested with write permissions.
     bool m_writableMapping = false;
 
-    // reused per frame
+    /// CRTC resource handle reused across capture frames.
     Drm::DrmCrtcPtr m_crtc{};
 
+    /// Cache of mapped primary framebuffers indexed by fb_id.
     QHash<uint32_t, CachedPrimary> m_primaryBuffers;
+    /// Cache of mapped cursor framebuffers indexed by fb_id.
     QHash<uint32_t, CachedCursor> m_cursorBuffers;
 
+    /// List of cursor planes associated with the active CRTC.
     std::vector<CursorPlaneInfo> m_cursorPlanes;
 };
 

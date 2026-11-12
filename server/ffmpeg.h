@@ -17,6 +17,7 @@ struct AVFrame;
 
 namespace Ffmpeg {
 
+/// Converts an FFmpeg error integer code to a descriptive QString.
 QString avError(int err);
 
 /**
@@ -33,7 +34,9 @@ public:
     explicit Encoder(PacketCallback callback, int fps);
     ~Encoder();
 
+    /// Maps a DRM FourCC code to the corresponding libav pixel format.
     static AVPixelFormat formatFromFcc(uint32_t format);
+    /// Maps a Qt image format to the corresponding libav pixel format.
     static AVPixelFormat formatFromQt(QImage::Format format);
 
     /// Encodes one frame and invokes the callback for each produced packet.
@@ -47,8 +50,10 @@ public:
 
 private:
     int init(int width, int height, QImage::Format format, qsizetype stride);
+    /// Releases allocated FFmpeg frames, packets, and contexts.
     void release();
     int flush();
+    /// Submits an AVFrame to the encoder and flushes available output packets.
     int encode(AVFrame &frame);
 
     PacketCallback m_callback{};
@@ -58,6 +63,7 @@ private:
     AVPacket *m_pkt = nullptr;
     struct SwsContext *m_sws = nullptr;
     std::array<AVFrame *, 2> m_yuv = { nullptr, nullptr };
+    /// Index of the active double-buffered YUV frame.
     size_t m_yuvIndex = 0;
 
     int m_width = 0;
@@ -65,9 +71,13 @@ private:
     int m_fps = 0;
     int64_t m_pts = 0;
 
+    /// Source libav pixel format.
     enum AVPixelFormat m_src_fmt = AV_PIX_FMT_NONE;
+    /// Destination libav pixel format used for encoding.
     enum AVPixelFormat m_dst_fmt = AV_PIX_FMT_NONE;
+    /// Active Qt image format of input frames.
     QImage::Format m_format = QImage::Format_Invalid;
+    /// Input pixel line stride in bytes.
     qsizetype m_stride = 0;
 
     std::atomic<bool> m_forceKeyframe{ false };

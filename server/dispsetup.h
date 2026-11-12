@@ -22,10 +22,12 @@ public:
     {
         return m_setup;
     }
+    /// Returns the name of the created VKMS virtual connector.
     [[nodiscard]] const QString &virtualConnectorName() const
     {
         return m_virtualConnectorName;
     }
+    /// Returns the configfs base path used for VKMS configuration.
     [[nodiscard]] const QString &basePath() const
     {
         return m_basePath;
@@ -49,6 +51,7 @@ private:
 
     [[nodiscard]] bool linkPlaneToCrtc(const QString &planePath, const QString &crtcPath) const;
 
+    /// Locates the virtual connector name created by the VKMS device.
     QString findVirtualConnectorName() const;
 
     QString m_instanceName;

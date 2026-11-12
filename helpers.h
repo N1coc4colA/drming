@@ -9,6 +9,7 @@
 
 #include <QtEndian>
 
+/// Converts to the equivalent signed type.
 template<class Signed, class Unsigned>
 constexpr Signed to_signed(Unsigned u)
 {
@@ -22,12 +23,14 @@ constexpr Signed to_signed(Unsigned u)
     return static_cast<Signed>(u);
 }
 
+/// Converts to the equivalent signed type.
 template<class Unsigned>
 constexpr auto to_signed(Unsigned s)
 {
     return to_signed<std::make_signed_t<Unsigned>, Unsigned>(s);
 }
 
+/// Converts to the equivalent unsigned type.
 template<class Unsigned, class Signed>
 constexpr Unsigned to_unsigned(Signed s)
 {
@@ -42,12 +45,14 @@ constexpr Unsigned to_unsigned(Signed s)
     return static_cast<Unsigned>(s);
 }
 
+/// Converts to the equivalent unsigned type.
 template<class Signed>
 constexpr auto to_unsigned(Signed s)
 {
     return to_unsigned<std::make_unsigned_t<Signed>, Signed>(s);
 }
 
+/// Checks whether a value can be represented in type To without loss.
 template<class To, class From>
 constexpr bool fits_in(From v) noexcept
 {
@@ -66,6 +71,7 @@ constexpr bool fits_in(From v) noexcept
     }
 }
 
+/// Attempts to narrow a value to type To, returning std::nullopt if it does not fit.
 template<class To, class From>
 constexpr std::optional<To> try_narrow(From v) noexcept
 {
@@ -76,6 +82,7 @@ constexpr std::optional<To> try_narrow(From v) noexcept
     return static_cast<To>(v);
 }
 
+/// Narrows a value to type To, asserting in debug builds that no data is lost.
 template<class To, class From>
 constexpr To narrow(From v)
 {
@@ -86,6 +93,7 @@ constexpr To narrow(From v)
     return static_cast<To>(v);
 }
 
+/// Checks whether widening from type From to type To is lossless.
 template<class To, class From>
 constexpr bool is_widening_to(From v) noexcept
 {
@@ -99,6 +107,7 @@ constexpr bool is_widening_to(From v) noexcept
     }
 }
 
+/// Widens a value to type To, asserting that the conversion is lossless.
 template<class To, class From>
 constexpr To widen(From v)
 {
@@ -113,6 +122,7 @@ constexpr To widen(From v)
     return static_cast<To>(v);
 }
 
+/// Checked cast from one type to another, throwing std::overflow_error on loss.
 template<class To, class From>
 constexpr To checked_cast(From v)
 {
@@ -126,6 +136,7 @@ constexpr To checked_cast(From v)
     return static_cast<To>(v);
 }
 
+/// Reads a big-endian value of type T from an arbitrary memory address.
 template<typename T>
 T read_be(const void *p) noexcept
 {

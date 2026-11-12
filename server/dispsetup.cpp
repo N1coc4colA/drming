@@ -21,6 +21,7 @@
 
 namespace {
 
+/// Returns the root mount path for configfs.
 QString configfsRootPath()
 {
     if (QDir(QStringLiteral("/sys/kernel/config/vkms")).exists()) {
@@ -34,6 +35,7 @@ QString configfsRootPath()
     return QStringLiteral("/sys/kernel/config");
 }
 
+/// Writes byte data to a file path, returning true on success.
 bool writeFile(const QString &path, const QByteArray &value)
 {
     QFile f(path);
@@ -45,6 +47,7 @@ bool writeFile(const QString &path, const QByteArray &value)
     return f.write(value) == value.size();
 }
 
+/// Checks whether the configfs filesystem is mounted.
 bool isConfigfsMounted()
 {
     QFile f("/proc/mounts");
@@ -56,6 +59,7 @@ bool isConfigfsMounted()
     return m.contains("configfs") && (m.contains("/sys/kernel/config ") || m.contains("/config "));
 }
 
+/// Checks whether the vkms kernel module is loaded.
 bool isVkmsModuleLoaded()
 {
     QFile f("/proc/modules");
@@ -66,6 +70,7 @@ bool isVkmsModuleLoaded()
     return f.readAll().contains("vkms ");
 }
 
+/// Checks whether VKMS support is enabled in the running kernel config.
 bool isVkmsConfigEnabled()
 {
     for (const auto &name : { QString("/proc/config.gz"), QString("/boot/config-") + QSysInfo::kernelVersion() }) {
@@ -87,6 +92,7 @@ bool isVkmsConfigEnabled()
     return false;
 }
 
+/// Attempts to load the vkms kernel module using modprobe.
 bool loadVkmsModule()
 {
     qInfo() << "Inserting vkms";
