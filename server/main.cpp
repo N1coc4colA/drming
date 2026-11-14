@@ -8,6 +8,10 @@
 #include <QCoreApplication>
 #include <QSocketNotifier>
 
+#ifndef NDEBUG
+#include <QLoggingCategory>
+#endif
+
 #include <ctrack.hpp>
 
 #include <csignal>
@@ -32,6 +36,10 @@ void requestShutdown(const int sig)
 
 int main(int argc, char *argv[])
 {
+#ifndef NDEBUG
+    QLoggingCategory::setFilterRules("*.debug=true");
+#endif
+
     // Keep the server headless: all UI-facing work is performed by the client.
     QCoreApplication app(argc, argv);
     QCoreApplication::setApplicationName("drming");
