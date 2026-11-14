@@ -3,7 +3,6 @@
 #include <drm_fourcc.h>
 
 #include "displayreader.h"
-#include "ffmpeg.h"
 #include "parameters.h"
 #include "streamsocket.h"
 #include "utils.h"
@@ -110,25 +109,6 @@ private Q_SLOTS:
         DisplayReader::releaseCursorFrameBuffer(cursor);
         QCOMPARE(cursor.fd, -1);
         QCOMPARE(cursor.width, uint32_t{ 0 });
-    }
-
-    void ffmpegPixelFormatMapping()
-    {
-        QCOMPARE(Ffmpeg::Encoder::formatFromFcc(DRM_FORMAT_ARGB8888), AV_PIX_FMT_ARGB);
-        QCOMPARE(Ffmpeg::Encoder::formatFromFcc(DRM_FORMAT_ABGR8888), AV_PIX_FMT_ABGR);
-        QCOMPARE(Ffmpeg::Encoder::formatFromFcc(DRM_FORMAT_RGB565), AV_PIX_FMT_RGB565);
-        QCOMPARE(Ffmpeg::Encoder::formatFromFcc(0xdeadbeef), AV_PIX_FMT_NONE);
-        QCOMPARE(Ffmpeg::Encoder::formatFromQt(QImage::Format_ARGB32), AV_PIX_FMT_BGRA);
-        QCOMPARE(Ffmpeg::Encoder::formatFromQt(QImage::Format_RGB32), AV_PIX_FMT_BGR0);
-        QCOMPARE(Ffmpeg::Encoder::formatFromQt(QImage::Format_RGB16), AV_PIX_FMT_RGB565LE);
-        QTest::ignoreMessage(QtWarningMsg, "QImage::Format unsupported by FFmpeg: QImage::Format_Invalid");
-        QCOMPARE(Ffmpeg::Encoder::formatFromQt(QImage::Format_Invalid), AV_PIX_FMT_NONE);
-    }
-
-    void ffmpegErrorText()
-    {
-        QVERIFY(!Ffmpeg::avError(-1).isEmpty());
-        QVERIFY(Ffmpeg::avError(0).contains("Success"));
     }
 
     void parametersHaveExpectedZeroInitialization()

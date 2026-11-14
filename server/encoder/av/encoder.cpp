@@ -1,10 +1,8 @@
-#include "ffmpeg.h"
-
-#include <algorithm>
-
-#include <QDebug>
+#include "encoder.h"
 
 #include <drm_fourcc.h>
+
+#include <QDebug>
 
 #ifndef Q_MOC_RUN
 #include <ctrack.hpp>
@@ -16,181 +14,19 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-namespace Ffmpeg {
-QString avError(const int err)
+#include "libav.h"
+
+#include "../../registrar.h"
+
+namespace {
+Registrar<Encoder::Entry>::AutoRegister s_ffmpeg_enc("libav (ffmpeg)", false, &LibAV::Encoder::createAVEncoder);
+} // namespace
+
+namespace LibAV
 {
-    char errbuf[AV_ERROR_MAX_STRING_SIZE];
-    av_strerror(err, errbuf, sizeof(errbuf));
-
-    return errbuf;
-}
-
-/// Configures libx265 encoder parameters on the given codec context.
-AVPixelFormat setupLibX265(AVCodecContext *ctx)
-{
-    if (ctx) {
-        /*
-         * Preset / tune:
-         *
-         * - preset=fast.  Unlike ultrafast, the fast preset keeps the
-         *   deblocking filter and SAO enabled, both of which are what hide
-         *   block-boundary artifacts on high-motion content.  Ultrafast
-         *   disables both, and combined with crf=28: sharp seams between
-         *   current-frame intra blocks and stale motion-compensated
-         *   blocks. fast also gives ref=3, me=hex, subme=2, merange=57 by
-         *   default, which is much better motion vectors than ultrafast's
-         *   dia/subme=0.
-         *
-         * - tune=zerolatency.  Forces rc-lookahead=0, bframes=0, scenecut=0,
-         *   slices=1, lookahead-slices=0. Required for the encode step to
-         *   fit inside the per-frame budget at 40+ fps.
-         */
-        av_opt_set(ctx->priv_data, "preset", "fast", 0);
-        av_opt_set(ctx->priv_data, "tune", "zerolatency", 0);
-        av_opt_set(ctx->priv_data, "global_header", "1", 0);
-        av_opt_set_int(ctx->priv_data, "forced-idr", 1, 0);
-
-        /*
-         * The only three parameters we override on top of preset+tune:
-         *
-         * - crf=22. Previous 28 is very aggressive on 1080p desktop
-         *   content. At 22 the bitrate rises ~4x but the encoder still
-         *   fits comfortably in the budget (measured ~8 ms at 40 fps
-         *   against a 25 ms window).
-         *
-         * - keyint / min-keyint.  Tied to ctx->gop_size (fps * 2), so a
-         *   recovery IDR arrives every ~2 seconds.  Shorter than that
-         *   raises bitrate and encode time without a meaningful latency
-         *   benefit given the RequestKeyframe path handles on-demand IDRs.
-         *
-         * - no-open-gop=1.  Every IDR must be a self-contained recovery
-         *   point; some hardware decoders (notably MediaTek's HEVC) have
-         *   issues with open-GOP CRA frames arriving after a lost frame.
-         *
-         * Everything else (deblock, sao, weightp, ref, me, subme, merange,
-         * bframes, rc-lookahead, scenecut, lookahead-slices) comes from the
-         * preset / tune defaults above and is intentionally left at those
-         * values.
-         */
-        av_opt_set(
-            ctx->priv_data,
-            "x265-params",
-            ("no-open-gop=1:"
-             "crf=22:"
-             "keyint="
-                + std::to_string(ctx->gop_size) + ":" + "min-keyint=" + std::to_string(ctx->gop_size) + ":")
-                .c_str(),
-            0
-        );
-    }
-
-    return AV_PIX_FMT_YUV420P;
-}
-
-AVPixelFormat Encoder::formatFromFcc(const uint32_t format)
-{
-    switch (format) {
-    case DRM_FORMAT_ARGB8888:
-        return AV_PIX_FMT_ARGB;
-    case DRM_FORMAT_ABGR8888:
-        return AV_PIX_FMT_ABGR;
-    case DRM_FORMAT_RGB888:
-        return AV_PIX_FMT_RGB24;
-    case DRM_FORMAT_BGR888:
-        return AV_PIX_FMT_BGR24;
-    case DRM_FORMAT_RGB565:
-        return AV_PIX_FMT_RGB565;
-    default:
-        return AV_PIX_FMT_NONE;
-    }
-}
-
-AVPixelFormat Encoder::formatFromQt(const QImage::Format format)
-{
-    switch (format) {
-    case QImage::Format_Mono:
-    case QImage::Format_MonoLSB:
-    case QImage::Format_Indexed8:
-    case QImage::Format_Grayscale8:
-    case QImage::Format_Alpha8:
-        return AV_PIX_FMT_GRAY8;
-
-    case QImage::Format_RGB16:
-        return AV_PIX_FMT_RGB565LE;
-    case QImage::Format_RGB555:
-        return AV_PIX_FMT_RGB555LE;
-    case QImage::Format_RGB444:
-        return AV_PIX_FMT_RGB444LE;
-    case QImage::Format_Grayscale16:
-        return AV_PIX_FMT_GRAY16LE;
-
-    case QImage::Format_RGB888:
-        return AV_PIX_FMT_RGB24;
-    case QImage::Format_BGR888:
-        return AV_PIX_FMT_BGR24;
-
-        // 32-bit formats - corrected for little-endian memory layout
-    case QImage::Format_RGB32:
-        return AV_PIX_FMT_BGR0; // [B, G, R, 0]
-
-    case QImage::Format_ARGB32:
-    case QImage::Format_ARGB32_Premultiplied:
-        return AV_PIX_FMT_BGRA; // [B, G, R, A]
-
-    case QImage::Format_RGBX8888:
-        return AV_PIX_FMT_RGB0; // [R, G, B, 0]
-
-    case QImage::Format_RGBA8888:
-    case QImage::Format_RGBA8888_Premultiplied:
-        return AV_PIX_FMT_RGBA; // [R, G, B, A]
-
-    case QImage::Format_ARGB8565_Premultiplied:
-    case QImage::Format_ARGB6666_Premultiplied:
-    case QImage::Format_ARGB8555_Premultiplied:
-        return AV_PIX_FMT_BGRA; // Convert to standard BGRA
-    case QImage::Format_RGB666:
-        return AV_PIX_FMT_RGB24;
-    case QImage::Format_CMYK8888:
-        qWarning() << "Format CMYK8888 unsupported by FFmpeg";
-        return AV_PIX_FMT_NONE;
-
-    case QImage::Format_BGR30:
-        return AV_PIX_FMT_X2BGR10LE;
-    case QImage::Format_RGB30:
-        return AV_PIX_FMT_X2RGB10LE;
-    case QImage::Format_A2BGR30_Premultiplied:
-        return AV_PIX_FMT_X2BGR10LE;
-    case QImage::Format_A2RGB30_Premultiplied:
-        return AV_PIX_FMT_X2RGB10LE;
-
-    case QImage::Format_RGBX64:
-        return AV_PIX_FMT_RGBA64LE;
-    case QImage::Format_RGBA64:
-    case QImage::Format_RGBA64_Premultiplied:
-        return AV_PIX_FMT_RGBA64LE;
-
-    case QImage::Format_RGBX16FPx4:
-        return AV_PIX_FMT_RGBAF16LE;
-    case QImage::Format_RGBA16FPx4:
-    case QImage::Format_RGBA16FPx4_Premultiplied:
-        return AV_PIX_FMT_RGBAF16LE;
-
-    case QImage::Format_RGBX32FPx4:
-        return AV_PIX_FMT_RGBAF32LE;
-    case QImage::Format_RGBA32FPx4:
-    case QImage::Format_RGBA32FPx4_Premultiplied:
-        return AV_PIX_FMT_RGBAF32LE;
-
-    case QImage::Format_Invalid:
-    default:
-        qWarning() << "QImage::Format unsupported by FFmpeg:" << format;
-        return AV_PIX_FMT_NONE;
-    }
-}
 
 Encoder::Encoder(PacketCallback callback, const int fps)
-    : m_callback(callback)
-    , m_fps(fps)
+    : ::Encoder(callback, fps)
 {
     av_log_set_level(AV_LOG_INFO);
 }
@@ -203,6 +39,8 @@ Encoder::~Encoder()
 
 int Encoder::init(const int width, const int height, const QImage::Format format, const qsizetype stride)
 {
+    qDebug() << "Initing FFMPEG";
+
     release();
 
     m_width = width;
@@ -217,23 +55,18 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     }
 
     // Try each encoder in order, actually testing if it works
-    struct EncoderCandidate
-    {
-        const char *name;
-        QString displayName;
-        AVPixelFormat (*setupFunc)(AVCodecContext *);
-    };
-
-    const EncoderCandidate candidates[] = { { "libx265", "libx265 (software)", setupLibX265 } };
-
     const AVCodec *found_codec = nullptr;
-    EncoderCandidate chosen{};
+    size_t chosen = 0;
     int lastError = 0;
     bool instanciated = false;
 
-    for (const auto &candidate : candidates) {
-        const AVCodec *codec = avcodec_find_encoder_by_name(candidate.name);
-        qDebug() << "Candidate" << candidate.name << "codec:" << (codec ? "found" : "NOT FOUND");
+    const auto entries = Registrar<Encoder::Entry>::instance().entries();
+    for (size_t i = 0; i < entries.size(); i++) {
+        auto &entry = entries[i];
+
+        const char *encoderName = entry.name();
+        const AVCodec *codec = avcodec_find_encoder_by_name(encoderName);
+        qDebug() << "Candidate" << encoderName << "codec:" << (codec ? "found" : "NOT FOUND");
         if (!codec) {
             continue;
         }
@@ -247,12 +80,14 @@ int Encoder::init(const int width, const int height, const QImage::Format format
 
         instanciated = true;
 
+        const auto setupFn = entry.setupFunction();
+
         // Set basic parameters for testing
         test_ctx->width = width;
         test_ctx->height = height;
         test_ctx->time_base = AVRational{ 1, m_fps };
         test_ctx->framerate = AVRational{ m_fps, 1 };
-        test_ctx->pix_fmt = m_dst_fmt = candidate.setupFunc(nullptr);
+        test_ctx->pix_fmt = m_dst_fmt = setupFn(nullptr);
         // Intra frames are substantially more expensive than predictive
         // frames. Keep recovery points frequent enough for a live stream,
         // without forcing one every few frames.
@@ -269,7 +104,7 @@ int Encoder::init(const int width, const int height, const QImage::Format format
         }
 
         // Apply encoder-specific setup
-        const auto result = candidate.setupFunc(test_ctx);
+        const auto result = setupFn(test_ctx);
         if (result == AV_PIX_FMT_NONE) {
             avcodec_free_context(&test_ctx);
             continue;
@@ -282,12 +117,12 @@ int Encoder::init(const int width, const int height, const QImage::Format format
         if (ret == 0) {
             // This encoder works!
             found_codec = codec;
-            chosen = candidate;
-            qDebug() << "Using HEVC encoder:" << chosen.displayName;
+            chosen = i;
+            qDebug() << "Using HEVC encoder:" << encoderName;
             break;
         } else {
             lastError = ret;
-            qDebug() << "Encoder" << candidate.name << "failed to open:" << avError(ret);
+            qDebug() << "Encoder" << encoderName << "failed to open:" << avError(ret);
         }
     }
 
@@ -300,7 +135,7 @@ int Encoder::init(const int width, const int height, const QImage::Format format
             qCritical() << "No HEVC encoder has been found at all!";
         }
 
-        return AVERROR_ENCODER_NOT_FOUND;
+        return AVERROR(AVERROR_ENCODER_NOT_FOUND);
     }
 
     m_codec = found_codec;
@@ -329,7 +164,7 @@ int Encoder::init(const int width, const int height, const QImage::Format format
     m_enc->color_range = AVCOL_RANGE_JPEG;
 
     // Apply the setup for the chosen encoder
-    if (chosen.setupFunc(m_enc) == AV_PIX_FMT_NONE) {
+    if (entries[chosen].setupFunction()(m_enc) == AV_PIX_FMT_NONE) {
         return AVERROR(EINVAL);
     }
 
@@ -406,7 +241,7 @@ int Encoder::init(const int width, const int height, const QImage::Format format
         }
     }
 
-    qDebug() << "Encoder initialized successfully with:" << chosen.displayName;
+    qDebug() << "Encoder initialized successfully with:" << entries[chosen].name();
     return 0;
 }
 
@@ -538,6 +373,10 @@ void Encoder::push_image(
 {
     CTRACK;
 
+    if (!m_enc) [[likely]] {
+        return;
+    }
+
     if (m_width != width || m_height != height || m_format != format || m_stride != stride) [[unlikely]] {
         if (flush() < 0) [[unlikely]] {
             qWarning() << "Failed to flush encoder";
@@ -562,4 +401,4 @@ void Encoder::push_image(
     }
 }
 
-} // namespace Ffmpeg
+} // namespace LibAV

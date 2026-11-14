@@ -10,7 +10,7 @@
 #include "../net/parser.h"
 #include "../settings.h"
 
-#include "ffmpeg.h"
+#include "encoder.h"
 #include "parameters.h"
 #include "streamsocket.h"
 
@@ -323,15 +323,23 @@ public:
     DisplayH265(const QString &connectorName, StreamSocket &ss, const bool inPlaceComposite, QObject *parent = nullptr)
         : Display(connectorName, ss, inPlaceComposite, parent)
         , m_encoder(
-              [this](const uint8_t *data, int size, int64_t pts) { this->h265dataForward(data, size, pts); },
-              Settings::maxForwardFps
+              Encoder::createEncoder(
+                  [this](const uint8_t *data, int size, int64_t pts) { this->h265dataForward(data, size, pts); },
+                  Settings::maxForwardFps
+              )
           )
-    {}
+    {
+        assert(m_encoder != nullptr);
+    }
+    ~DisplayH265()
+    {
+        delete m_encoder;
+    }
 
     void forceKeyframe() override
     {
         Display::forceKeyframe();
-        m_encoder.forceKeyframe();
+        m_encoder->forceKeyframe();
     }
 
 private:
@@ -339,7 +347,7 @@ private:
     {
         CTRACK;
 
-        m_encoder.push_image(result.bits(), result.width(), result.height(), result.format(), result.bytesPerLine());
+        m_encoder->push_image(result.bits(), result.width(), result.height(), result.format(), result.bytesPerLine());
     }
 
     void h265dataForward(const uint8_t *data, const int size, const int64_t pts)
@@ -363,11 +371,11 @@ private:
              * natural IDR. Force an IDR on the next encode so recovery is one
              * frame instead of one GOP.
              */
-            m_encoder.forceKeyframe();
+            m_encoder->forceKeyframe();
         }
     }
 
-    Ffmpeg::Encoder m_encoder;
+    Encoder *m_encoder = nullptr;
 };
 
 Display *generateNewDisplay(const QString &connectorName, StreamSocket &ss, QObject *parent)
