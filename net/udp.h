@@ -122,7 +122,7 @@ public Q_SLOTS:
             m_multicastPort = port;
         } else {
             qWarning() << "Invalid protocol:" << proto;
-            // [TOOD] Propagate the error
+            // [TODO] Propagate the error
             return;
         }
 
@@ -180,7 +180,7 @@ public Q_SLOTS:
             }
         } else {
             qWarning() << "Invalid protocol:" << proto;
-            // [TOOD] Propagate the error
+            // [TODO] Propagate the error
             return;
         }
 
