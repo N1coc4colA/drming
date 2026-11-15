@@ -42,17 +42,17 @@ public:
     }
 
     /// Returns the platform mDNS service registry.
-    Q_INVOKABLE Mdns *mdnsManager() const
+    Q_INVOKABLE static Mdns *mdnsManager()
     {
         return Mdns::instance();
     }
     /// Returns the process-wide network connectivity state.
-    Q_INVOKABLE NetworkState *networkState() const
+    Q_INVOKABLE static NetworkState *networkState()
     {
         return NetworkState::instance();
     }
     /// Returns the platform certificate and key store.
-    Q_INVOKABLE FileProvider *fileProvider() const
+    Q_INVOKABLE static FileProvider *fileProvider()
     {
         return FileProvider::instance();
     }

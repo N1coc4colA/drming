@@ -49,7 +49,7 @@ private:
     bool linkConnectorToEncoder() const;
     bool writeEdidAndEnable() const;
 
-    [[nodiscard]] bool linkPlaneToCrtc(const QString &planePath, const QString &crtcPath) const;
+    [[nodiscard]] static bool linkPlaneToCrtc(const QString &planePath, const QString &crtcPath);
 
     /// Locates the virtual connector name created by the VKMS device.
     QString findVirtualConnectorName() const;

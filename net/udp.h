@@ -309,7 +309,7 @@ private:
         return generate(Settings::ivSize);
     }
 
-    bool listen(
+    static bool listen(
         QUdpSocket &socket,
         const QHostAddress &bindAddr,
         const QHostAddress &address,

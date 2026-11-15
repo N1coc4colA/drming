@@ -283,7 +283,7 @@ bool DispSetup::setCursorPlaneType() const
     return true;
 }
 
-bool DispSetup::linkPlaneToCrtc(const QString &planePath, const QString &crtcPath) const
+bool DispSetup::linkPlaneToCrtc(const QString &planePath, const QString &crtcPath)
 {
     const auto linkDir = planePath + "/possible_crtcs";
     const auto linkPath = linkDir + "/crtc0";
