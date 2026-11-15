@@ -594,7 +594,7 @@ template<
 /// Stateful streaming packet parser that deserializes and dispatches packets.
 class Parser
 {
-    using PacketTypes = typename details::variant_types<PacketVariant>::types;
+    using PacketTypes = details::variant_types<PacketVariant>::types;
 
     enum ParseOutput {
         False,
@@ -604,7 +604,7 @@ class Parser
 
     template<typename PacketType, size_t Index>
     using FieldType =
-        typename details::member_pointer_traits<std::tuple_element_t<Index, decltype(PacketType::fields)>>::member_type;
+        details::member_pointer_traits<std::tuple_element_t<Index, decltype(PacketType::fields)>>::member_type;
 
     QByteArray m_array{};
     Type m_state = Type::None;
@@ -803,7 +803,7 @@ class Parser
     {
         CTRACK;
 
-        using Types = typename details::variant_types<PacketVariant>::types;
+        using Types = details::variant_types<PacketVariant>::types;
         constexpr size_t N = std::tuple_size_v<Types>;
         constexpr size_t TABLE_SIZE = static_cast<size_t>(Type::MAXIMUM) + 1;
 
