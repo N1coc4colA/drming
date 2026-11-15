@@ -160,7 +160,7 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
         const auto key = keyFor(sender, senderPort);
 
         // Active client?
-        if (auto client = m_clients.value(key, nullptr)) {
+        if (const auto client = m_clients.value(key, nullptr)) {
             client->incomingEncryptedData(dgram);
             continue;
         }
@@ -223,7 +223,7 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
 
 void Server::onClientDisconnected()
 {
-    if (auto client = qobject_cast<NetworkClient *>(sender())) {
+    if (const auto client = qobject_cast<NetworkClient *>(sender())) {
         removeClient(client);
     }
 }

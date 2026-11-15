@@ -83,8 +83,16 @@ public:
     {
         return m_clientFiles;
     }
+    Q_INVOKABLE const FilesModel *clientCertsModel() const
+    {
+        return m_clientFiles;
+    }
     /// Lists certificates that can be used to authenticate the server.
     Q_INVOKABLE FilesModel *serverCertsModel()
+    {
+        return m_serverFiles;
+    }
+    Q_INVOKABLE const FilesModel *serverCertsModel() const
     {
         return m_serverFiles;
     }

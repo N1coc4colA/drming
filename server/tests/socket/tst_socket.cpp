@@ -45,7 +45,7 @@ private Q_SLOTS:
         constexpr uint32_t width = 2;
         constexpr uint32_t height = 1;
         constexpr uint32_t stride = 8;
-        uchar pixels[stride] = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
+        constexpr uchar pixels[stride] = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
         const auto descriptor = DrmFormat::resolve(DRM_FORMAT_ABGR8888);
         QVERIFY(descriptor.has_value());
 
@@ -69,7 +69,7 @@ private Q_SLOTS:
         primary.fill(Qt::black);
 
         auto composite = primary.copy();
-        CursorFrameBuffer invalid{};
+        constexpr CursorFrameBuffer invalid{};
         const auto descriptor = DrmFormat::resolve(DRM_FORMAT_ARGB8888);
         QVERIFY(descriptor.has_value());
         DisplayReader::compositeWithCursor(primary, invalid, *descriptor, composite);
@@ -135,7 +135,7 @@ private Q_SLOTS:
         TestStreamSocket socket;
         const auto initialKey = socket.getKey();
         const auto initialStamp = socket.getKeystamp();
-        QSignalSpy keySpy(&socket, &UdpStreamSocket::keyChanged);
+        const QSignalSpy keySpy(&socket, &UdpStreamSocket::keyChanged);
         socket.setKey(initialKey, initialStamp);
         QCOMPARE(keySpy.count(), 0);
         socket.setKey(QByteArrayLiteral("server-test-key"), 12);

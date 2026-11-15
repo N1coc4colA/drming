@@ -83,6 +83,10 @@ public:
     {
         return m_clientsOwner;
     }
+    inline const QObject *getClientsOwner() const
+    {
+        return m_clientsOwner;
+    }
 
 Q_SIGNALS:
     /// Emitted when the last connected client disconnects.

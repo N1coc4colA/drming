@@ -148,7 +148,17 @@ public:
         return m_instance;
     }
 
+    const T &operator->() const
+    {
+        return m_instance;
+    }
+
     auto &object()
+    {
+        return m_instance.m_object;
+    }
+
+    const auto &object() const
     {
         return m_instance.m_object;
     }

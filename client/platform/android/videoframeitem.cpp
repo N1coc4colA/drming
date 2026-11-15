@@ -185,7 +185,7 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
         }
 
         if (textureChanged && !localImage.isNull()) [[likely]] {
-            if (auto fallbackTex = window()->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque))
+            if (const auto fallbackTex = window()->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque))
                 [[likely]] {
                 fallbackTex->setFiltering(QSGTexture::Linear);
                 node->setTexture(fallbackTex);

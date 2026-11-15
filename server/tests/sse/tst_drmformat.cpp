@@ -10,7 +10,7 @@ class TestDrmFormat : public QObject
 private Q_SLOTS:
     void directLayoutsHaveNoConvertFn()
     {
-        for (uint32_t fourcc :
+        for (const uint32_t fourcc :
             { DRM_FORMAT_ARGB8888, DRM_FORMAT_XRGB8888, DRM_FORMAT_RGB888, DRM_FORMAT_BGR888, DRM_FORMAT_RGB565 }) {
             const auto d = DrmFormat::resolve(fourcc);
             QVERIFY2(d.has_value(), qPrintable(QString::number(fourcc, 16)));
@@ -20,7 +20,7 @@ private Q_SLOTS:
 
     void swappedLayoutsHaveConvertFn()
     {
-        for (uint32_t fourcc :
+        for (const uint32_t fourcc :
             { DRM_FORMAT_ABGR8888, DRM_FORMAT_XBGR8888, DRM_FORMAT_BGR565, DRM_FORMAT_BGRA8888, DRM_FORMAT_BGRX8888 }) {
             const auto d = DrmFormat::resolve(fourcc);
             QVERIFY(d.has_value());

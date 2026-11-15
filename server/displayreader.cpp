@@ -140,14 +140,14 @@ DisplayReader::~DisplayReader()
 /// Frees cached buffer mappings and closes DRM resources.
 void DisplayReader::teardown()
 {
-    for (auto &c : m_primaryBuffers) {
+    for (const auto &c : m_primaryBuffers) {
         if (c.data && c.size) {
             munmap(c.data, c.size);
         }
     }
     m_primaryBuffers.clear();
 
-    for (auto &c : m_cursorBuffers) {
+    for (const auto &c : m_cursorBuffers) {
         if (c.data && c.size) {
             munmap(c.data, c.size);
         }
@@ -338,7 +338,7 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
         }
 
         if (m_primaryBuffers.size() >= kMaxCachedPrimaries) {
-            auto evict = m_primaryBuffers.begin();
+            const auto evict = m_primaryBuffers.begin();
             if (evict->data && evict->size) {
                 munmap(evict->data, evict->size);
             }
@@ -435,7 +435,7 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
             }
 
             if (m_cursorBuffers.size() >= kMaxCachedCursors) {
-                auto evict = m_cursorBuffers.begin();
+                const auto evict = m_cursorBuffers.begin();
                 if (evict->data && evict->size) {
                     munmap(evict->data, evict->size);
                 }

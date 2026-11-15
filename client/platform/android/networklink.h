@@ -39,6 +39,10 @@ public:
     {
         return m_item;
     }
+    inline const VideoFrameItem *item() const
+    {
+        return m_item;
+    }
 
     /**
      * Associates the QML item that displays decoded frames.

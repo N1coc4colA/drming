@@ -286,7 +286,7 @@ void Display::onConnected()
 
 void Display::onDisconnected()
 {
-    if (auto client = qobject_cast<NetworkClient *>(sender())) {
+    if (const auto client = qobject_cast<NetworkClient *>(sender())) {
         qDebug() << "Client disconnected" << client->peerAddress() << client->peerPort();
         m_clients.remove(client);
         client->deleteLater();

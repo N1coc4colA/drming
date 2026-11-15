@@ -50,7 +50,7 @@ void AvahiPublisher::client_callback(AvahiClient *client, const AvahiClientState
     }
 
     const auto ifaceName = c->m_iface.name().toLocal8Bit();
-    auto iface = ifaceName.isEmpty() ? AVAHI_IF_UNSPEC : to_signed(if_nametoindex(ifaceName.constData()));
+    const auto iface = ifaceName.isEmpty() ? AVAHI_IF_UNSPEC : to_signed(if_nametoindex(ifaceName.constData()));
     if (!ifaceName.isEmpty() && iface == 0) {
         qCritical() << "Interface not found for mDNS:" << c->m_iface.name();
         return;

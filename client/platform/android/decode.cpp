@@ -609,7 +609,7 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
         }
 
         if (m_eglImageCache.size() >= kMaxCachedEglImages) [[unlikely]] {
-            auto victim = m_eglImageCache.begin();
+            const auto victim = m_eglImageCache.begin();
             eglDestroyImageKHR(display, victim->second.image);
             AHardwareBuffer_release(victim->second.bufferRef);
             m_eglImageCache.erase(victim);

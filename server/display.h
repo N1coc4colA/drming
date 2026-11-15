@@ -26,6 +26,10 @@ public:
     {
         return m_ss;
     }
+    const StreamSocket &streamSocket() const
+    {
+        return m_ss;
+    }
 
     /// Updates dynamic encoding settings based on client telemetry.
     void applyClientTelemetry(const Packets::ClientTelemetry &t);

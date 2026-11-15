@@ -178,7 +178,7 @@ void NetworkClient::notifyKey()
         return;
     }
 
-    auto &ss = m_display->streamSocket();
+    const auto &ss = m_display->streamSocket();
 
     Packets::KeyUpdate ku{
         .keyStamp{ ss.getKeystamp() },

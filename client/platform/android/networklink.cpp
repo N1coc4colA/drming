@@ -180,7 +180,7 @@ NetworkLink::NetworkLink(QObject *parent)
             static constexpr Packets::RequestKeyframe pkt{};
             // [NOTE]: Althogh the proper thing to do would be to have ret.value() < generated_size,
             // for now we just check that some data's been written.
-            if (auto ret = write(Packets::Writer::generate(pkt)); !ret.has_value() || ret.value() <= 0) {
+            if (const auto ret = write(Packets::Writer::generate(pkt)); !ret.has_value() || ret.value() <= 0) {
                 qWarning() << "Failed to send RequestKeyframe";
             }
         },
