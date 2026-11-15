@@ -6,7 +6,7 @@ namespace Platform {
 
 VideoLink::VideoLink(QObject *parent)
     : UdpStreamSocket(parent)
-    , Packets::Parser<VideoLink, Settings::errorLimit>(*this)
+    , Parser(*this)
 {
     QObject::connect(this, &UdpStreamSocket::connected, [] { qDebug() << "VideoLink connected."; });
 }
@@ -192,13 +192,13 @@ NetworkLink::NetworkLink(QObject *parent)
     QObject::connect(this, &NetworkLink::connectionInitialised, this, [this] {
         QMetaObject::invokeMethod(m_vlink, &VideoLink::reset);
         m_waitedForKey = false;
-        Parser::clearRules();
+        clearRules();
     });
     QObject::connect(this, &NetworkLink::connectionReady, this, [this] { m_requireCheck.start(); });
     QObject::connect(this, &NetworkLink::closed, this, [this] {
         QMetaObject::invokeMethod(m_vlink, &VideoLink::reset);
         m_waitedForKey = false;
-        Parser::clearRules();
+        clearRules();
     });
     QObject::connect(&m_requireCheck, &QTimer::timeout, this, &NetworkLink::performRequirements);
     QObject::connect(this, &NetworkLink::closed, &m_requireCheck, &QTimer::stop);

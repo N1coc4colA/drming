@@ -107,7 +107,7 @@ NetworkClient::NetworkClient(
     QObject *parent
 )
     : QObject(parent)
-    , Packets::Parser<NetworkClient>(*this)
+    , Parser(*this)
     , m_address(address)
     , m_port(port)
     , m_rw(*this, dtls, &sharedSocket.first, &sharedSocket.second)

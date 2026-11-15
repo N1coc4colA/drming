@@ -98,7 +98,7 @@ protected:
     /// Adds encoded bytes to the packet parser.
     void addData(const QByteArray &data) override
     {
-        Parser::pushData(data);
+        pushData(data);
     }
 
 private:
@@ -117,7 +117,7 @@ class AudioLink : public UdpStreamSocket, public Packets::Parser<AudioLink, Sett
 public:
     explicit AudioLink(QObject *parent = nullptr)
         : UdpStreamSocket(parent)
-        , Packets::Parser<AudioLink, Settings::errorLimit>(*this)
+        , Parser(*this)
     {
         QObject::connect(this, &UdpStreamSocket::connected, [] { qDebug() << "AudioLink connected."; });
     }
@@ -137,7 +137,7 @@ protected:
     /// Adds encoded bytes to the packet parser.
     void addData(const QByteArray &data) override
     {
-        Parser::pushData(data);
+        pushData(data);
     }
 };
 
@@ -160,7 +160,7 @@ public:
             QMetaObject::invokeMethod(m_vlink, &VideoLink::clear);
         }
 
-        Parser::clear();
+        clear();
     }
 
     void processPacket(const Packets::KeyUpdate &ku);
@@ -169,7 +169,7 @@ public:
     /// Clears parser state after packet errors.
     void onPacketErrors()
     {
-        Parser::clear();
+        clear();
     }
 
     /// Associates the QML item that displays decoded frames.
@@ -178,7 +178,7 @@ public:
     /// Clears stale packets before queuing new data.
     void pushData(const QByteArray &additional) override
     {
-        Parser::clear();
+        clear();
         Parser::pushData(additional);
     }
 protected:

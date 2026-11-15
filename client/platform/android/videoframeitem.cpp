@@ -53,9 +53,9 @@ void VideoFrameItem::setDecoder(VideoDecoder *decoder)
 
     const auto texMode = m_textureMode.load(std::memory_order_acquire);
     if (decoder) [[likely]] {
-        if (texMode != TextureMode::OES) [[unlikely]] {
+        if (texMode != OES) [[unlikely]] {
             m_previousTextureMode.store(texMode, std::memory_order_release);
-            m_textureMode.store(TextureMode::OES, std::memory_order_release);
+            m_textureMode.store(OES, std::memory_order_release);
         }
 
         update();
@@ -83,9 +83,9 @@ void VideoFrameItem::setImage(const QImage &image, const quint64 receiveNs)
     }
 
     const auto texMode = m_textureMode.load(std::memory_order_acquire);
-    if (texMode != TextureMode::Simple) [[unlikely]] {
+    if (texMode != Simple) [[unlikely]] {
         m_previousTextureMode.store(texMode, std::memory_order_release);
-        m_textureMode.store(TextureMode::Simple, std::memory_order_release);
+        m_textureMode.store(Simple, std::memory_order_release);
     }
 
     if (thread() == QThread::currentThread()) {

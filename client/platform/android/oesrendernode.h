@@ -28,7 +28,7 @@ public:
     /// Draws the external texture into the scene graph.
     void render(const RenderState *state) override;
     /// Identifies the render states modified by this node.
-    QSGRenderNode::StateFlags changedStates() const override
+    StateFlags changedStates() const override
     {
         return BlendState | DepthState | StencilState | ScissorState;
     }

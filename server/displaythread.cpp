@@ -20,7 +20,7 @@ DisplayThread::~DisplayThread()
 void DisplayThread::addClient(NetworkClient *client)
 {
     qDebug() << "Adding client to thread";
-    const QPointer<NetworkClient> guardedClient(client);
+    const QPointer guardedClient(client);
     QMetaObject::invokeMethod(
         m_display,
         [display = m_display, guardedClient] {

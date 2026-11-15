@@ -33,7 +33,7 @@ private Q_SLOTS:
 static std::vector<Packets::PacketVariant> roundTrip(const QByteArray &bytes)
 {
     CollectingReceiver r;
-    Packets::Parser<CollectingReceiver> parser(r);
+    Packets::Parser parser(r);
     parser.pushData(bytes);
     return r.received;
 }
@@ -83,7 +83,7 @@ void TestPackets::unknownTypeIsSkipped()
     const auto valid = Packets::Writer::generate(p);
 
     CollectingReceiver r;
-    Packets::Parser<CollectingReceiver> parser(r);
+    Packets::Parser parser(r);
     parser.pushData(bogus + valid);
 
     QCOMPARE(r.received.size(), std::size_t{ 1 });
@@ -102,7 +102,7 @@ void TestPackets::oversizedVariableFieldIsRejected()
     bytes[6] = bytes[7] = bytes[8] = bytes[9] = static_cast<char>(0xff);
 
     CollectingReceiver r;
-    Packets::Parser<CollectingReceiver> parser(r);
+    Packets::Parser parser(r);
     parser.pushData(bytes);
     QVERIFY(r.received.empty());
 }

@@ -165,7 +165,7 @@ bool VideoDecoder::init(const int width, const int height)
     // Set up the image listener (callback from decoder thread)
     AImageReader_ImageListener listener;
     listener.context = this;
-    listener.onImageAvailable = VideoDecoder::onImageAvailable;
+    listener.onImageAvailable = &onImageAvailable;
     AImageReader_setImageListener(m_imageReader, &listener);
 
     // Create MediaCodec decoder

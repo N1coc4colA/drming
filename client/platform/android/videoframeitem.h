@@ -79,9 +79,9 @@ private:
     VideoDecoder *m_decoder = nullptr;
 
     /// Active texture rendering mode.
-    std::atomic<TextureMode> m_textureMode{ TextureMode::Simple };
+    std::atomic<TextureMode> m_textureMode{ Simple };
     /// Texture rendering mode from previous paint cycle.
-    std::atomic<TextureMode> m_previousTextureMode{ TextureMode::Simple };
+    std::atomic<TextureMode> m_previousTextureMode{ Simple };
 
     /// Mutex protecting the frame presentation queue.
     QMutex m_mtx{};

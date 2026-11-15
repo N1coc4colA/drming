@@ -118,7 +118,7 @@ DispSetup::DispSetup(const QString &instanceName)
     , m_connectorPath(m_basePath + "/connectors/connector0")
     , m_enabledPath(m_basePath + "/enabled")
 {
-    constexpr std::array<bool (DispSetup::*)() const, 14> funcs{
+    constexpr std::array funcs{
         &DispSetup::makeEnvChecks,
         &DispSetup::makeVkmsInstance,
         &DispSetup::makeCrtc,

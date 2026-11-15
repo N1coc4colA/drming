@@ -12,7 +12,7 @@ ImageDecoder::ImageDecoder(QObject *parent)
 ImageDecoder::~ImageDecoder()
 {
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard lock(m_mutex);
         m_running = false;
         m_pendingFrames.clear();
     }
@@ -25,14 +25,14 @@ ImageDecoder::~ImageDecoder()
 
 void ImageDecoder::setFrameCallback(FrameCallback callback)
 {
-    std::lock_guard<std::mutex> lock(m_cbMutex);
+    std::lock_guard lock(m_cbMutex);
     m_callback = std::move(callback);
 }
 
 void ImageDecoder::queueFrame(QByteArray data, QByteArray format, const quint64 receiveNs)
 {
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard lock(m_mutex);
 
         m_pendingFrames.push_back({ .data = std::move(data), .format = std::move(format), .receiveNs = receiveNs });
         while (m_pendingFrames.size() > MaxPendingFrames) {
@@ -54,7 +54,7 @@ void ImageDecoder::queueFrame(QByteArray data, QByteArray format, const quint64 
 
 void ImageDecoder::reset()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
 
     m_pendingFrames.clear();
     if (m_telemetry) {
@@ -67,7 +67,7 @@ void ImageDecoder::workerLoop()
     while (true) {
         PendingFrame frame{};
         {
-            std::unique_lock<std::mutex> lock(m_mutex);
+            std::unique_lock lock(m_mutex);
             m_cv.wait(lock, [this] { return !m_running || !m_pendingFrames.empty(); });
             if (!m_running && m_pendingFrames.empty()) {
                 break;
@@ -88,7 +88,7 @@ void ImageDecoder::workerLoop()
                 QImage converted = img.convertToFormat(QImage::Format_RGBA8888);
                 FrameCallback cb;
                 {
-                    std::lock_guard<std::mutex> lock(m_cbMutex);
+                    std::lock_guard lock(m_cbMutex);
                     cb = m_callback;
                 }
 

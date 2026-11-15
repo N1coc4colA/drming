@@ -806,7 +806,7 @@ class DtlsReader : public DtlsCommon<T>, public DtlsReaderImpl<T, DtlsReader<T>>
 public:
     explicit DtlsReader(T &owner, QDtls *dtls, QUdpSocket *socket, QMutex *mtx = nullptr)
         : DtlsCommon<T>(owner, dtls, socket, mtx)
-        , DtlsReaderImpl<T, DtlsReader<T>>(*this)
+        , DtlsReaderImpl<T, DtlsReader>(*this)
     {}
 };
 
@@ -817,7 +817,7 @@ class DtlsWriter : public DtlsCommon<T>, public DtlsWriterImpl<T, DtlsWriter<T>>
 public:
     explicit DtlsWriter(T &owner, QDtls *dtls, QUdpSocket *socket, QMutex *mtx = nullptr)
         : DtlsCommon<T>(owner, dtls, socket, mtx)
-        , DtlsWriterImpl<T, DtlsWriter<T>>(*this)
+        , DtlsWriterImpl<T, DtlsWriter>(*this)
     {}
 };
 
