@@ -241,28 +241,36 @@ void NetworkLink::performRequirements()
         // m_vlink->waitFor(Packets::Type::ClientResolution);
 
         static constexpr Packets::RequestClientResolution resReq{};
-        write(Packets::Writer::generate(resReq));
+        if (!write(Packets::Writer::generate(resReq))) {
+            qDebug() << "Failed to perform resolution request";
+        }
     }
 
     if (!m_waitedForKey) [[unlikely]] {
         waitFor(Packets::Type::KeyUpdate);
 
         static constexpr Packets::RequestKey keyReq{};
-        write(Packets::Writer::generate(keyReq));
+        if (!write(Packets::Writer::generate(keyReq))) {
+            qDebug() << "Failed to perform key request";
+        }
     }
 
     if (!m_waitedForAudioSource) [[unlikely]] {
         waitFor(Packets::Type::AudioSource);
 
         static constexpr Packets::RequestAudioSource audReq{};
-        write(Packets::Writer::generate(audReq));
+        if (!write(Packets::Writer::generate(audReq))) {
+            qDebug() << "Failed to perform audio src request";
+        }
     }
 
     if (!m_waitedForVideoSource) [[unlikely]] {
         waitFor(Packets::Type::VideoSource);
 
         static constexpr Packets::RequestVideoSource vidReq{};
-        write(Packets::Writer::generate(vidReq));
+        if (!write(Packets::Writer::generate(vidReq))) {
+            qDebug() << "Failed to perform video src request";
+        }
     }
 }
 
