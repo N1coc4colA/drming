@@ -481,8 +481,8 @@ private:
         // Batch 32 datagrams per syscall. Everything below is stack-allocated
         // so there's no per-write heap churn beyond the payload buffers.
         static constexpr int kBatch = 32;
-        struct mmsghdr mmsgs[kBatch];
-        struct iovec iovs[kBatch];
+        mmsghdr mmsgs[kBatch];
+        iovec iovs[kBatch];
         QByteArray buffers[kBatch];
         uint inFlight = 0;
 
