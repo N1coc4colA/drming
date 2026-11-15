@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
     }
 
     QSocketNotifier sigNotifier(sigFd[1], QSocketNotifier::Read);
-    QObject::connect(&sigNotifier, &QSocketNotifier::activated, [&sigNotifier]() {
+    QObject::connect(&sigNotifier, &QSocketNotifier::activated, [&sigNotifier] {
         char byte;
         (void)::read(sigFd[1], &byte, sizeof(byte));
         sigNotifier.setEnabled(false);
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
             client->close();
         }
     });
-    QObject::connect(&videoSocket, &StreamSocket::keyChanged, [&videoSocket, &audioSocket]() {
+    QObject::connect(&videoSocket, &StreamSocket::keyChanged, [&videoSocket, &audioSocket] {
         audioSocket.setKey(videoSocket.getKey(), videoSocket.getKeystamp());
     });
 

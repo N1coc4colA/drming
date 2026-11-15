@@ -36,11 +36,11 @@ VideoFrameItem::VideoFrameItem(QQuickItem *parent)
 {
     setFlag(ItemHasContents, true);
 
-    connect(this, &VideoFrameItem::visibleChanged, this, [this]() {
+    connect(this, &VideoFrameItem::visibleChanged, this, [this] {
         isVisible() ? m_aui->enterFullScreen() : m_aui->leaveFullScreen();
     });
     // In VideoFrameItem's ctor, if m_decoder is set:
-    connect(window(), &QQuickWindow::sceneGraphInvalidated, this, [this]() {
+    connect(window(), &QQuickWindow::sceneGraphInvalidated, this, [this] {
         if (m_decoder) {
             m_decoder->invalidateGLResources();
         }
@@ -91,7 +91,7 @@ void VideoFrameItem::setImage(const QImage &image, const quint64 receiveNs)
     if (thread() == QThread::currentThread()) {
         update();
     } else {
-        QMetaObject::invokeMethod(this, [this]() { update(); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this] { update(); }, Qt::QueuedConnection);
     }
 }
 

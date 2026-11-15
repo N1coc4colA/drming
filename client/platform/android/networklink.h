@@ -119,7 +119,7 @@ public:
         : UdpStreamSocket(parent)
         , Packets::Parser<AudioLink, Settings::errorLimit>(*this)
     {
-        QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "AudioLink connected."; });
+        QObject::connect(this, &UdpStreamSocket::connected, [] { qDebug() << "AudioLink connected."; });
     }
 
     /// Clears parser state after packet errors.

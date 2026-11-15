@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
         QApplication::setPalette(palette.value());
     }
 
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, []() { qDebug().noquote() << ctrack::result_as_string(); });
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, [] { qDebug().noquote() << ctrack::result_as_string(); });
 
     return QApplication::exec();
 }

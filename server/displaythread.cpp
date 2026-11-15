@@ -6,7 +6,7 @@ DisplayThread::DisplayThread(Display *display, QObject *parent)
     : QThread(parent)
     , m_display(display)
 {
-    connect(m_display, &Display::nowFree, this, [this]() { Q_EMIT nowFree(this); }, Qt::DirectConnection);
+    connect(m_display, &Display::nowFree, this, [this] { Q_EMIT nowFree(this); }, Qt::DirectConnection);
 }
 
 DisplayThread::~DisplayThread()
@@ -23,7 +23,7 @@ void DisplayThread::addClient(NetworkClient *client)
     const QPointer<NetworkClient> guardedClient(client);
     QMetaObject::invokeMethod(
         m_display,
-        [display = m_display, guardedClient]() {
+        [display = m_display, guardedClient] {
             if (guardedClient) {
                 display->addClient(guardedClient);
             }

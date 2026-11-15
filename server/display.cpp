@@ -96,7 +96,7 @@ void Display::addClient(NetworkClient *client)
     const QPointer guardedClient(client);
     QMetaObject::invokeMethod(
         client,
-        [guardedClient, this]() {
+        [guardedClient, this] {
             if (guardedClient) {
                 guardedClient->setDisplay(this);
             }
@@ -119,7 +119,7 @@ void Display::reinit()
 
     if (m_pollTimer.isActive()) {
         m_pollTimer.stop();
-        QTimer::singleShot(1500, this, [this]() {
+        QTimer::singleShot(1500, this, [this] {
             if (!m_clients.isEmpty()) {
                 constexpr Packets::Reinit reinitPkt{};
                 sendData(Packets::Writer::generate(reinitPkt));

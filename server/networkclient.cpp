@@ -86,7 +86,7 @@ void NetworkClient::processPacket(const Packets::ClientTelemetry &t)
     if (m_display) {
         QMetaObject::invokeMethod(
             m_display,
-            [display = m_display, t]() { display->applyClientTelemetry(t); },
+            [display = m_display, t] { display->applyClientTelemetry(t); },
             Qt::QueuedConnection
         );
     }

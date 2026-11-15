@@ -8,7 +8,7 @@ VideoLink::VideoLink(QObject *parent)
     : UdpStreamSocket(parent)
     , Packets::Parser<VideoLink, Settings::errorLimit>(*this)
 {
-    QObject::connect(this, &UdpStreamSocket::connected, []() { qDebug() << "VideoLink connected."; });
+    QObject::connect(this, &UdpStreamSocket::connected, [] { qDebug() << "VideoLink connected."; });
 }
 
 VideoLink::~VideoLink()
@@ -16,7 +16,7 @@ VideoLink::~VideoLink()
     if (m_item) {
         QMetaObject::invokeMethod(
             m_item,
-            [item = m_item]() { item->setDecoder(nullptr); },
+            [item = m_item] { item->setDecoder(nullptr); },
             Qt::BlockingQueuedConnection
         );
     }
@@ -175,7 +175,7 @@ NetworkLink::NetworkLink(QObject *parent)
         m_vlink,
         &VideoLink::keyframeRequested,
         this,
-        [this]() {
+        [this] {
             CTRACK;
             static constexpr Packets::RequestKeyframe pkt{};
             // [NOTE]: Althogh the proper thing to do would be to have ret.value() < generated_size,
@@ -189,13 +189,13 @@ NetworkLink::NetworkLink(QObject *parent)
 
     QObject::connect(m_vlink, &VideoLink::activity, this, &NetworkLink::markActivity, Qt::QueuedConnection);
 
-    QObject::connect(this, &NetworkLink::connectionInitialised, this, [this]() {
+    QObject::connect(this, &NetworkLink::connectionInitialised, this, [this] {
         QMetaObject::invokeMethod(m_vlink, &VideoLink::reset);
         m_waitedForKey = false;
         Parser::clearRules();
     });
-    QObject::connect(this, &NetworkLink::connectionReady, this, [this]() { m_requireCheck.start(); });
-    QObject::connect(this, &NetworkLink::closed, this, [this]() {
+    QObject::connect(this, &NetworkLink::connectionReady, this, [this] { m_requireCheck.start(); });
+    QObject::connect(this, &NetworkLink::closed, this, [this] {
         QMetaObject::invokeMethod(m_vlink, &VideoLink::reset);
         m_waitedForKey = false;
         Parser::clearRules();
@@ -282,7 +282,7 @@ void NetworkLink::setItem(QObject *item)
         return;
     }
 
-    QMetaObject::invokeMethod(m_vlink, [this, vitem]() { m_vlink->setItem(vitem); });
+    QMetaObject::invokeMethod(m_vlink, [this, vitem] { m_vlink->setItem(vitem); });
 }
 
 void NetworkLink::closePlatform()
@@ -306,7 +306,7 @@ void NetworkLink::processPacket(const Packets::KeyUpdate &ku)
 
     const auto keyData = ku.key.data;
     const auto keyStamp = ku.keyStamp.data;
-    QMetaObject::invokeMethod(m_vlink, [this, keyData, keyStamp]() { m_vlink->setKey(keyData, keyStamp); });
+    QMetaObject::invokeMethod(m_vlink, [this, keyData, keyStamp] { m_vlink->setKey(keyData, keyStamp); });
 }
 
 void NetworkLink::processPacket(const Packets::AudioSource &src)
@@ -333,7 +333,7 @@ void NetworkLink::processPacket(const Packets::AudioSource &src)
     m_waitedForAudioSource = true;
     m_lock.lock();
 
-    QMetaObject::invokeMethod(m_alink, [this, addr, port]() {
+    QMetaObject::invokeMethod(m_alink, [this, addr, port] {
         const auto sock = m_alink->socket();
         if (sock ? (sock->peerPort() != port || sock->peerAddress() != addr) : true) {
             m_alink->close();
@@ -366,7 +366,7 @@ void NetworkLink::processPacket(const Packets::VideoSource &src)
     m_waitedForVideoSource = true;
     m_lock.lock();
 
-    QMetaObject::invokeMethod(m_vlink, [this, addr, port]() {
+    QMetaObject::invokeMethod(m_vlink, [this, addr, port] {
         const auto sock = m_vlink->socket();
         if (sock ? (sock->peerPort() != port || sock->peerAddress() != addr) : true) {
             m_vlink->close();

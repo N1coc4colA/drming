@@ -69,7 +69,7 @@ bool DisplayManager::registerClient(NetworkClient *client)
     const QPointer guardedClient(client);
     QMetaObject::invokeMethod(
         m_thread,
-        [this, guardedClient]() {
+        [this, guardedClient] {
             if (guardedClient) {
                 m_thread->addClient(guardedClient);
             }
