@@ -126,7 +126,7 @@ void OESRenderNode::render(const RenderState *state)
         y1,
     };
     // MirrorVertically-equivalent: flip V so the OES source (bottom-left origin) displays right-side up.
-    const GLfloat texCoords[] = {
+    constexpr GLfloat texCoords[] = {
         0.0f,
         0.0f,
         1.0f,

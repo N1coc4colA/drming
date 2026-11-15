@@ -72,7 +72,7 @@ protected:
 
     PacketCallback m_callback{};
 
-    explicit Encoder(PacketCallback callback, int fps)
+    explicit Encoder(const PacketCallback &callback, const int fps)
         : m_fps(fps)
         , m_callback(callback)
     {}

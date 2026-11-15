@@ -25,7 +25,7 @@ int sigFd[2] = { -1, -1 };
 /// Signal handler that writes a byte to the self-pipe to initiate shutdown.
 void requestShutdown(const int sig)
 {
-    const char byte = 1;
+    constexpr char byte = 1;
     // write() and signal() are async-signal-safe; qApp->quit() is not.
     ::write(sigFd[0], &byte, sizeof(byte));
     // second Ctrl+C gets the default (hard) action

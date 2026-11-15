@@ -115,7 +115,7 @@ static void onConnectivityChanged(const JNIEnv *env, const jclass clazz, const j
 
 /// Imports the file selected by the Android picker.
 static void onFileSelected(
-    JNIEnv *env,
+    const JNIEnv *env,
     const jclass clazz,
     const jint operation,
     const jstring name,

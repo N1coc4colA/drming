@@ -123,7 +123,7 @@ void Display::reinit()
         m_pollTimer.stop();
         QTimer::singleShot(1500, this, [this]() {
             if (!m_clients.isEmpty()) {
-                const Packets::Reinit reinitPkt{};
+                constexpr Packets::Reinit reinitPkt{};
                 sendData(Packets::Writer::generate(reinitPkt));
                 m_pollTimer.start();
                 m_prevSize = {};
@@ -327,7 +327,7 @@ public:
         : Display(connectorName, ss, inPlaceComposite, parent)
         , m_encoder(
               Encoder::createEncoder(
-                  [this](const uint8_t *data, int size, int64_t pts) { this->h265dataForward(data, size, pts); },
+                  [this](const uint8_t *data, const int size, const int64_t pts) { this->h265dataForward(data, size, pts); },
                   Settings::maxForwardFps
               )
           )

@@ -51,7 +51,7 @@ public:
         connect(&m_socket, &QUdpSocket::errorOccurred, this, &UdpStreamSocket::errorOccurred);
         connect(&m_socket, &QUdpSocket::readyRead, this, &UdpStreamSocket::onReadyRead4);
 
-        const auto bufferSize = 128 * 1024 * 1024;
+        constexpr auto bufferSize = 128 * 1024 * 1024;
         m_socket.setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, bufferSize);
 
         rotateKey();
