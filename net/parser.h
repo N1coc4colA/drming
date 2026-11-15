@@ -189,11 +189,11 @@ struct Field
 
     T data{};
 
-    inline T &operator->()
+    T &operator->()
     {
         return data;
     }
-    inline const T &operator->() const
+    const T &operator->() const
     {
         return data;
     }
@@ -230,7 +230,7 @@ struct BoundField : public Field<T, false, true>
     LimitType min = DefaultMin;
     LimitType max = DefaultMax;
 
-    inline constexpr void setBounds(const LimitType mn, const LimitType mx)
+    constexpr void setBounds(const LimitType mn, const LimitType mx)
     {
         min = std::max(mn, DefaultMin);
         max = std::min(mx, DefaultMax);
@@ -262,7 +262,7 @@ struct VariableBoundField : public SizedField<T, LimitType>
     LimitType min = DefaultMin;
     LimitType max = DefaultMax;
 
-    inline constexpr void setBounds(const LimitType mn, const LimitType mx)
+    constexpr void setBounds(const LimitType mn, const LimitType mx)
     {
         min = std::max(mn, DefaultMin);
         max = std::min(mx, DefaultMax);
@@ -618,7 +618,7 @@ class Parser
     int m_errorCount = 0;
     bool m_discardCurrent = false;
 
-    inline void resetToResync()
+    void resetToResync()
     {
         m_state = Type::None;
         m_parsed = 0;
@@ -629,7 +629,7 @@ class Parser
 
     template<typename PacketType, size_t Index>
         requires FieldType<PacketType, Index>::__is_variable and FieldType<PacketType, Index>::__has_limits
-    inline ParseOutput read()
+    ParseOutput read()
     {
         using Field = FieldType<PacketType, Index>;
         auto &packet = std::get<PacketType>(m_current);
@@ -654,7 +654,7 @@ class Parser
 
     template<typename PacketType, size_t Index>
         requires(not FieldType<PacketType, Index>::__is_variable) and FieldType<PacketType, Index>::__has_limits
-    inline ParseOutput read()
+    ParseOutput read()
     {
         using Field = FieldType<PacketType, Index>;
         auto &packet = std::get<PacketType>(m_current);
@@ -676,7 +676,7 @@ class Parser
 
     template<typename PacketType, size_t Index>
         requires(not FieldType<PacketType, Index>::__is_variable) and (not FieldType<PacketType, Index>::__has_limits)
-    inline ParseOutput read()
+    ParseOutput read()
     {
         using Field = FieldType<PacketType, Index>;
         auto &packet = std::get<PacketType>(m_current);
@@ -697,7 +697,7 @@ class Parser
     }
 
     template<typename FieldType, size_t = 0>
-    inline ParseOutput read(FieldType &field)
+    ParseOutput read(FieldType &field)
     {
         if (m_array.size() >= static_cast<qsizetype>(sizeof(FieldType))) {
             QDataStream stream(m_array);
@@ -714,7 +714,7 @@ class Parser
 
     template<typename PacketType, size_t Index>
         requires FieldType<PacketType, Index>::__is_field and FieldType<PacketType, Index>::__is_variable
-    inline ParseOutput readVariable()
+    ParseOutput readVariable()
     {
         auto &packet = std::get<PacketType>(m_current);
         auto &field = packet.*std::get<Index>(std::get<PacketType>(m_current).fields);
@@ -740,13 +740,13 @@ class Parser
 
     template<typename PacketType, size_t Index>
         requires(not(FieldType<PacketType, Index>::__is_field and FieldType<PacketType, Index>::__is_variable))
-    inline constexpr ParseOutput readVariable()
+    constexpr ParseOutput readVariable()
     {
         return True;
     }
 
     template<typename T>
-    inline ParseOutput instanceParsing()
+    ParseOutput instanceParsing()
     {
         CTRACK;
 
@@ -834,7 +834,7 @@ class Parser
             r.max = r.max;
             r.setBounds(r.min, r.max);
         }
-    inline void setBoundsHelper(Returns Class::*member, const auto min, const auto max)
+    void setBoundsHelper(Returns Class::*member, const auto min, const auto max)
     {
         auto &field = std::get<details::Index<Class, PacketTypes>::value>(m_bounds).*member;
 
@@ -848,7 +848,7 @@ public:
     {}
 
     /// Feeds raw bytes into the parser and executes parsing.
-    inline void pushData(const QByteArray &additional)
+    void pushData(const QByteArray &additional)
     {
         m_array.append(additional);
         parse();
@@ -863,23 +863,23 @@ public:
     }
 
     /// Discards incoming packets until the specified packet type is received.
-    inline void waitFor(const Type t)
+    void waitFor(const Type t)
     {
         m_waitsFor.insert(t);
     }
 
     /// Disables processing for the given packet type.
-    inline void disable(const Type t)
+    void disable(const Type t)
     {
         m_disabled.insert(t);
     }
     /// Enables processing for the given packet type.
-    inline void enable(const Type t)
+    void enable(const Type t)
     {
         m_disabled.erase(t);
     }
     /// Clears all packet wait and disable rules.
-    inline void clearRules()
+    void clearRules()
     {
         m_disabled.clear();
         m_waitsFor.clear();
@@ -985,13 +985,13 @@ class JitterBuffer
     {
         std::vector<std::optional<QByteArray>> chunks{};
 
-        inline bool isComplete() const
+        bool isComplete() const
         {
             return !chunks.empty()
                 && std::none_of(chunks.cbegin(), chunks.cend(), [](const auto &opt) { return !opt.has_value(); });
         }
 
-        inline QByteArray assemble() const
+        QByteArray assemble() const
         {
             CTRACK;
 
@@ -1065,7 +1065,7 @@ public:
     // Attempt to retrieve a complete packet, oldest first.
     // Returns the assembled QByteArray if a complete timestamp is found,
     // otherwise std::nullopt.
-    inline std::optional<QByteArray> pullComplete(bool &outDroppedAny)
+    std::optional<QByteArray> pullComplete(bool &outDroppedAny)
     {
         CTRACK;
 
@@ -1088,7 +1088,7 @@ public:
 
         return std::nullopt;
     }
-    inline std::optional<QByteArray> pullComplete()
+    std::optional<QByteArray> pullComplete()
     {
         CTRACK;
 
@@ -1105,13 +1105,13 @@ public:
     }
 
     // Clear all stored data.
-    inline void clear()
+    void clear()
     {
         m_entries.clear();
     }
 
     // Optional: check if a timestamp is already complete (for debugging).
-    inline bool isComplete(const TsType ts) const
+    bool isComplete(const TsType ts) const
     {
         auto it = std::find_if(m_entries.begin(), m_entries.end(), [ts](const Entry &e) { return e.ts == ts; });
         return it != m_entries.end() && it->queue.isComplete();

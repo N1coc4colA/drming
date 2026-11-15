@@ -58,30 +58,30 @@ public:
     }
 
     /// Returns the current encryption keystamp identifier.
-    inline Packets::Keystamp getKeystamp() const
+    Packets::Keystamp getKeystamp() const
     {
         return m_ks;
     }
     /// Returns the active session encryption key.
-    inline QByteArray getKey() const
+    QByteArray getKey() const
     {
         return m_key;
     }
 
     /// Returns the bound local IPv4 address.
-    inline auto ipv4Address() const
+    auto ipv4Address() const
     {
         return m_ipAddress;
     }
 
     /// Returns a pointer to the underlying QUdpSocket.
-    inline auto socket()
+    auto socket()
     {
         return &m_socket;
     }
 
     /// Clears all chunks from the internal jitter buffer.
-    inline auto clearJitterBuffer()
+    void clearJitterBuffer()
     {
         m_jitterBuffer.clear();
     };
@@ -302,7 +302,7 @@ private:
         return d;
     }
 
-    static inline QByteArray generateIV()
+    static QByteArray generateIV()
     {
         return generate(Settings::ivSize);
     }
@@ -656,7 +656,7 @@ public:
     {}
 
     /// Encrypts and transmits a payload split across DTLS datagram chunks.
-    inline std::optional<quint64> writeDtls(const QByteArray &data)
+    std::optional<quint64> writeDtls(const QByteArray &data)
     {
         CTRACK;
 
@@ -739,7 +739,7 @@ public:
     {}
 
     /// Decrypts an incoming DTLS datagram and pushes payload chunks to the jitter buffer.
-    inline void processDtls(const QByteArray &dgram)
+    void processDtls(const QByteArray &dgram)
     {
         CTRACK;
 

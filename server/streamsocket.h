@@ -14,12 +14,12 @@ class StreamSocket : public UdpStreamSocket
     Q_OBJECT
 
 public:
-    inline explicit StreamSocket(QObject *parent = nullptr)
+    explicit StreamSocket(QObject *parent = nullptr)
         : UdpStreamSocket(parent)
     {}
 
 protected:
-    inline void addData(const QByteArray &) override
+    void addData(const QByteArray &) override
     {}
 };
 

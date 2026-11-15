@@ -22,18 +22,18 @@ struct PeerKey
     /// IPv6 interface scope identifier.
     QString scopeId{};
 
-    inline bool operator==(const PeerKey &o) const noexcept
+    bool operator==(const PeerKey &o) const noexcept
     {
         return proto == o.proto && port == o.port && v4 == o.v4 && scopeId == o.scopeId
             && std::memcmp(&v6, &o.v6, sizeof v6) == 0;
     }
 
-    inline bool operator!=(const PeerKey &o) const noexcept
+    bool operator!=(const PeerKey &o) const noexcept
     {
         return !(*this == o);
     }
 
-    friend inline auto qHash(const PeerKey &k, const size_t seed = 0) noexcept
+    friend auto qHash(const PeerKey &k, const size_t seed = 0) noexcept
     {
         return qHashMulti(
             seed,
@@ -75,11 +75,11 @@ public:
     /// Sets the QObject parent assigned to new NetworkClient instances.
     void setClientsOwner(QObject *);
     /// Returns the QObject parent assigned to new NetworkClient instances.
-    inline QObject *getClientsOwner()
+    QObject *getClientsOwner()
     {
         return m_clientsOwner;
     }
-    inline const QObject *getClientsOwner() const
+    const QObject *getClientsOwner() const
     {
         return m_clientsOwner;
     }

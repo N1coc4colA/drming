@@ -29,17 +29,17 @@ public:
     void processPacket(const Packets::ServerStream &img);
     void processPacket(const Packets::ClientResolution &res);
     /// Clears parser state after packet errors.
-    inline void onPacketErrors()
+    void onPacketErrors()
     {
         Parser::clear();
     }
 
     /// Returns the item displaying decoded frames.
-    inline VideoFrameItem *item()
+    VideoFrameItem *item()
     {
         return m_item;
     }
-    inline const VideoFrameItem *item() const
+    const VideoFrameItem *item() const
     {
         return m_item;
     }
@@ -52,7 +52,7 @@ public:
     void setItem(VideoFrameItem *item);
 
     /// Clears buffered parser and decoder state.
-    inline void clear()
+    void clear()
     {
         Parser::clear();
         m_imageDecoder.reset();
@@ -77,13 +77,13 @@ public Q_SLOTS:
 
 public:
     /// Reports whether the stream resolution has arrived.
-    inline bool waitedForResolution() const
+    bool waitedForResolution() const
     {
         return m_waitedForResolution.load(std::memory_order_relaxed);
     }
 
     /// Waits until the requested packet type is available.
-    inline auto waitFor(auto v)
+    auto waitFor(auto v)
     {
         return Parser::waitFor(v);
     }
@@ -123,12 +123,12 @@ public:
     }
 
     /// Clears parser state after packet errors.
-    inline void onPacketErrors()
+    void onPacketErrors()
     {
         Parser::clear();
     }
     /// Clears buffered parser and decoder state.
-    inline void clear()
+    void clear()
     {
         Parser::clear();
     }
@@ -151,7 +151,7 @@ public:
     ~NetworkLink() override;
 
     /// Processes the packet and updates stream state.
-    inline void processPacket(const Packets::Reinit &)
+    void processPacket(const Packets::Reinit &)
     {
         if (m_alink) {
             QMetaObject::invokeMethod(m_alink, &AudioLink::clear);
@@ -167,7 +167,7 @@ public:
     void processPacket(const Packets::AudioSource &src);
     void processPacket(const Packets::VideoSource &src);
     /// Clears parser state after packet errors.
-    inline void onPacketErrors()
+    void onPacketErrors()
     {
         Parser::clear();
     }
@@ -176,7 +176,7 @@ public:
     void setItem(QObject *item) override;
 
     /// Clears stale packets before queuing new data.
-    inline void pushData(const QByteArray &additional) override
+    void pushData(const QByteArray &additional) override
     {
         Parser::clear();
         Parser::pushData(additional);

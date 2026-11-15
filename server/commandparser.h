@@ -22,7 +22,7 @@ public:
     /// Returns whether startup should fail, stop after help/version, or continue.
     Exit parse(const QStringList &args);
     /// Parses arguments from QCoreApplication::arguments().
-    inline Exit parseApp()
+    Exit parseApp()
     {
         return parse(qApp->arguments());
     }
