@@ -135,7 +135,7 @@ int Encoder::init(const int width, const int height, const QImage::Format format
             qCritical() << "No HEVC encoder has been found at all!";
         }
 
-        return AVERROR(AVERROR_ENCODER_NOT_FOUND);
+        return AVERROR_ENCODER_NOT_FOUND;
     }
 
     m_codec = found_codec;
@@ -373,19 +373,23 @@ void Encoder::push_image(
 {
     CTRACK;
 
-    if (!m_enc) [[likely]] {
-        return;
+    if (m_width != width || m_height != height || m_format != format || m_stride != stride) [[unlikely]] {
+        const auto flush_ret = flush();
+        if (flush_ret < 0) [[unlikely]] {
+            qWarning() << "Failed to flush encoder with code:" << flush_ret;
+            return;
+        }
+        const auto init_ret = init(width, height, format, stride);
+        if (init_ret < 0) [[unlikely]] {
+            qWarning() << "Failed to reinitialize encoder with code:" << init_ret;
+            return;
+        }
+        qDebug() << "Performed init with code:" << init_ret;
     }
 
-    if (m_width != width || m_height != height || m_format != format || m_stride != stride) [[unlikely]] {
-        if (flush() < 0) [[unlikely]] {
-            qWarning() << "Failed to flush encoder";
-            return;
-        }
-        if (init(width, height, format, stride) < 0) [[unlikely]] {
-            qWarning() << "Failed to reinitialize encoder";
-            return;
-        }
+    if (!m_enc) [[unlikely]] {
+        // init failed earlier; nothing to encode
+        return;
     }
 
     AVFrame frame{};
