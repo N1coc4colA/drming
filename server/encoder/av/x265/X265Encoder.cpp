@@ -8,7 +8,7 @@ extern "C" {
 #include "../../../../registrar.h"
 
 namespace {
-Registrar<LibAV::Encoder::Entry>::AutoRegister s_ffmpeg_x265_enc("x265", &X265::X265Encoder::setup);
+Registrar<LibAV::Encoder::Entry>::AutoRegister s_ffmpeg_x265_enc("libx265", &X265::X265Encoder::setup);
 } // namespace
 
 namespace X265 {
