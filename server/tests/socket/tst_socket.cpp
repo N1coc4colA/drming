@@ -12,6 +12,7 @@ class TestStreamSocket final : public StreamSocket
 public:
     using StreamSocket::StreamSocket;
 
+protected:
     void addData(const QByteArray &) override
     {}
 };
