@@ -123,9 +123,9 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
     }
 
     switch (texMode) {
-    case TextureMode::OES: {
+    case OES: {
         if (m_decoder) [[likely]] {
-            auto node = static_cast<QSGNode *>(oldNode);
+            auto node = oldNode;
             if (!node) [[unlikely]] {
                 node = new QSGNode();
             }
@@ -150,7 +150,7 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
 
         break;
     }
-    case TextureMode::Simple: {
+    case Simple: {
         auto node = static_cast<QSGSimpleTextureNode *>(oldNode);
         if (!node) [[unlikely]] {
             node = new QSGSimpleTextureNode();
