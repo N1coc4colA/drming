@@ -6,7 +6,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>

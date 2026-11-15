@@ -1,8 +1,8 @@
 #include "decode.h"
 
-#include <QDebug>
-
 #include <ctrack.hpp>
+
+#include <GLES2/gl2ext.h>
 
 #include "videoframeitem.h"
 

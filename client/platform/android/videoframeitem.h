@@ -2,7 +2,6 @@
 #define VIDEOFRAMEITEMPLATFORM_H
 
 #include <QImage>
-#include <QMutex>
 #include <QQuickItem>
 #include <QSize>
 

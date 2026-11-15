@@ -972,13 +972,13 @@ public:
     }
 };
 
-// Limit is the maximum number of TS queues that can be handled simultaneously.
+/// Reassembles out-of-order and fragmented packet chunks.
+/// Limit is the maximum number of TS queues that can be handled simultaneously.
 template<
     typename OrderType = Ordering,
     typename TsType = Timestamp,
     const TsType MaxTimestamps = 10,
     const std::size_t PacketsLimit = 200>
-/// Reassembles out-of-order and fragmented packet chunks.
 class JitterBuffer
 {
     struct ChunkQueue

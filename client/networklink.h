@@ -1,11 +1,8 @@
 #ifndef NETWORKLINK_H
 #define NETWORKLINK_H
 
-#include <QDtls>
 #include <QImage>
-#include <QSslSocket>
 #include <QTimer>
-#include <QUdpSocket>
 
 #include "../net/telemetry.h"
 #include "../net/udp.h"

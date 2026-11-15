@@ -2,11 +2,7 @@
 #define SERVER_H
 
 #include <QHostAddress>
-#include <QMap>
-#include <QMutex>
 #include <QObject>
-#include <QPair>
-#include <QUdpSocket>
 
 #include "networkclient.h"
 

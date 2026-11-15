@@ -1,9 +1,7 @@
 #include "display.h"
 
 #include <QBuffer>
-#include <QDtls>
 #include <QPointer>
-#include <QtEndian>
 
 #include <chrono>
 

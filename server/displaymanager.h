@@ -1,10 +1,7 @@
 #ifndef DISPLAYMANAGER_H
 #define DISPLAYMANAGER_H
 
-#include <QMap>
 #include <QObject>
-#include <QQueue>
-#include <QSet>
 
 class NetworkClient;
 class DisplayThread;

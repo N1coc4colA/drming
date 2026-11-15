@@ -5,7 +5,6 @@
 
 #include <avahi-client/publish.h>
 #include <avahi-common/error.h>
-#include <avahi-common/simple-watch.h>
 
 #include <net/if.h>
 

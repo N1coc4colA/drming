@@ -6,7 +6,6 @@
 #include <QHostAddress>
 #include <QSslCertificate>
 #include <QSslConfiguration>
-#include <QtEndian>
 
 #include "../settings.h"
 

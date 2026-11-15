@@ -1,7 +1,5 @@
 #include "networkstatus.h"
 
-#include <QCoreApplication>
-
 #include "application.h"
 
 #ifdef Q_OS_ANDROID

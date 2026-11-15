@@ -1,12 +1,10 @@
 #include "commandparser.h"
 
 #include <QCoreApplication>
-#include <QDebug>
 #include <QMetaEnum>
 
 #include <cstdlib>
 
-#include "helpers.h"
 #include "parameters.h"
 
 /// Returns a string list of valid names for enum type T.

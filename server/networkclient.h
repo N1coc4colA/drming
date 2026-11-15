@@ -2,9 +2,6 @@
 #define NETWORKCLIENT_H
 
 #include <QHostAddress>
-#include <QMutex>
-#include <QSslSocket>
-#include <QUdpSocket>
 
 #include <chrono>
 

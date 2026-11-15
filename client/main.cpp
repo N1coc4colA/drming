@@ -1,7 +1,6 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
-#include <QTimer>
 
 #include "application.h"
 #include "palette.h"

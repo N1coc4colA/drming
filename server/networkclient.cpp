@@ -3,7 +3,6 @@
 #include <QDebug>
 #include <QDtls>
 #include <QSslConfiguration>
-#include <QTimer>
 #include <qendian.h>
 
 #include "display.h"

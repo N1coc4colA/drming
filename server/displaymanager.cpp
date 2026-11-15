@@ -1,6 +1,5 @@
 #include "displaymanager.h"
 
-#include <QDebug>
 #include <QPointer>
 
 #include "../settings.h"

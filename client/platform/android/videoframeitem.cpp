@@ -1,7 +1,5 @@
 #include "videoframeitem.h"
 
-#include <QOpenGLContext>
-#include <QQuickWindow>
 #include <QSGSimpleTextureNode>
 #include <QThread>
 

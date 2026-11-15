@@ -2,9 +2,8 @@
 #define OESRENDERNODE_H
 
 #include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
+
 #include <QOpenGLFunctions>
-#include <QRectF>
 #include <QSGRenderNode>
 
 namespace Platform {

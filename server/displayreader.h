@@ -2,7 +2,6 @@
 #define DISPLAYREADER_H
 
 #include <QHash>
-#include <QImage>
 #include <QString>
 
 #include <vector>

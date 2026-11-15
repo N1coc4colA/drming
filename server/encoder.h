@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <functional>
 
-#include <QDebug>
 #include <QImage>
 
 /**
