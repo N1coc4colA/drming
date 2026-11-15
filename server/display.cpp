@@ -149,7 +149,7 @@ void Display::forward()
     const auto targetFps = std::max(1, m_targetFps.load(std::memory_order_relaxed));
     const auto minIntervalNs = 1'000'000'000LL / targetFps;
 
-    if (m_lastForwardNs != 0 && (nowNs - m_lastForwardNs) < minIntervalNs) {
+    if (m_lastForwardNs != 0 && nowNs - m_lastForwardNs < minIntervalNs) {
         return;
     }
 

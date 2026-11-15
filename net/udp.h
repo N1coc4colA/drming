@@ -84,7 +84,7 @@ public:
     void clearJitterBuffer()
     {
         m_jitterBuffer.clear();
-    };
+    }
 
 Q_SIGNALS:
     /// Emitted when the underlying UDP socket is connected.

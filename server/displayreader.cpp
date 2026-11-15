@@ -328,7 +328,7 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
         cp.height = mfb->height;
         cp.stride = mfb->pitches[0];
         cp.format = mfb->pixel_format;
-        cp.bpp = (cp.format == DRM_FORMAT_RGB565) ? 16 : 32;
+        cp.bpp = cp.format == DRM_FORMAT_RGB565 ? 16 : 32;
         cp.size = static_cast<size_t>(cp.stride) * cp.height;
         cp.writable = m_writableMapping;
 
@@ -563,7 +563,7 @@ QImage DisplayReader::imageFromFrameBuffer(
     // DRM mapping or the next frame would be swizzled twice. Force a
     // copy-on-write wrap for any format that needs a conversion, regardless
     // of what the caller asked for.
-    const bool effectiveWritable = writable && (fmtDesc.convert == nullptr);
+    const bool effectiveWritable = writable && fmtDesc.convert == nullptr;
 
     QImage output{};
     if (effectiveWritable) {

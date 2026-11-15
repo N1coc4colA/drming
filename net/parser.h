@@ -902,7 +902,7 @@ public:
                     return;
                 }
 
-                if ((type > static_cast<quint16>(Type::UPPER) || type < static_cast<quint16>(Type::LOWER)))
+                if (type > static_cast<quint16>(Type::UPPER) || type < static_cast<quint16>(Type::LOWER))
                     [[unlikely]] {
                     if constexpr (details::has_packetErrors<Receiver>::value) {
                         ++m_errorCount;
@@ -966,7 +966,7 @@ public:
 
     /// Configures validation bounds for a packet field.
     template<auto ptr>
-    inline void setBounds(const auto min, const auto max)
+    void setBounds(const auto min, const auto max)
     {
         setBoundsHelper(ptr, min, max);
     }

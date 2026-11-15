@@ -3,7 +3,6 @@
 #include <QDebug>
 #include <QDtls>
 #include <QSslConfiguration>
-#include <qendian.h>
 
 #include "display.h"
 #include "parameters.h"
@@ -164,7 +163,7 @@ void NetworkClient::notifyHeartBeat()
 
 void NetworkClient::checkHeartBeat()
 {
-    if ((std::chrono::steady_clock::now() - m_lastHeartBeat) > systemTimeout) {
+    if (std::chrono::steady_clock::now() - m_lastHeartBeat > systemTimeout) {
         m_timer->stop();
         // Heartbeat timeout – close connection
         close();

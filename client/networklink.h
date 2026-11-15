@@ -59,7 +59,7 @@ protected:
     std::optional<quint64> write(const QByteArray &data);
 
     /// Lets the platform implementation release resources.
-    virtual void closePlatform() {};
+    virtual void closePlatform() {}
 
 private Q_SLOTS:
     /// Completes setup after the UDP socket connects.
