@@ -317,8 +317,8 @@ std::optional<FormatDescriptor> resolve(const uint32_t drmFourcc)
 {
     CTRACK;
 
-    for (const auto & [drmFourcc, qtFormat, convert] : kTable) {
-        if (drmFourcc == drmFourcc) {
+    for (const auto & [drmFourccCandidate, qtFormat, convert] : kTable) {
+        if (drmFourcc == drmFourccCandidate) {
             return FormatDescriptor{ .qtFormat = qtFormat, .convert = convert };
         }
     }
