@@ -133,8 +133,7 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
             }
 
             if (m_decoder->consumeFrame()) {
-                const auto texId = m_decoder->oesTextureId();
-                if (texId.has_value()) [[unlikely]] {
+                if (const auto texId = m_decoder->oesTextureId(); texId.has_value()) [[unlikely]] {
                     auto oesNode = node->childCount() ? static_cast<OESRenderNode *>(node->firstChild()) : nullptr;
                     if (!oesNode) [[unlikely]] {
                         oesNode = new OESRenderNode();

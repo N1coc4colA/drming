@@ -125,8 +125,7 @@ static void onFileSelected(
     Q_UNUSED(env);
     Q_UNUSED(clazz);
 
-    auto *provider = dynamic_cast<Platform::FileProvider *>(::FileProvider::instance());
-    if (provider) {
+    if (auto *provider = dynamic_cast<Platform::FileProvider *>(::FileProvider::instance())) {
         provider->completeFileImport(operation, QJniObject(name).toString(), QJniObject(source).toString());
     }
 }

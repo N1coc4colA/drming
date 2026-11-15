@@ -108,7 +108,6 @@ public Q_SLOTS:
     void connectToMulticast(const QHostAddress &address, const quint16 port)
     {
         const auto proto = address.protocol();
-
         if (proto == QAbstractSocket::IPv4Protocol || proto == QAbstractSocket::IPv6Protocol) {
             if (!m_socket.bind(
                     proto == QAbstractSocket::IPv4Protocol ? QHostAddress::AnyIPv4 : QHostAddress::AnyIPv6,
@@ -169,8 +168,7 @@ public Q_SLOTS:
     /// Joins the multicast group on the specified network interface.
     void connectToMulticast(const QHostAddress &address, const quint16 port, const QNetworkInterface &iface)
     {
-        const auto proto = address.protocol();
-        if (proto == QAbstractSocket::IPv4Protocol || proto == QAbstractSocket::IPv6Protocol) {
+        if (const auto proto = address.protocol(); proto == QAbstractSocket::IPv4Protocol || proto == QAbstractSocket::IPv6Protocol) {
             if (!m_socket.bind(
                     proto == QAbstractSocket::IPv4Protocol ? QHostAddress::AnyIPv4 : QHostAddress::AnyIPv6,
                     port,

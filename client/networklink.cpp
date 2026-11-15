@@ -255,9 +255,7 @@ void NetworkLink::markActivity()
 
 void NetworkLink::onConnectionTimeout()
 {
-    const bool dtlsActive = m_dtls && m_dtls->isConnectionEncrypted();
-
-    if (!dtlsActive) {
+    if (!m_dtls || !m_dtls->isConnectionEncrypted()) {
         return;
     }
 

@@ -370,8 +370,7 @@ VideoDecoder::RetWithIdr VideoDecoder::decode_locked(const uint8_t *data, const 
             qDebug() << "No CSD";
             return { .status = true, .needsIdr = needsIdr };
         }
-        const auto ret = init(m_width, m_height);
-        if (!ret) [[unlikely]] {
+        if (!init(m_width, m_height)) [[unlikely]] {
             qDebug() << "Init failure";
             return { .status = false, .needsIdr = needsIdr };
         }

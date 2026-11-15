@@ -50,7 +50,7 @@ public Q_SLOTS:
 
 protected:
     /// Transmits encoded frame data to connected clients.
-    bool sendData(QByteArray output);
+    bool sendData(const QByteArray &output);
 
 private:
     /// Set of clients receiving this display stream.

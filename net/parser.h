@@ -767,8 +767,7 @@ class Parser
         }();
 
         while (m_parsed < fieldCount) {
-            const auto result = (this->*fieldTable[m_parsed])();
-            switch (result) {
+            switch (const auto result = (this->*fieldTable[m_parsed])()) {
             case True:
                 ++m_parsed;
                 continue;
@@ -778,8 +777,7 @@ class Parser
         }
 
         while (m_variablesParsed < fieldCount) {
-            const auto result = (this->*variableFieldTable[m_variablesParsed])();
-            switch (result) {
+            switch (const auto result = (this->*variableFieldTable[m_variablesParsed])()) {
             case True:
                 ++m_variablesParsed;
                 continue;

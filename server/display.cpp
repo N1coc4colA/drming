@@ -301,7 +301,7 @@ void Display::onDisconnected()
     m_targetFps.store(Settings::maxForwardFps, std::memory_order_relaxed);
 }
 
-bool Display::sendData(QByteArray output)
+bool Display::sendData(const QByteArray &output)
 {
     return m_ss.write(output);
 }

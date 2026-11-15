@@ -370,9 +370,7 @@ bool DispSetup::makeConnector() const
 
 bool DispSetup::writeEdidAndEnable() const
 {
-    const auto statusPath = m_connectorPath + "/status";
-
-    if (!writeFile(statusPath, "1")) {
+    if (!writeFile(m_connectorPath + "/status", "1")) {
         qCritical() << "Failed to set connector status.";
         return false;
     }
@@ -383,9 +381,8 @@ bool DispSetup::writeEdidAndEnable() const
 QString DispSetup::findVirtualConnectorName() const
 {
     const QDir drmDir(QStringLiteral("/sys/class/drm"));
-    const auto entries = drmDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
 
-    for (const QString &entry : entries) {
+    for (const QString &entry : drmDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
         if (!entry.contains(QStringLiteral("-Virtual-"))) {
             continue;
         }
@@ -404,9 +401,7 @@ QString DispSetup::findVirtualConnectorName() const
             continue;
         }
 
-        const auto target = deviceInfo.symLinkTarget();
-
-        if (target.contains(m_instanceName)) {
+        if (deviceInfo.symLinkTarget().contains(m_instanceName)) {
             return entry;
         }
     }
