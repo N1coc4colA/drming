@@ -55,7 +55,7 @@ public:
     void recordDecoded(const quint64 latencyNs)
     {
         const auto ms = latencyNs / 1'000'000;
-        if (ms >= 0 && ms < to_signed<qint64>(kHistogramBuckets)) {
+        if (ms < to_signed<qint64>(kHistogramBuckets)) {
             m_latencyHistogram[checked_cast<size_t>(ms)].fetch_add(1, std::memory_order_relaxed);
         } else if (ms >= to_signed<qint64>(kHistogramBuckets)) {
             // Clamp to last bucket rather than lose the sample.

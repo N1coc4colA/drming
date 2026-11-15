@@ -33,7 +33,7 @@ public:
     static NetworkLink *createForPlatform(QObject *parent = nullptr);
 
     /// Supplies additional bytes to the platform-specific frame decoder.
-    virtual void pushData(QByteArray additional) = 0;
+    virtual void pushData(const QByteArray &additional) = 0;
 
 Q_SIGNALS:
     /// Reports a transport error suitable for display.

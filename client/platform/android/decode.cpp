@@ -594,7 +594,7 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
         return;
     }
 
-    EGLImageKHR eglImage = EGL_NO_IMAGE_KHR;
+    auto eglImage = EGL_NO_IMAGE_KHR;
 
     const auto it = m_eglImageCache.find(buffer);
     if (it != m_eglImageCache.end()) [[likely]] {

@@ -265,7 +265,7 @@ public Q_SLOTS:
 
 protected:
     /// Invoked when a complete packet payload is reassembled and ready for processing.
-    virtual void addData(QByteArray additional) = 0;
+    virtual void addData(const QByteArray &additional) = 0;
     /**
      * Called when the jitter buffer abandons an incomplete timestamp because
      * a chunk was lost in transit. Subclasses use this to request an IDR.

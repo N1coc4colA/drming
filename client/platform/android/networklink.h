@@ -82,12 +82,6 @@ public:
         return m_waitedForResolution.load(std::memory_order_relaxed);
     }
 
-    /// Adds encoded bytes to the packet parser.
-    void addData(QByteArray data) override
-    {
-        Parser::pushData(std::move(data));
-    }
-
     /// Waits until the requested packet type is available.
     inline auto waitFor(auto v)
     {
@@ -100,6 +94,12 @@ protected:
      * Requests a keyframe after an incomplete frame.
      */
     void onFrameSkipped() override;
+
+    /// Adds encoded bytes to the packet parser.
+    void addData(const QByteArray &data) override
+    {
+        Parser::pushData(data);
+    }
 
 private:
     VideoDecoder *m_decoder = nullptr;
@@ -133,10 +133,11 @@ public:
         Parser::clear();
     }
 
+protected:
     /// Adds encoded bytes to the packet parser.
-    void addData(QByteArray data) override
+    void addData(const QByteArray &data) override
     {
-        Parser::pushData(std::move(data));
+        Parser::pushData(data);
     }
 };
 
@@ -174,6 +175,12 @@ public:
     /// Associates the QML item that displays decoded frames.
     void setItem(QObject *item) override;
 
+    /// Clears stale packets before queuing new data.
+    inline void pushData(const QByteArray &additional) override
+    {
+        Parser::clear();
+        Parser::pushData(additional);
+    }
 protected:
     /// Closes the platform network links.
     void closePlatform() override;
@@ -191,13 +198,6 @@ private:
 
     /// Requests any stream sources that are still missing.
     void performRequirements();
-
-    /// Clears stale packets before queuing new data.
-    inline void pushData(QByteArray additional) override
-    {
-        Parser::clear();
-        Parser::pushData(std::move(additional));
-    }
 };
 
 } // namespace Platform

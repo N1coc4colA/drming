@@ -120,8 +120,6 @@ private:
     /// Parent QObject assigned to newly created NetworkClient objects.
     QObject *m_clientsOwner = nullptr;
 
-    /// Generates a PeerKey identifier from a host address and port.
-    PeerKey peerKey(const QHostAddress &addr, quint16 port) const;
     /// Removes and cleans up the specified client.
     void removeClient(NetworkClient *client);
 

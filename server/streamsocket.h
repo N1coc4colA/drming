@@ -18,7 +18,8 @@ public:
         : UdpStreamSocket(parent)
     {}
 
-    inline void addData(QByteArray) override
+protected:
+    inline void addData(const QByteArray &) override
     {}
 };
 

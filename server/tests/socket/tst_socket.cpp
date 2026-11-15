@@ -12,7 +12,7 @@ class TestStreamSocket final : public StreamSocket
 public:
     using StreamSocket::StreamSocket;
 
-    void addData(QByteArray) override
+    void addData(const QByteArray &) override
     {}
 };
 

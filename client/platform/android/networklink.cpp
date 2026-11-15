@@ -22,7 +22,7 @@ VideoLink::~VideoLink()
     }
 }
 
-void VideoLink::processPacket(const Packets::ClientResolution &res)
+void VideoLink::processPacket(const Packets::ClientResolution &)
 {
     CTRACK;
 
