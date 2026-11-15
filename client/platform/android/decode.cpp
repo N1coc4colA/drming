@@ -281,12 +281,12 @@ void VideoDecoder::destroyEglImageCache()
     }
 
     const auto display = eglGetCurrentDisplay();
-    for (auto &[buffer, entry] : m_eglImageCache) {
-        if (display != EGL_NO_DISPLAY && entry.image != EGL_NO_IMAGE_KHR) {
-            eglDestroyImageKHR(display, entry.image);
+    for (auto& [image, bufferRef] : m_eglImageCache | std::views::values) {
+        if (display != EGL_NO_DISPLAY && image != EGL_NO_IMAGE_KHR) {
+            eglDestroyImageKHR(display, image);
         }
-        if (entry.bufferRef) {
-            AHardwareBuffer_release(entry.bufferRef);
+        if (bufferRef) {
+            AHardwareBuffer_release(bufferRef);
         }
     }
     m_eglImageCache.clear();
@@ -306,13 +306,13 @@ bool VideoDecoder::flush()
 
 bool VideoDecoder::decode(const uint8_t *data, const size_t size)
 {
-    const auto ret = decode_locked(data, size);
+    const auto [status, needsIdr] = decode_locked(data, size);
 
-    if (ret.needsIdr) {
+    if (needsIdr) {
         Q_EMIT needsKeyframe();
     }
 
-    return ret.status;
+    return status;
 }
 
 VideoDecoder::RetWithIdr VideoDecoder::decode_locked(const uint8_t *data, const size_t size)
@@ -398,13 +398,13 @@ VideoDecoder::RetWithIdr VideoDecoder::decode_locked(const uint8_t *data, const 
 
 bool VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const bool isKeyFrame)
 {
-    const auto ret = decode_frame_locked(data, size, isKeyFrame);
+    const auto [status, needsIdr] = decode_frame_locked(data, size, isKeyFrame);
 
-    if (ret.needsIdr) {
+    if (needsIdr) {
         Q_EMIT needsKeyframe();
     }
 
-    return ret.status;
+    return status;
 }
 
 VideoDecoder::RetWithIdr

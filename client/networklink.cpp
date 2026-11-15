@@ -120,12 +120,12 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
 
     qInfo() << "Connecting to:" << address << port << "using client" << clientName;
 
-    const auto clientData = FileProvider::instance()->clientData(clientName);
-    if (clientData.first.isNull()) {
+    const auto [cert, key] = FileProvider::instance()->clientData(clientName);
+    if (cert.isNull()) {
         Q_EMIT error(tr("The certificate of '%1' that was about to be used is invalid.").arg(clientName));
         return;
     }
-    if (clientData.second.isNull()) {
+    if (key.isNull()) {
         Q_EMIT error(tr("The key of '%1' that was about to be used is invalid.").arg(clientName));
         return;
     }
@@ -133,8 +133,8 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
     auto sslConf = QSslConfiguration::defaultDtlsConfiguration();
     sslConf.setCaCertificates({});
     sslConf.setPeerVerifyMode(QSslSocket::VerifyNone); // Avoid chain validation
-    sslConf.setLocalCertificate(clientData.first);
-    sslConf.setPrivateKey(clientData.second);
+    sslConf.setLocalCertificate(cert);
+    sslConf.setPrivateKey(key);
 
     const QHostAddress hostAddress(address);
 

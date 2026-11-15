@@ -166,9 +166,9 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
         {
             QMutexLocker locker(&m_mtx);
             if (!m_frameQueue.empty()) {
-                auto entry = std::move(m_frameQueue.front());
+                auto [image, receiveNs] = std::move(m_frameQueue.front());
                 m_frameQueue.pop_front();
-                localImage = std::move(entry.image);
+                localImage = std::move(image);
                 m_imageSize = localImage.size();
                 textureChanged = true;
                 hasMore = !m_frameQueue.empty();
@@ -177,8 +177,8 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
                     m_telemetry->setRenderQueueDepth(narrow<quint8>(m_frameQueue.size()));
                 }
 
-                if (entry.receiveNs > 0 && m_latencyCallback) {
-                    m_latencyCallback(steadyNowNs() - entry.receiveNs);
+                if (receiveNs > 0 && m_latencyCallback) {
+                    m_latencyCallback(steadyNowNs() - receiveNs);
                 }
             }
         }
