@@ -203,7 +203,7 @@ struct Field
 // the concrete variable field templates below.
 /// Field wrapper with an explicit length prefix.
 template<typename T, typename SizeType>
-struct SizedField : public Field<T, true>
+struct SizedField : Field<T, true>
 {
     using size_type = SizeType;
     SizeType size{};
@@ -225,7 +225,7 @@ template<
     typename LimitType,
     LimitType DefaultMin = 0,
     LimitType DefaultMax = std::numeric_limits<LimitType>::max()>
-struct BoundField : public Field<T, false, true>
+struct BoundField : Field<T, false, true>
 {
     LimitType min = DefaultMin;
     LimitType max = DefaultMax;
@@ -255,7 +255,7 @@ template<
     typename LimitType,
     LimitType DefaultMin = 0,
     LimitType DefaultMax = std::numeric_limits<LimitType>::max()>
-struct VariableBoundField : public SizedField<T, LimitType>
+struct VariableBoundField : SizedField<T, LimitType>
 {
     static constexpr bool __has_limits = true;
 
@@ -278,7 +278,7 @@ template<typename EnumType>
         std::is_same_v<typename EnumType::UPPER, EnumType>;
         std::is_same_v<typename EnumType::LOWER, EnumType>;
     }
-struct EnumField : public FixedField<EnumType, EnumType, EnumType::LOWER, EnumType::UPPER>
+struct EnumField : FixedField<EnumType, EnumType, EnumType::LOWER, EnumType::UPPER>
 {
 };
 
@@ -291,7 +291,7 @@ template<typename EnumType>
         std::is_same_v<typename EnumType::UPPER, EnumType>;
         std::is_same_v<typename EnumType::LOWER, EnumType>;
     }
-struct BoundEnumField : public BoundField<EnumType, EnumType, EnumType::LOWER, EnumType::UPPER>
+struct BoundEnumField : BoundField<EnumType, EnumType, EnumType::LOWER, EnumType::UPPER>
 {
 };
 
