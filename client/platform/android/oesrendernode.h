@@ -28,17 +28,17 @@ public:
     /// Draws the external texture into the scene graph.
     void render(const RenderState *state) override;
     /// Identifies the render states modified by this node.
-    StateFlags changedStates() const override
+    [[nodiscard]] StateFlags changedStates() const override
     {
         return BlendState | DepthState | StencilState | ScissorState;
     }
     /// Declares the node rendering capabilities.
-    RenderingFlags flags() const override
+    [[nodiscard]] RenderingFlags flags() const override
     {
         return BoundedRectRendering;
     }
     /// Returns the node bounds.
-    QRectF rect() const override
+    [[nodiscard]] QRectF rect() const override
     {
         return m_rect;
     }

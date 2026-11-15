@@ -47,7 +47,8 @@ void Mdns::onServiceLost(const QString &name, const QString &ip)
     m_services.remove(fullName);
     if (ip.isEmpty()) {
         QStringList keys{};
-        for (const auto &key : m_services.keys()) {
+        for (auto it = m_services.keyBegin(); it != m_services.keyEnd(); ++it) {
+            const QString &key = *it;
             if (key.startsWith(name)) {
                 keys.append(key);
             }

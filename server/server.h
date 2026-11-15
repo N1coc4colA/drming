@@ -59,7 +59,7 @@ class Server : public QObject
 
 public:
     explicit Server(QObject *parent = nullptr);
-    ~Server();
+    ~Server() override;
 
     /// Binds both UDP sockets and begins accepting DTLS handshakes.
     bool listen(const QHostAddress &address4, const QHostAddress &address6, quint16 port = 0);
@@ -79,7 +79,7 @@ public:
     {
         return m_clientsOwner;
     }
-    const QObject *getClientsOwner() const
+    [[nodiscard]] const QObject *getClientsOwner() const
     {
         return m_clientsOwner;
     }

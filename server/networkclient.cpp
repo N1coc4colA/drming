@@ -48,7 +48,7 @@ void NetworkClient::processPacket(const Packets::RequestAudioSource &)
     std::memcpy(src.ip.data.data(), isV4 ? static_cast<const void *>(&v4) : static_cast<const void *>(&v6), size);
     src.port.data = Parameters::instance.audioPort;
 
-    write(std::move(Packets::Writer::generate(src)));
+    write(Packets::Writer::generate(src));
 }
 
 void NetworkClient::processPacket(const Packets::RequestVideoSource &)
@@ -67,7 +67,7 @@ void NetworkClient::processPacket(const Packets::RequestVideoSource &)
     std::memcpy(src.ip.data.data(), isV4 ? static_cast<const void *>(&v4) : static_cast<const void *>(&v6), size);
     src.port.data = Parameters::instance.videoPort;
 
-    write(std::move(Packets::Writer::generate(src)));
+    write(Packets::Writer::generate(src));
 }
 
 void NetworkClient::processPacket(const Packets::ClientTelemetry &t)
@@ -101,14 +101,14 @@ void NetworkClient::processPacket(const Packets::RequestKeyframe &)
 
 NetworkClient::NetworkClient(
     QDtls *dtls,
-    const QHostAddress &address,
+    QHostAddress address,
     const quint16 port,
     QPair<QUdpSocket, QMutex> &sharedSocket,
     QObject *parent
 )
     : QObject(parent)
     , Parser(*this)
-    , m_address(address)
+    , m_address(std::move(address))
     , m_port(port)
     , m_rw(*this, dtls, &sharedSocket.first, &sharedSocket.second)
     , m_timer(new QTimer(this))
@@ -124,10 +124,7 @@ NetworkClient::NetworkClient(
     m_timer->setInterval(Settings::inactivityTimeout);
 }
 
-NetworkClient::~NetworkClient()
-{
-    // dtls deleted automatically via parent
-}
+NetworkClient::~NetworkClient() = default;
 
 void NetworkClient::incomingEncryptedData(const QByteArray &encrypted)
 {
@@ -185,7 +182,7 @@ void NetworkClient::notifyKey()
 
     qDebug() << "Sending key" << ku.keyStamp.data << ku.key.data;
 
-    write(std::move(Packets::Writer::generate(ku)));
+    write(Packets::Writer::generate(ku));
 }
 
 void NetworkClient::setDisplay(Display *disp)

@@ -332,7 +332,7 @@ public:
     {
         assert(m_encoder != nullptr);
     }
-    ~DisplayH265()
+    ~DisplayH265() override
     {
         delete m_encoder;
     }

@@ -26,7 +26,7 @@ public:
     {
         return m_ss;
     }
-    const StreamSocket &streamSocket() const
+    [[nodiscard]] const StreamSocket &streamSocket() const
     {
         return m_ss;
     }

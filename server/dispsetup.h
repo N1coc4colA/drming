@@ -34,25 +34,25 @@ public:
     }
 
 private:
-    bool makeEnvChecks() const;
-    bool makeVkmsInstance() const;
-    bool makeCrtc() const;
-    bool makeEncoder() const;
-    bool makePrimaryPlane() const;
-    bool makeCursorPlane() const;
-    bool setPrimaryPlaneType() const;
-    bool setCursorPlaneType() const;
-    bool linkPrimaryPlaneToCrtc() const;
-    bool linkCursorPlaneToCrtc() const;
-    bool linkEncoderToCrtc() const;
-    bool makeConnector() const;
-    bool linkConnectorToEncoder() const;
-    bool writeEdidAndEnable() const;
+    [[nodiscard]] bool makeEnvChecks() const;
+    [[nodiscard]] bool makeVkmsInstance() const;
+    [[nodiscard]] bool makeCrtc() const;
+    [[nodiscard]] bool makeEncoder() const;
+    [[nodiscard]] bool makePrimaryPlane() const;
+    [[nodiscard]] bool makeCursorPlane() const;
+    [[nodiscard]] bool setPrimaryPlaneType() const;
+    [[nodiscard]] bool setCursorPlaneType() const;
+    [[nodiscard]] bool linkPrimaryPlaneToCrtc() const;
+    [[nodiscard]] bool linkCursorPlaneToCrtc() const;
+    [[nodiscard]] bool linkEncoderToCrtc() const;
+    [[nodiscard]] bool makeConnector() const;
+    [[nodiscard]] bool linkConnectorToEncoder() const;
+    [[nodiscard]] bool writeEdidAndEnable() const;
 
     [[nodiscard]] static bool linkPlaneToCrtc(const QString &planePath, const QString &crtcPath);
 
     /// Locates the virtual connector name created by the VKMS device.
-    QString findVirtualConnectorName() const;
+    [[nodiscard]] QString findVirtualConnectorName() const;
 
     QString m_instanceName;
     QString m_basePath;

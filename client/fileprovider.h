@@ -19,7 +19,7 @@ class FileProvider : public QObject
 
 public:
     explicit FileProvider(QObject *parent);
-    virtual ~FileProvider();
+    ~FileProvider() override;
 
     /// Returns the platform provider singleton, creating it on demand.
     static FileProvider *instance(QObject *parent = qApp);
@@ -83,7 +83,7 @@ public:
     {
         return m_clientFiles;
     }
-    Q_INVOKABLE const FilesModel *clientCertsModel() const
+    Q_INVOKABLE [[nodiscard]] const FilesModel *clientCertsModel() const
     {
         return m_clientFiles;
     }
@@ -92,7 +92,7 @@ public:
     {
         return m_serverFiles;
     }
-    Q_INVOKABLE const FilesModel *serverCertsModel() const
+    Q_INVOKABLE [[nodiscard]] const FilesModel *serverCertsModel() const
     {
         return m_serverFiles;
     }

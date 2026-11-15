@@ -33,7 +33,7 @@ public:
     DisplayReader &operator=(const DisplayReader &) = delete;
 
     /// Returns true if memory mapping is writable and in-place compositing is supported.
-    bool supportsInPlaceComposite() const
+    [[nodiscard]] bool supportsInPlaceComposite() const
     {
         return m_writableMapping;
     }

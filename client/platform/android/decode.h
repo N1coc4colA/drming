@@ -46,7 +46,7 @@ public:
     using LatencyCallback = std::function<void(quint64 latencyNs)>;
 
     explicit VideoDecoder(QObject *parent = nullptr);
-    ~VideoDecoder();
+    ~VideoDecoder() override;
 
     /// Returns the decoded frame width in pixels.
     int width() const
@@ -89,7 +89,7 @@ public:
     /// Returns the dimensions of the decoded texture.
     QSize textureSize() const
     {
-        return QSize(m_width, m_height);
+        return {m_width, m_height};
     }
 
     /// Sets the callback used to report decode latency.

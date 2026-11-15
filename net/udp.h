@@ -58,18 +58,18 @@ public:
     }
 
     /// Returns the current encryption keystamp identifier.
-    Packets::Keystamp getKeystamp() const
+    [[nodiscard]] Packets::Keystamp getKeystamp() const
     {
         return m_ks;
     }
     /// Returns the active session encryption key.
-    QByteArray getKey() const
+    [[nodiscard]] QByteArray getKey() const
     {
         return m_key;
     }
 
     /// Returns the bound local IPv4 address.
-    auto ipv4Address() const
+    [[nodiscard]] auto ipv4Address() const
     {
         return m_ipAddress;
     }
@@ -514,11 +514,12 @@ private:
             const auto order_be = qToBigEndian(order);
             const size_t chunkSize = std::min(innerSize, size - offset);
 
-            QByteArray ciphertext{};
             const char *payload = nullptr;
             qsizetype payloadSize = 0;
 
 #ifdef ENABLE_ENCRYPT
+            QByteArray ciphertext{};
+
             {
                 bool ok = false;
                 ciphertext = m_aes.encode(data.sliced(offset, chunkSize), m_key, iv, &ok);
@@ -615,7 +616,7 @@ public:
         return m_dtls;
     }
     /// Returns the active const QDtls session pointer.
-    const QDtls *dtls() const
+    [[nodiscard]] const QDtls *dtls() const
     {
         return m_dtls;
     }
@@ -625,7 +626,7 @@ public:
         return m_socket;
     }
     /// Returns the underlying const QUdpSocket pointer.
-    const QUdpSocket *socket() const
+    [[nodiscard]] const QUdpSocket *socket() const
     {
         return m_socket;
     }
@@ -635,7 +636,7 @@ public:
         return m_mtx;
     }
     /// Returns the const synchronization mutex.
-    const QMutex *mutex() const
+    [[nodiscard]] const QMutex *mutex() const
     {
         return m_mtx;
     }

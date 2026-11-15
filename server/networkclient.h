@@ -35,12 +35,12 @@ class NetworkClient : public QObject, public Packets::Parser<NetworkClient>
 public:
     explicit NetworkClient(
         QDtls *dtls,
-        const QHostAddress &address,
+        QHostAddress address,
         quint16 port,
         QPair<QUdpSocket, QMutex> &sharedSocket,
         QObject *parent = nullptr
     );
-    ~NetworkClient();
+    ~NetworkClient() override;
 
     /// Sends an encrypted datagram through the shared server socket.
     std::optional<qint64> write(const QByteArray &data);

@@ -30,17 +30,17 @@ public:
             assert(creator != nullptr);
         }
 
-        const char *getName() const
+        [[nodiscard]] const char *getName() const
         {
             return m_name;
         }
 
-        EncoderCreator getCreationFunction() const
+        [[nodiscard]] EncoderCreator getCreationFunction() const
         {
             return m_creator;
         }
 
-        bool hasHWA() const
+        [[nodiscard]] bool hasHWA() const
         {
             return m_hasHWA;
         }
@@ -71,9 +71,9 @@ protected:
 
     PacketCallback m_callback{};
 
-    explicit Encoder(const PacketCallback &callback, const int fps)
+    explicit Encoder(PacketCallback callback, const int fps)
         : m_fps(fps)
-        , m_callback(callback)
+        , m_callback(std::move(callback))
     {}
 };
 

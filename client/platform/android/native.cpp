@@ -157,7 +157,7 @@ public:
         return m_instance.m_object;
     }
 
-    const auto &object() const
+    [[nodiscard]] const auto &object() const
     {
         return m_instance.m_object;
     }

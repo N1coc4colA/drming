@@ -132,7 +132,7 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
 
             if (m_decoder->consumeFrame()) {
                 if (const auto texId = m_decoder->oesTextureId(); texId.has_value()) [[unlikely]] {
-                    auto oesNode = node->childCount() ? static_cast<OESRenderNode *>(node->firstChild()) : nullptr;
+                    auto oesNode = node->childCount() ? dynamic_cast<OESRenderNode *>(node->firstChild()) : nullptr;
                     if (!oesNode) [[unlikely]] {
                         oesNode = new OESRenderNode();
                         node->removeAllChildNodes();
@@ -151,7 +151,7 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
         break;
     }
     case Simple: {
-        auto node = static_cast<QSGSimpleTextureNode *>(oldNode);
+        auto node = dynamic_cast<QSGSimpleTextureNode *>(oldNode);
         if (!node) [[unlikely]] {
             node = new QSGSimpleTextureNode();
             node->setFiltering(QSGTexture::Linear);

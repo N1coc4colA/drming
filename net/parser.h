@@ -897,7 +897,7 @@ public:
                     return;
                 }
 
-                quint16 type = static_cast<quint16>(Type::None);
+                auto type = static_cast<quint16>(Type::None);
                 if (read<quint16>(type) != True) {
                     return;
                 }
@@ -985,13 +985,13 @@ class JitterBuffer
     {
         std::vector<std::optional<QByteArray>> chunks{};
 
-        bool isComplete() const
+        [[nodiscard]] bool isComplete() const
         {
             return !chunks.empty()
                 && std::none_of(chunks.cbegin(), chunks.cend(), [](const auto &opt) { return !opt.has_value(); });
         }
 
-        QByteArray assemble() const
+        [[nodiscard]] QByteArray assemble() const
         {
             CTRACK;
 
@@ -1075,7 +1075,7 @@ public:
 
         for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
             if (it->queue.isComplete()) {
-                const QByteArray assembled = it->queue.assemble();
+                QByteArray assembled = it->queue.assemble();
                 if (outDroppedAny && it != m_entries.begin()) {
                     outDroppedAny = true;
                 }
@@ -1094,7 +1094,7 @@ public:
 
         for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
             if (it->queue.isComplete()) {
-                const QByteArray assembled = it->queue.assemble();
+                QByteArray assembled = it->queue.assemble();
                 // Remove this timestamp and all older ones (they are no longer needed).
                 m_entries.erase(m_entries.begin(), std::next(it));
                 return assembled;
@@ -1111,7 +1111,7 @@ public:
     }
 
     // Optional: check if a timestamp is already complete (for debugging).
-    bool isComplete(const TsType ts) const
+    [[nodiscard]] bool isComplete(const TsType ts) const
     {
         auto it = std::find_if(m_entries.begin(), m_entries.end(), [ts](const Entry &e) { return e.ts == ts; });
         return it != m_entries.end() && it->queue.isComplete();

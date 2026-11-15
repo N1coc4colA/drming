@@ -21,9 +21,7 @@ DisplayManager::~DisplayManager()
         m_thread->wait();
     }
 
-    if (m_setup) {
-        delete m_setup;
-    }
+    delete m_setup;
 }
 
 bool DisplayManager::registerClient(NetworkClient *client)
