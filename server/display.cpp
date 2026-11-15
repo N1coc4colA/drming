@@ -317,6 +317,9 @@ void Display::disconnectAllClients()
     }
 }
 
+namespace
+{
+
 class DisplayH265 : public Display
 {
 public:
@@ -377,6 +380,8 @@ private:
 
     Encoder *m_encoder = nullptr;
 };
+
+} // namespace
 
 Display *generateNewDisplay(const QString &connectorName, StreamSocket &ss, QObject *parent)
 {

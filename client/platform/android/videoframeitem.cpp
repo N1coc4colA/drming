@@ -16,7 +16,7 @@
 namespace Platform {
 
 /// Computes a centered rectangle that preserves image aspect ratio.
-QRectF fitKeepAspect(const QSizeF &itemSize, const QSizeF &imgSize)
+static QRectF fitKeepAspect(const QSizeF &itemSize, const QSizeF &imgSize)
 {
     CTRACK;
 

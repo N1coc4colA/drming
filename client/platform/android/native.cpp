@@ -43,7 +43,7 @@ private:
 };
 
 /// Releases native resources when the activity is destroyed.
-void onActivityDestroyed()
+static void onActivityDestroyed()
 {
 
     if (ctrackPrinted.exchange(true)) {
@@ -54,7 +54,7 @@ void onActivityDestroyed()
 }
 
 /// Forwards a newly discovered service to native code.
-void onServiceFound(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jtype)
+static void onServiceFound(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jtype)
 {
     Q_UNUSED(clazz);
 
@@ -68,7 +68,7 @@ void onServiceFound(JNIEnv *env, const jclass clazz, const jstring jname, const 
 }
 
 /// Notifies native code that a discovered service disappeared.
-void onServiceLost(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jip)
+static void onServiceLost(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jip)
 {
     Q_UNUSED(clazz);
 
@@ -82,7 +82,7 @@ void onServiceLost(JNIEnv *env, const jclass clazz, const jstring jname, const j
 }
 
 /// Forwards the resolved service address and port to native code.
-void onServiceResolved(
+static void onServiceResolved(
     JNIEnv *env,
     const jclass clazz,
     const jstring jname,
@@ -105,7 +105,7 @@ void onServiceResolved(
 }
 
 /// Forwards connectivity changes to the native network state.
-void onConnectivityChanged(const JNIEnv *env, const jclass clazz, const jboolean connected)
+static void onConnectivityChanged(const JNIEnv *env, const jclass clazz, const jboolean connected)
 {
     Q_UNUSED(env);
     Q_UNUSED(clazz);
@@ -114,7 +114,7 @@ void onConnectivityChanged(const JNIEnv *env, const jclass clazz, const jboolean
 }
 
 /// Imports the file selected by the Android picker.
-void onFileSelected(
+static void onFileSelected(
     JNIEnv *env,
     const jclass clazz,
     const jint operation,
@@ -285,7 +285,7 @@ private:
 };
 
 /// Registers JNI callbacks for mDNS discovery.
-bool registerNativeMethods_MdnsHelper(const QJniObject &m_javaHelper)
+static bool registerNativeMethods_MdnsHelper(const QJniObject &m_javaHelper)
 {
     const auto env = QJniEnvironment().jniEnv();
     if (!env) {
@@ -319,7 +319,7 @@ bool registerNativeMethods_MdnsHelper(const QJniObject &m_javaHelper)
 }
 
 /// Registers the JNI connectivity callback.
-bool registerNativeMethods_NetworkHelper(const QJniObject &m_javaHelper)
+static bool registerNativeMethods_NetworkHelper(const QJniObject &m_javaHelper)
 {
     const auto env = QJniEnvironment().jniEnv();
     if (!env) {
@@ -349,7 +349,7 @@ bool registerNativeMethods_NetworkHelper(const QJniObject &m_javaHelper)
 }
 
 /// Registers JNI callbacks for file operations.
-bool registerNativeMethods_FileHelper(const QJniObject &m_javaHelper)
+static bool registerNativeMethods_FileHelper(const QJniObject &m_javaHelper)
 {
     const auto env = QJniEnvironment().jniEnv();
     if (!env) {

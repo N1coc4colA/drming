@@ -11,7 +11,7 @@
 
 /// Returns a string list of valid names for enum type T.
 template<typename T>
-QStringList possibleValues()
+static QStringList possibleValues()
 {
     const auto me = QMetaEnum::fromType<T>();
 
@@ -107,7 +107,7 @@ CommandParser::CommandParser()
 
 /// Validates and parses a network port number string.
 template<typename T>
-CommandParser::Exit validatePort(const QString &port, T &out)
+static CommandParser::Exit validatePort(const QString &port, T &out)
 {
     bool valid = false;
     const int value = port.toInt(&valid);
@@ -127,7 +127,7 @@ CommandParser::Exit validatePort(const QString &port, T &out)
 }
 
 /// Validates that an address belongs to IPv4 or IPv6.
-bool validateIpProto(const QHostAddress &addr)
+static bool validateIpProto(const QHostAddress &addr)
 {
     const auto proto = addr.protocol();
 

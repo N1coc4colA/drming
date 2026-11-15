@@ -24,7 +24,7 @@
 namespace Drm {
 
 /// Resolves the DRM device file path associated with the given connector name.
-QString drmDeviceForConnector(const QString &connectorName)
+static QString drmDeviceForConnector(const QString &connectorName)
 {
     CTRACK;
 
@@ -87,7 +87,7 @@ QString drmDeviceForConnector(const QString &connectorName)
  * mapping is read-only. The buffer is owned by the caller; pair it with a
  * munmap() of the returned pointer.
  */
-bool mapFramebuffer(void *&dataOut, const int drmFd, const uint32_t handle, const size_t size, const bool writable)
+static bool mapFramebuffer(void *&dataOut, const int drmFd, const uint32_t handle, const size_t size, const bool writable)
 {
     CTRACK;
 
