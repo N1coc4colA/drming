@@ -319,7 +319,7 @@ std::optional<FormatDescriptor> resolve(const uint32_t drmFourcc)
 
     for (const auto &e : kTable) {
         if (e.drmFourcc == drmFourcc) {
-            return FormatDescriptor{ e.qtFormat, e.convert };
+            return FormatDescriptor{ .qtFormat = e.qtFormat, .convert = e.convert };
         }
     }
 

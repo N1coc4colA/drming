@@ -368,12 +368,12 @@ VideoDecoder::RetWithIdr VideoDecoder::decode_locked(const uint8_t *data, const 
     if (!m_initialized) [[unlikely]] {
         if (!m_csdReady) {
             qDebug() << "No CSD";
-            return { true, needsIdr };
+            return { .status = true, .needsIdr = needsIdr };
         }
         const auto ret = init(m_width, m_height);
         if (!ret) [[unlikely]] {
             qDebug() << "Init failure";
-            return { false, needsIdr };
+            return { .status = false, .needsIdr = needsIdr };
         }
     }
 
@@ -382,7 +382,7 @@ VideoDecoder::RetWithIdr VideoDecoder::decode_locked(const uint8_t *data, const 
     }
     if (m_needResync && !isKeyFrame) {
         qDebug() << "Resync stuff failed";
-        return { true, needsIdr };
+        return { .status = true, .needsIdr = needsIdr };
     }
 
     const auto ret = decode_frame(data, size, isKeyFrame);
@@ -394,7 +394,7 @@ VideoDecoder::RetWithIdr VideoDecoder::decode_locked(const uint8_t *data, const 
         needsIdr = true;
     }
 
-    return { ret, needsIdr };
+    return { .status = ret, .needsIdr = needsIdr };
 }
 
 bool VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const bool isKeyFrame)
@@ -435,10 +435,10 @@ VideoDecoder::decode_frame_locked(const uint8_t *data, const size_t size, const 
             needsIdr = true;
         }
 
-        return { true, needsIdr };
+        return { .status = true, .needsIdr = needsIdr };
     } else {
         qWarning() << "Failed to dequeue input buffer, unexpected error occurred:" << inputIndex;
-        return { false, needsIdr };
+        return { .status = false, .needsIdr = needsIdr };
     }
 
     m_consecutiveTALs = 0;
@@ -447,12 +447,12 @@ VideoDecoder::decode_frame_locked(const uint8_t *data, const size_t size, const 
     const auto inputBuffer = AMediaCodec_getInputBuffer(m_codec, to_unsigned<size_t>(inputIndex), &bufferSize);
     if (!inputBuffer) {
         qWarning() << "Failed to get input buffer: " << inputBuffer;
-        return { false, needsIdr };
+        return { .status = false, .needsIdr = needsIdr };
     }
     if (size > bufferSize) [[unlikely]] {
         // [TODO] handle buffer resizing.
         qWarning() << "Input data too large:" << size << ">" << bufferSize;
-        return { false, needsIdr };
+        return { .status = false, .needsIdr = needsIdr };
     }
     memcpy(inputBuffer, data, size);
 
@@ -470,7 +470,7 @@ VideoDecoder::decode_frame_locked(const uint8_t *data, const size_t size, const 
     );
     if (status != AMEDIA_OK) [[unlikely]] {
         qWarning() << "MC Failed to queue input buffer:" << status;
-        return { false, needsIdr };
+        return { .status = false, .needsIdr = needsIdr };
     }
 
     AMediaCodecBufferInfo info{};
@@ -499,7 +499,7 @@ VideoDecoder::decode_frame_locked(const uint8_t *data, const size_t size, const 
         }
     }
 
-    return { true, needsIdr };
+    return { .status = true, .needsIdr = needsIdr };
 }
 
 void VideoDecoder::onImageAvailable(void *, AImageReader *) {}
@@ -616,7 +616,7 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
         }
 
         AHardwareBuffer_acquire(buffer);
-        m_eglImageCache.insert({ buffer, CachedImage{ eglImage, buffer } });
+        m_eglImageCache.insert({ buffer, CachedImage{ .image = eglImage, .bufferRef = buffer } });
     }
 
     // Create both textures on first call, and set parameters on both.

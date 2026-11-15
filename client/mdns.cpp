@@ -32,7 +32,7 @@ void Mdns::onServiceFound(const QString &name, const QString &type)
     qDebug() << "Found:" << name << type;
 
     const auto fullName = name + "*";
-    const ServiceInfo info{ name, type, "", "", -1 };
+    const ServiceInfo info{ .name = name, .type = type, .host = "", .ip = "", .port = -1 };
     m_services[fullName] = info;
 
     Q_EMIT serviceFound(fullName, info);

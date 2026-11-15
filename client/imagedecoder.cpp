@@ -34,8 +34,7 @@ void ImageDecoder::queueFrame(QByteArray data, QByteArray format, const quint64 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
 
-        m_pendingFrames.push_back({ std::move(data), std::move(format), receiveNs });
-
+        m_pendingFrames.push_back({ .data = std::move(data), .format = std::move(format), .receiveNs = receiveNs });
         while (m_pendingFrames.size() > MaxPendingFrames) {
             m_pendingFrames.pop_front();
             if (m_telemetry) {

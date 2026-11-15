@@ -1041,7 +1041,7 @@ public:
                 m_entries.erase(m_entries.begin()); // remove oldest
             }
 
-            m_entries.push_back(Entry{ ts, ChunkQueue{} });
+            m_entries.push_back(Entry{ .ts = ts, .queue = ChunkQueue{} });
             it = std::prev(m_entries.end());
         }
 

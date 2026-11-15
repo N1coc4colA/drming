@@ -75,7 +75,7 @@ void VideoFrameItem::setImage(const QImage &image, const quint64 receiveNs)
 
     {
         QMutexLocker locker(&m_mtx);
-        m_frameQueue.push_back({ image, receiveNs });
+        m_frameQueue.push_back({ .image = image, .receiveNs = receiveNs });
         while (m_frameQueue.size() > MaxPresentationQueue) {
             m_frameQueue.pop_front(); // drop the oldest frame
             if (m_telemetry) {
