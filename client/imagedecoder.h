@@ -41,7 +41,7 @@ public:
     }
 
     /// Queues a compressed frame while retaining only the newest pending frames.
-    void queueFrame(QByteArray data, QByteArray format, const quint64 receiveNs);
+    void queueFrame(QByteArray data, QByteArray format, quint64 receiveNs);
 
     /// Discards queued work and restores the decoder to its idle state.
     void reset();

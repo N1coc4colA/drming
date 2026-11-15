@@ -485,17 +485,20 @@ VideoDecoder::decode_frame_locked(const uint8_t *data, const size_t size, const 
             }
 
             continue; // more than one frame may be ready
-        } else if (outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
-            break;
-        } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
-            qDebug() << "Format changed!";
-            continue;
-        } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
-            continue;
-        } else {
-            qWarning() << "Unexpected output result:" << outIdx;
+        }
+        if (outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
             break;
         }
+        if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
+            qDebug() << "Format changed!";
+            continue;
+        }
+        if (outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
+            continue;
+        }
+
+        qWarning() << "Unexpected output result:" << outIdx;
+        break;
     }
 
     return { .status = true, .needsIdr = needsIdr };
