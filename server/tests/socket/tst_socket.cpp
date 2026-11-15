@@ -51,7 +51,7 @@ private Q_SLOTS:
 
         const auto image = DisplayReader::imageFromFrameBuffer(pixels, width, height, stride, *descriptor);
         QCOMPARE(image.size(), QSize(2, 1));
-        QCOMPARE(image.bytesPerLine(), int(stride));
+        QCOMPARE(image.bytesPerLine(), static_cast<int>(stride));
         const auto *converted = image.constBits();
         QCOMPARE(converted[0], uchar{ 0x33 });
         QCOMPARE(converted[1], uchar{ 0x22 });

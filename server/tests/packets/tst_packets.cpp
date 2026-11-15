@@ -76,8 +76,8 @@ void TestPackets::unknownTypeIsSkipped()
 {
     // Garbage type word: parser should resync, not crash, and count an error.
     QByteArray bogus;
-    bogus.append(char(0xff));
-    bogus.append(char(0xff));
+    bogus.append(static_cast<char>(0xff));
+    bogus.append(static_cast<char>(0xff));
 
     Packets::Reinit p;
     const auto valid = Packets::Writer::generate(p);
@@ -98,8 +98,8 @@ void TestPackets::oversizedVariableFieldIsRejected()
     auto bytes = Packets::Writer::generate(p);
     // Blow the length prefix past the cap (it's the first field after the type).
     // Header: 2 bytes type + 8 bytes size prefix.
-    bytes[2] = bytes[3] = bytes[4] = bytes[5] = char(0xff);
-    bytes[6] = bytes[7] = bytes[8] = bytes[9] = char(0xff);
+    bytes[2] = bytes[3] = bytes[4] = bytes[5] = static_cast<char>(0xff);
+    bytes[6] = bytes[7] = bytes[8] = bytes[9] = static_cast<char>(0xff);
 
     CollectingReceiver r;
     Packets::Parser<CollectingReceiver> parser(r);

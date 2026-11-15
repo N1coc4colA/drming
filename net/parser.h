@@ -1000,7 +1000,7 @@ class JitterBuffer
             const auto total = std::accumulate(
                 chunks.cbegin(),
                 chunks.cend(),
-                qsizetype(0),
+                static_cast<qsizetype>(0),
                 [](qsizetype sum, const auto &opt) { return sum + (opt ? opt->size() : 0); }
             );
 
