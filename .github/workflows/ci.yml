@@ -58,6 +58,7 @@ jobs:
             test_jitterbuffer \
             test_drmformat \
             test_socket \
+            test_av \
             --parallel
           ctest --test-dir build/server --output-on-failure
 
