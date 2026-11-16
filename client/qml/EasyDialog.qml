@@ -14,7 +14,10 @@ Popup {
     x: (window.width - width)/2
     y: (window.height - height)/2
     implicitHeight: contentLayout.implicitHeight + topPadding + bottomPadding
-    implicitWidth: contentLayout.implicitWidth + leftPadding + rightPadding
+    implicitWidth: Math.min(
+        contentLayout.implicitWidth + leftPadding + rightPadding,
+        (parent ? parent.width : 400) - GlobalVars.outterSpacing * 2
+    )
     padding: GlobalVars.fontSizeBase
 
     property string title: ""
