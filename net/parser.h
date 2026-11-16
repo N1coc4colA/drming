@@ -183,9 +183,9 @@ struct Field
 {
     using data_type = T;
 
-    static constexpr bool __is_field = true;
-    static constexpr bool __is_variable = IsVariable;
-    static constexpr bool __has_limits = HasLimit;
+    static constexpr bool _is_field = true;
+    static constexpr bool _is_variable = IsVariable;
+    static constexpr bool _has_limits = HasLimit;
 
     T data{};
 
@@ -242,7 +242,7 @@ struct BoundField : Field<T, false, true>
 template<typename T, typename LimitType, LimitType Min, LimitType Max>
 struct VariableFixedField : SizedField<T, LimitType>
 {
-    static constexpr bool __has_limits = true;
+    static constexpr bool _has_limits = true;
 
     static constexpr LimitType min = Min;
     static constexpr LimitType max = Max;
@@ -257,7 +257,7 @@ template<
     LimitType DefaultMax = std::numeric_limits<LimitType>::max()>
 struct VariableBoundField : SizedField<T, LimitType>
 {
-    static constexpr bool __has_limits = true;
+    static constexpr bool _has_limits = true;
 
     LimitType min = DefaultMin;
     LimitType max = DefaultMax;
@@ -490,7 +490,7 @@ using PacketVariant = std::variant<
 class Writer
 {
     template<typename FieldType>
-        requires FieldType::__is_field and FieldType::__is_variable
+        requires FieldType::_is_field and FieldType::_is_variable
     static void updateSizeIfNeeded(FieldType &field)
     {
         field.size = static_cast<FieldType::size_type>(field.data.size());
@@ -501,14 +501,14 @@ class Writer
     {}
 
     template<typename FieldType>
-        requires FieldType::__is_field and FieldType::__is_variable
+        requires FieldType::_is_field and FieldType::_is_variable
     static void writeField(QDataStream &stream, const FieldType &field)
     {
         stream << field.size;
     }
 
     template<typename FieldType>
-        requires FieldType::__is_field and (not FieldType::__is_variable)
+        requires FieldType::_is_field and (not FieldType::_is_variable)
     static void writeField(QDataStream &stream, const FieldType &field)
     {
         stream << field.data;
@@ -525,21 +525,21 @@ class Writer
     {}
 
     template<typename FieldType>
-        requires FieldType::__is_field and FieldType::__is_variable
+        requires FieldType::_is_field and FieldType::_is_variable
     static void writeVariableField(QDataStream &stream, const FieldType &field)
     {
         stream.writeRawData(field.data.constData(), static_cast<qint64>(field.size));
     }
 
     template<typename FieldType>
-        requires FieldType::__is_field and FieldType::__is_variable
+        requires FieldType::_is_field and FieldType::_is_variable
     static qsizetype estimateFieldSize(const FieldType &f)
     {
         return sizeof(typename FieldType::size_type) + f.data.size();
     }
 
     template<typename FieldType>
-        requires FieldType::__is_field and (not FieldType::__is_variable)
+        requires FieldType::_is_field and (not FieldType::_is_variable)
     static qsizetype estimateFieldSize(const FieldType &)
     {
         return sizeof(typename FieldType::data_type);
@@ -628,7 +628,7 @@ class Parser
     }
 
     template<typename PacketType, size_t Index>
-        requires FieldType<PacketType, Index>::__is_variable and FieldType<PacketType, Index>::__has_limits
+        requires FieldType<PacketType, Index>::_is_variable and FieldType<PacketType, Index>::_has_limits
     ParseOutput read()
     {
         using Field = FieldType<PacketType, Index>;
@@ -653,7 +653,7 @@ class Parser
     }
 
     template<typename PacketType, size_t Index>
-        requires(not FieldType<PacketType, Index>::__is_variable) and FieldType<PacketType, Index>::__has_limits
+        requires(not FieldType<PacketType, Index>::_is_variable) and FieldType<PacketType, Index>::_has_limits
     ParseOutput read()
     {
         using Field = FieldType<PacketType, Index>;
@@ -675,7 +675,7 @@ class Parser
     }
 
     template<typename PacketType, size_t Index>
-        requires(not FieldType<PacketType, Index>::__is_variable) and (not FieldType<PacketType, Index>::__has_limits)
+        requires(not FieldType<PacketType, Index>::_is_variable) and (not FieldType<PacketType, Index>::_has_limits)
     ParseOutput read()
     {
         using Field = FieldType<PacketType, Index>;
@@ -713,7 +713,7 @@ class Parser
     }
 
     template<typename PacketType, size_t Index>
-        requires FieldType<PacketType, Index>::__is_field and FieldType<PacketType, Index>::__is_variable
+        requires FieldType<PacketType, Index>::_is_field and FieldType<PacketType, Index>::_is_variable
     ParseOutput readVariable()
     {
         auto &packet = std::get<PacketType>(m_current);
@@ -739,7 +739,7 @@ class Parser
     }
 
     template<typename PacketType, size_t Index>
-        requires(not(FieldType<PacketType, Index>::__is_field and FieldType<PacketType, Index>::__is_variable))
+        requires(not(FieldType<PacketType, Index>::_is_field and FieldType<PacketType, Index>::_is_variable))
     constexpr ParseOutput readVariable()
     {
         return True;
