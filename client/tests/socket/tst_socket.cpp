@@ -18,7 +18,7 @@ class TestUdpStreamSocket final : public UdpStreamSocket
 public:
     using UdpStreamSocket::UdpStreamSocket;
 
-    void addData(QByteArray) override
+    void addData(const QByteArray &) override
     {}
 };
 
@@ -103,11 +103,12 @@ private Q_SLOTS:
         // It is possible that due to Avahi's behaviour, a same iface with multiple IPs advertize
         // this same number of service on each IP although you explicitly told it to do so on only
         // one IP of one iface.
-        QCOMPARE(model.count(), 1);
-        QCOMPARE(model.get(0).value("host").toString(), QStringLiteral("new.local"));
+        QCOMPARE(model.count(), 2);
+        QCOMPARE(model.get(0).value("host").toString(), QStringLiteral("camera.local"));
+        QCOMPARE(model.get(1).value("host").toString(), QStringLiteral("new.local"));
 
         m_mdns.onServiceLost("camera", "192.0.2.3");
-        QCOMPARE(model.count(), 0);
+        QCOMPARE(model.count(), 1);
         model.clear();
     }
 
