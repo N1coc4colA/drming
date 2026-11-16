@@ -79,9 +79,9 @@ public:
     }
 
     /// Adds encoded bytes to the packet parser.
-    void addData(QByteArray data) override
+    void addData(const QByteArray &data) override
     {
-        Parser::pushData(std::move(data));
+        Parser::pushData(data);
     }
 
     /// Waits until the requested packet type is available.
@@ -121,9 +121,9 @@ public:
     }
 
     /// Adds encoded bytes to the packet parser.
-    void addData(QByteArray data) override
+    void addData(const QByteArray &data) override
     {
-        Parser::pushData(std::move(data));
+        Parser::pushData(data);
     }
 };
 
@@ -164,7 +164,7 @@ private:
     void performRequirements();
 
     /// Clears stale packets before queuing new data.
-    inline void pushData(QByteArray additional) override
+    inline void pushData(const QByteArray &additional) override
     {
         Parser::clear();
         Parser::pushData(std::move(additional));
