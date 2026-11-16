@@ -62,7 +62,7 @@ set(DRMING_CLIENT_CORE_SOURCES
     ../settings.h
     ../helpers.h
 
-    application.h
+    application.h application.cpp
     fileprovider.h fileprovider.cpp
     imagedecoder.h imagedecoder.cpp
     mdns.h mdns.cpp

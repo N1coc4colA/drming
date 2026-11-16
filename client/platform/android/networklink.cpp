@@ -337,7 +337,15 @@ void NetworkLink::processPacket(const Packets::AudioSource &src)
         const auto sock = m_alink->socket();
         if (sock ? (sock->peerPort() != port || sock->peerAddress() != addr) : true) {
             m_alink->close();
-            m_alink->connectToMulticast(addr, port);
+
+            const auto iface = QNetworkInterface::interfaceFromName(m_interfaceName);
+            if (!iface.isValid()) {
+                // [TODO] Generate an error message to user
+                qDebug() << "Interface is invalid:" << m_interfaceName;
+                return;
+            }
+
+            m_alink->connectToMulticast(addr, port, iface);
         }
     });
 }
@@ -370,7 +378,15 @@ void NetworkLink::processPacket(const Packets::VideoSource &src)
         const auto sock = m_vlink->socket();
         if (sock ? (sock->peerPort() != port || sock->peerAddress() != addr) : true) {
             m_vlink->close();
-            m_vlink->connectToMulticast(addr, port);
+
+            const auto iface = QNetworkInterface::interfaceFromName(m_interfaceName);
+            if (!iface.isValid()) {
+                // [TODO] Generate an error message to user
+                qDebug() << "Interface is invalid:" << m_interfaceName;
+                return;
+            }
+
+            m_vlink->connectToMulticast(addr, port, iface);
         }
     });
 }

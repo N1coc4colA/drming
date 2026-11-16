@@ -105,7 +105,12 @@ void NetworkLink::resetSessionState()
     m_lastTelemetryNs = 0;
 }
 
-void NetworkLink::connect(const QString &address, const int port, const QString &clientName)
+void NetworkLink::connect(
+    const QString &address,
+    const int port,
+    const QString &clientName,
+    const QString &interfaceName
+)
 {
     m_udpSocket->close();
 
@@ -137,6 +142,9 @@ void NetworkLink::connect(const QString &address, const int port, const QString 
 
     const QHostAddress hostAddress(address);
 
+    qDebug() << "Provided interface:" << interfaceName;
+
+    m_interfaceName = interfaceName;
     connectDtls(sslConf, hostAddress, port);
 }
 

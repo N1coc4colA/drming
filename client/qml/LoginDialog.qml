@@ -10,7 +10,7 @@ EasyDialog {
     property string hostIp: ""
     property string hostPort: ""
     property string clientName: ""
-    property string protocolName: ""
+    property string interfaceName: ""
     property bool isValid: false
 
     signal cancelled
@@ -23,13 +23,6 @@ EasyDialog {
 
         GridLayout {
             columns: 2
-
-            Label {
-                text: qsTr("Protocol:")
-            }
-            Label {
-                text: root.protocolName
-            }
 
             Label {
                 text: qsTr("Server IP:")
@@ -51,9 +44,20 @@ EasyDialog {
             EasyComboBox {
                 id: clientEntry
 
-                onCurrentIndexChanged: root.isValid = clientEntry.currentIndex > -1
+                onCurrentIndexChanged: root.isValid = clientEntry.currentIndex > -1 && interfaceEntry.currentIndex > -1
                 onCurrentTextChanged: root.clientName = currentText
                 onVisibleChanged: clientEntry.model = fileProvider().validClientEntries()
+            }
+
+            Label {
+                text: qsTr("Interface:")
+            }
+            EasyComboBox {
+                id: interfaceEntry
+
+                onCurrentIndexChanged: root.isValid = clientEntry.currentIndex > -1 && interfaceEntry.currentIndex > -1
+                onCurrentTextChanged: root.interfaceName = currentText
+                onVisibleChanged: interfaceEntry.model = getAvailableInterfaces()
             }
         }
     }

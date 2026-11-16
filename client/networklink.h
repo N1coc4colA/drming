@@ -48,7 +48,7 @@ public Q_SLOTS:
     /// Closes both transport channels and resets negotiated frame state.
     void close();
     /// Connects to a server using the named client credentials and starts the TLS/DTLS handshake.
-    void connect(const QString &address, int port, const QString &clientName);
+    void connect(const QString &address, int port, const QString &clientName, const QString &interfaceName);
     /// Connects the platform renderer to decoded frame delivery.
     virtual void setItem(QObject *item) = 0;
 
@@ -86,6 +86,8 @@ protected:
     QTimer m_telemetryTimer{};
     /// Anchors the interval used for the next telemetry snapshot.
     quint64 m_lastTelemetryNs = 0;
+    /// Interface used to perform connections.
+    QString m_interfaceName = "";
 
 private:
     /// Identifies the protocol selected for the session.

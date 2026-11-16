@@ -67,6 +67,8 @@ public:
         return m_servicesModel ? m_servicesModel : m_servicesModel = new ServicesModel(this);
     }
 
+    Q_INVOKABLE static QStringList getAvailableInterfaces();
+
 private:
     /// Transport retained for the active server connection, when created.
     NetworkLink *m_networkLink = nullptr;

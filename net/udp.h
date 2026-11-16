@@ -86,6 +86,32 @@ public:
         m_jitterBuffer.clear();
     }
 
+    static QStringList interfaces()
+    {
+        QStringList out{};
+
+        for (const auto &iface : QNetworkInterface::allInterfaces()) {
+            const auto flags = iface.flags();
+            const auto name = iface.name();
+
+            if (!flags.testFlag(QNetworkInterface::CanMulticast) || !flags.testFlag(QNetworkInterface::IsUp)
+                || flags.testFlag(QNetworkInterface::IsLoopBack) || flags.testFlag(QNetworkInterface::IsPointToPoint)) {
+                continue;
+            }
+
+            if (name.startsWith("tailscale") || name.startsWith("docker") || name.startsWith("tun")
+                || name.startsWith("tap")) {
+                continue;
+            }
+
+            if (iface.isValid()) {
+                out.append(iface.humanReadableName());
+            }
+        }
+
+        return out;
+    }
+
 Q_SIGNALS:
     /// Emitted when the underlying UDP socket is connected.
     void connected();
@@ -168,6 +194,11 @@ public Q_SLOTS:
     /// Joins the multicast group on the specified network interface.
     void connectToMulticast(const QHostAddress &address, const quint16 port, const QNetworkInterface &iface)
     {
+        if (!m_multicastInterfaces.contains(iface.hardwareAddress())) {
+            m_socket.setMulticastInterface(iface);
+            m_multicastInterfaces.insert(iface.hardwareAddress());
+        }
+
         if (const auto proto = address.protocol(); proto == QAbstractSocket::IPv4Protocol || proto == QAbstractSocket::IPv6Protocol) {
             if (!m_socket.bind(
                     proto == QAbstractSocket::IPv4Protocol ? QHostAddress::AnyIPv4 : QHostAddress::AnyIPv6,
@@ -184,10 +215,11 @@ public Q_SLOTS:
             return;
         }
 
-        m_socket.setMulticastInterface(iface);
-
         if (!m_socket.joinMulticastGroup(address)) {
             qDebug() << "Failed to join multicast group:" << address << m_socket.errorString();
+        } else {
+            m_multicastHostAddresses.insert(address);
+            qDebug() << "Joined multicast group" << address << "on interface" << iface.name();
         }
     }
 
