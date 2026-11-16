@@ -180,19 +180,22 @@ qt_add_qml_module(drming_client
         qml/ServicesPage.qml
         qml/StreamPage.qml
 
-        qml/SearchBar.qml
         qml/ServicesList.qml
         qml/ServiceSelector.qml
+
+        qml/InformationDialog.qml
         qml/LoginDialog.qml
 
-        qml/HeaderBar.qml
-        qml/EasyButton.qml
         qml/EasyComboBox.qml
+        qml/EasyButton.qml
+        qml/NewButton.qml
+        qml/SearchBar.qml
+
+        qml/HeaderBar.qml
         qml/EasyDialog.qml
         qml/EasyListView.qml
         qml/EasyPage.qml
         qml/StandardPage.qml
-        qml/NewButton.qml
 
         qml/TapAnimation.qml
 

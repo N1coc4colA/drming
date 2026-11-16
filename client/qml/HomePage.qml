@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-Item {
+EasyPage {
     id: root
 
     property int buttonsHeight: 120
@@ -16,7 +16,21 @@ Item {
     // Check if screen is wide enough to fit 3 buttons side-by-side cleanly
     readonly property bool isWideEnough: root.width > (buttonsWidth * 3 + GlobalVars.outterSpacing * 6)
 
-    ColumnLayout {
+    headerBar.rightContent: EasyButton {
+        display: AbstractButton.IconOnly
+        icon.source: "qrc:/assets/help-about.svg"
+
+        height: headerBar.centerHeight
+        width: headerBar.centerHeight
+
+        onClicked: infoDialog.open()
+    }
+
+    InformationDialog {
+        id: infoDialog
+    }
+
+    content: ColumnLayout {
         id: container
         anchors.centerIn: parent
         anchors.margins: GlobalVars.doubleOutterSpacing
@@ -82,6 +96,4 @@ Item {
             }
         }
     }
-
-    property alias mimumHeight: container.height
 }

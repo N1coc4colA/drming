@@ -18,5 +18,6 @@
         <file>assets/dialog-ok-apply.svg</file>
         <file>assets/go-down.svg</file>
         <file>assets/document-save.svg</file>
+        <file>assets/measure.svg</file>
     </qresource>
 </RCC>
