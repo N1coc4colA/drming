@@ -3,7 +3,9 @@
 
 #include <QPalette>
 
-void writePalette(const QString &fp);
-QPalette readPalette(const QString &fp);
+/// Serializes the application palette to a file.
+bool writePalette(const QString &fp);
+/// Reads a serialized palette, or returns no value when unavailable.
+std::optional<QPalette> readPalette(const QString &fp);
 
 #endif // PALETTE_H

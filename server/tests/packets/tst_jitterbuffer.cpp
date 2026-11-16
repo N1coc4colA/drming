@@ -37,7 +37,7 @@ void TestJitterBuffer::duplicateChunksAreIgnored()
 
 void TestJitterBuffer::evictsOldTimestamps()
 {
-    Packets::JitterBuffer<> jb; // MaxTimestamps == 3
+    Packets::JitterBuffer<Packets::Ordering, Packets::Timestamp, 3> jb;
     for (Packets::Timestamp ts = 0; ts < 5; ++ts)
         jb.pushChunk(ts, 0, 1, QByteArray::number(ts));
 

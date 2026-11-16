@@ -1,15 +1,15 @@
 #include "commandparser.h"
 
 #include <QCoreApplication>
-#include <QDebug>
 #include <QMetaEnum>
 
 #include <cstdlib>
 
 #include "parameters.h"
 
+/// Returns a string list of valid names for enum type T.
 template<typename T>
-QStringList possibleValues()
+static QStringList possibleValues()
 {
     const auto me = QMetaEnum::fromType<T>();
 
@@ -103,23 +103,29 @@ CommandParser::CommandParser()
     );
 }
 
-CommandParser::Exit validatePort(const QString &port, int &out)
+/// Validates and parses a network port number string.
+template<typename T>
+static CommandParser::Exit validatePort(const QString &port, T &out)
 {
     bool valid = false;
-    out = port.toInt(&valid);
+    const int value = port.toInt(&valid);
+
     if (!valid) {
         qCritical() << "It seems the port is not base 10, and could not be parsed.";
         return CommandParser::Failure;
     }
-    if (out < 1 || out > 65535) {
+    if (value < 1 || value > 65535) {
         qCritical() << QObject::tr("Port number is not within the right range.");
         return CommandParser::Failure;
     }
 
+    out = static_cast<T>(value);
+
     return CommandParser::Continue;
 }
 
-bool validateIpProto(const QHostAddress &addr)
+/// Validates that an address belongs to IPv4 or IPv6.
+static bool validateIpProto(const QHostAddress &addr)
 {
     const auto proto = addr.protocol();
 
@@ -162,7 +168,8 @@ CommandParser::Exit CommandParser::parse(const QStringList &args)
     const auto compressionLevel = m_parser.value("quality");
     const auto streamFormat = m_parser.value("format");
 
-    int port = 0, audioPort = 0, videoPort = 0;
+    int port = 0;
+    ushort audioPort = 0, videoPort = 0;
 
     if (validatePort(portName, port) != Continue) {
         return Failure;

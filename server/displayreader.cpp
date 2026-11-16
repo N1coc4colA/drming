@@ -6,7 +6,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -14,6 +13,7 @@
 
 #include <cstring>
 
+#include "helpers.h"
 #include "sse.h"
 
 #ifndef Q_MOC_RUN
@@ -22,7 +22,8 @@
 
 namespace Drm {
 
-QString drmDeviceForConnector(const QString &connectorName)
+/// Resolves the DRM device file path associated with the given connector name.
+static QString drmDeviceForConnector(const QString &connectorName)
 {
     CTRACK;
 
@@ -85,7 +86,7 @@ QString drmDeviceForConnector(const QString &connectorName)
  * mapping is read-only. The buffer is owned by the caller; pair it with a
  * munmap() of the returned pointer.
  */
-bool mapFramebuffer(void *&dataOut, const int drmFd, const uint32_t handle, const size_t size, const bool writable)
+static bool mapFramebuffer(void *&dataOut, const int drmFd, const uint32_t handle, const size_t size, const bool writable)
 {
     CTRACK;
 
@@ -135,16 +136,17 @@ DisplayReader::~DisplayReader()
     teardown();
 }
 
+/// Frees cached buffer mappings and closes DRM resources.
 void DisplayReader::teardown()
 {
-    for (auto &c : m_primaryBuffers) {
+    for (const auto &c : m_primaryBuffers) {
         if (c.data && c.size) {
             munmap(c.data, c.size);
         }
     }
     m_primaryBuffers.clear();
 
-    for (auto &c : m_cursorBuffers) {
+    for (const auto &c : m_cursorBuffers) {
         if (c.data && c.size) {
             munmap(c.data, c.size);
         }
@@ -326,7 +328,7 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
         cp.height = mfb->height;
         cp.stride = mfb->pitches[0];
         cp.format = mfb->pixel_format;
-        cp.bpp = (cp.format == DRM_FORMAT_RGB565) ? 16 : 32;
+        cp.bpp = cp.format == DRM_FORMAT_RGB565 ? 16 : 32;
         cp.size = static_cast<size_t>(cp.stride) * cp.height;
         cp.writable = m_writableMapping;
 
@@ -335,7 +337,7 @@ bool DisplayReader::getVkmsFrameBuffer(VkmsFrameBuffer &fb)
         }
 
         if (m_primaryBuffers.size() >= kMaxCachedPrimaries) {
-            auto evict = m_primaryBuffers.begin();
+            const auto evict = m_primaryBuffers.begin();
             if (evict->data && evict->size) {
                 munmap(evict->data, evict->size);
             }
@@ -432,7 +434,7 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
             }
 
             if (m_cursorBuffers.size() >= kMaxCachedCursors) {
-                auto evict = m_cursorBuffers.begin();
+                const auto evict = m_cursorBuffers.begin();
                 if (evict->data && evict->size) {
                     munmap(evict->data, evict->size);
                 }
@@ -454,8 +456,8 @@ bool DisplayReader::getCursorFrameBuffer(CursorFrameBuffer &cursor, const VkmsFr
         cursor.stride = cc.stride;
         cursor.format = cc.format;
         // plane->x/y is the src offset within the cursor buffer (typically 0,0)
-        cursor.crtc_x = static_cast<int32_t>(crtcX) + static_cast<int32_t>(plane->x);
-        cursor.crtc_y = static_cast<int32_t>(crtcY) + static_cast<int32_t>(plane->y);
+        cursor.crtc_x = narrow<int32_t>(crtcX + plane->x);
+        cursor.crtc_y = narrow<int32_t>(crtcY + plane->y);
         return true;
     }
 
@@ -489,12 +491,12 @@ void DisplayReader::compositeWithCursor(
 
         if (output.bytesPerLine() == primary.bytesPerLine()) {
             // Most likely case: same stride, contiguous buffer, only one memcpy needed.
-            std::memcpy(output.bits(), primary.constBits(), output.sizeInBytes());
+            std::memcpy(output.bits(), primary.constBits(), checked_cast<size_t>(output.sizeInBytes()));
         } else {
             // Unlikely: fall back to row-wise.
-            const int rowBytes = std::min(output.bytesPerLine(), primary.bytesPerLine());
+            const qsizetype rowBytes = std::min(output.bytesPerLine(), primary.bytesPerLine());
             for (int y = 0; y < primary.height(); ++y) {
-                std::memcpy(output.scanLine(y), primary.constScanLine(y), rowBytes);
+                std::memcpy(output.scanLine(y), primary.constScanLine(y), checked_cast<size_t>(rowBytes));
             }
         }
     }
@@ -561,25 +563,19 @@ QImage DisplayReader::imageFromFrameBuffer(
     // DRM mapping or the next frame would be swizzled twice. Force a
     // copy-on-write wrap for any format that needs a conversion, regardless
     // of what the caller asked for.
-    const bool effectiveWritable = writable && (fmtDesc.convert == nullptr);
+    const bool effectiveWritable = writable && fmtDesc.convert == nullptr;
 
     QImage output{};
     if (effectiveWritable) {
         output = QImage(
             const_cast<uint8_t *>(data),
-            static_cast<int>(width),
-            static_cast<int>(height),
-            static_cast<int>(stride),
+            to_signed<int>(width),
+            to_signed<int>(height),
+            to_signed<int>(stride),
             fmtDesc.qtFormat
         );
     } else {
-        output = QImage(
-            data,
-            static_cast<int>(width),
-            static_cast<int>(height),
-            static_cast<int>(stride),
-            fmtDesc.qtFormat
-        );
+        output = QImage(data, to_signed<int>(width), to_signed<int>(height), to_signed<int>(stride), fmtDesc.qtFormat);
     }
 
     if (fmtDesc.convert) [[likely]] {

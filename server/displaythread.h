@@ -19,11 +19,15 @@ class DisplayThread : public QThread
 
 public:
     explicit DisplayThread(Display *display, QObject *parent = nullptr);
+    ~DisplayThread() override;
 
     /// Queues a client assignment on the display's owning thread.
+    /// This method must be called using QMetaObject::invokeMethod to make it
+    /// thread-safe.
     void addClient(NetworkClient *client);
 
 Q_SIGNALS:
+    /// Emitted when all clients have disconnected and the thread is free.
     void nowFree(DisplayThread *);
 
 private:

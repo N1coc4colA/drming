@@ -13,6 +13,7 @@ extern "C" {
 
 namespace Platform {
 
+/// Formats an FFmpeg/libav error code into a human-readable string.
 QString avError(const int err)
 {
     char errbuf[AV_ERROR_MAX_STRING_SIZE];
@@ -28,6 +29,7 @@ DecoderFramePool::~DecoderFramePool()
 
 void DecoderFramePool::clear()
 {
+    // [TODO]: Add assert for disposed frames.
     for (auto &ptr : m_queue) {
         av_frame_free(&ptr);
     }

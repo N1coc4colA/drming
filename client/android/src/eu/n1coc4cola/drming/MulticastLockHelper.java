@@ -4,12 +4,17 @@ import android.content.Context;
 import android.net.wifi.WifiManager;
 import android.util.Log;
 
+/** Keeps the Wi-Fi multicast lock while discovery is active. */
 public class MulticastLockHelper {
+	/** Log tag. */
 	private static final String TAG = "MulticastLockHelper";
 
+	/** System Wi-Fi multicast lock instance. */
 	private WifiManager.MulticastLock lock = null;
+	/** Active reference count for the multicast lock. */
 	private int locks = 0;
 
+	/** Creates a multicast lock helper. */
 	public MulticastLockHelper(Context context) {
         if (context != null) {
 			WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
@@ -24,6 +29,7 @@ public class MulticastLockHelper {
 		}
 	}
 
+	/** Acquires the multicast lock. */
 	public void lock() {
 		if (locks == 0) {
 			Log.d(TAG, "Locking");
@@ -38,6 +44,7 @@ public class MulticastLockHelper {
 		locks++;
 	}
 
+	/** Releases the multicast lock. */
 	public void release() {
 		if (locks == 1) {
 			Log.d(TAG, "Unlocking");

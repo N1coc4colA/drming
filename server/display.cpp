@@ -1,15 +1,14 @@
 #include "display.h"
 
 #include <QBuffer>
-#include <QDtls>
-#include <QtEndian>
+#include <QPointer>
 
 #include <chrono>
 
 #include "../net/parser.h"
 #include "../settings.h"
 
-#include "ffmpeg.h"
+#include "encoder.h"
 #include "parameters.h"
 #include "streamsocket.h"
 
@@ -21,6 +20,7 @@ Display::Display(const QString &connectorName, StreamSocket &ss, const bool inPl
     : QObject(parent)
     , m_ss(ss)
     , m_reader(connectorName, inPlaceComposite)
+    , m_pollTimer(this)
 {
     connect(&m_pollTimer, &QTimer::timeout, this, &Display::forward);
     m_pollTimer.setTimerType(Qt::PreciseTimer);
@@ -30,16 +30,20 @@ Display::Display(const QString &connectorName, StreamSocket &ss, const bool inPl
 
 void Display::applyClientTelemetry(const Packets::ClientTelemetry &t)
 {
-    const int current = m_targetFps.load(std::memory_order_relaxed);
-    int next = current;
+    const auto current = m_targetFps.load(std::memory_order_relaxed);
+    auto next = current;
 
     // Overload is sustained. A drop or a 60 ms p95 is normal jitter at 10-40 fps.
     // 3 consecutive samples (6 s) shows a capacity issue.
-    const bool overloaded = t.droppedFrames.data >= 3 || t.latencyMsP95.data > 60 || t.decodeQueueDepth.data > 4
-        || t.renderQueueDepth.data > 4;
+    const bool overloaded = t.droppedFrames.data >= Settings::overloadedDroppedFrames
+        || t.latencyMsP95.data > Settings::overloadedLatencyMsP95
+        || t.decodeQueueDepth.data > Settings::overloadedDecodeQueueDepth
+        || t.renderQueueDepth.data > Settings::overloadedRenderQueueDepth;
 
-    const bool healthy = t.droppedFrames.data == 0 && t.latencyMsP95.data < 30 && t.decodeQueueDepth.data < 2
-        && t.renderQueueDepth.data < 2;
+    const bool healthy = t.droppedFrames.data == Settings::healthyDroppedFrames
+        && t.latencyMsP95.data < Settings::healthyLatencyMsP95
+        && t.decodeQueueDepth.data < Settings::healthyDecodeQueueDepth
+        && t.renderQueueDepth.data < Settings::healthyRenderQueueDepth;
 
     if (overloaded) {
         if (++m_overloadStreak >= 3) {
@@ -66,6 +70,11 @@ void Display::applyClientTelemetry(const Packets::ClientTelemetry &t)
     }
 }
 
+void Display::forceKeyframe()
+{
+    m_forceNextFrame = true;
+}
+
 void Display::addClient(NetworkClient *client)
 {
     if (!client) [[unlikely]] {
@@ -78,15 +87,22 @@ void Display::addClient(NetworkClient *client)
 
     qDebug() << "Adding client to display (B)";
 
-    client->setParent(this);
-
     m_clients.insert(client);
     connect(client, &NetworkClient::disconnected, this, &Display::onDisconnected);
 
     qDebug() << "Client connected" << client->peerAddress() << client->peerPort();
 
     m_targetFps.store(Settings::maxForwardFps, std::memory_order_relaxed);
-    client->setDisplay(this);
+    const QPointer guardedClient(client);
+    QMetaObject::invokeMethod(
+        client,
+        [guardedClient, this] {
+            if (guardedClient) {
+                guardedClient->setDisplay(this);
+            }
+        },
+        Qt::QueuedConnection
+    );
 
     m_prevSize = {};
     // This is here just to speed up things a bit.
@@ -98,11 +114,14 @@ void Display::addClient(NetworkClient *client)
 void Display::reinit()
 {
     m_lastFbId = 0;
+    m_vkmsFrameDescriptor.reset();
+    m_cursorFrameDescriptor.reset();
+
     if (m_pollTimer.isActive()) {
         m_pollTimer.stop();
-        QTimer::singleShot(1500, [this]() {
+        QTimer::singleShot(1500, this, [this] {
             if (!m_clients.isEmpty()) {
-                const Packets::Reinit reinitPkt{};
+                constexpr Packets::Reinit reinitPkt{};
                 sendData(Packets::Writer::generate(reinitPkt));
                 m_pollTimer.start();
                 m_prevSize = {};
@@ -130,7 +149,7 @@ void Display::forward()
     const auto targetFps = std::max(1, m_targetFps.load(std::memory_order_relaxed));
     const auto minIntervalNs = 1'000'000'000LL / targetFps;
 
-    if (m_lastForwardNs != 0 && (nowNs - m_lastForwardNs) < minIntervalNs) {
+    if (m_lastForwardNs != 0 && nowNs - m_lastForwardNs < minIntervalNs) {
         return;
     }
 
@@ -150,11 +169,12 @@ void Display::forward()
     // stable buffer_id means a stable image. Skip the rest of forward()
     // entirely; on 46 µs getCrtc + ~1 µs compare, this is ~0.9 % CPU
     // at 200 Hz polling.
-    /*if (fb.fb_id == m_lastFbId) [[likely]] {
+    const bool force = m_forceNextFrame.exchange(false);
+    if (!force && fb.fb_id == m_lastFbId) [[likely]] {
         DisplayReader::releaseVkmsFrameBuffer(fb);
         return;
     }
-    m_lastFbId = fb.fb_id;*/
+    m_lastFbId = fb.fb_id;
 
     // ---- existing body (composite, encode, send) ---------------------
     CursorFrameBuffer cursorFb{};
@@ -223,8 +243,8 @@ void Display::forward()
     if (m_prevSize != finalImage->size()) [[unlikely]] {
         m_prevSize = finalImage->size();
         const Packets::ClientResolution res{
-            .width = { static_cast<quint32>(finalImage->width()) },
-            .height = { static_cast<quint32>(finalImage->height()) },
+            .width = { to_unsigned<quint32>(finalImage->width()) },
+            .height = { to_unsigned<quint32>(finalImage->height()) },
         };
 
         sendData(Packets::Writer::generate(res));
@@ -264,7 +284,7 @@ void Display::onConnected()
 
 void Display::onDisconnected()
 {
-    if (auto client = qobject_cast<NetworkClient *>(sender())) {
+    if (const auto client = qobject_cast<NetworkClient *>(sender())) {
         qDebug() << "Client disconnected" << client->peerAddress() << client->peerPort();
         m_clients.remove(client);
         client->deleteLater();
@@ -279,13 +299,15 @@ void Display::onDisconnected()
     m_targetFps.store(Settings::maxForwardFps, std::memory_order_relaxed);
 }
 
-bool Display::sendData(QByteArray output)
+bool Display::sendData(const QByteArray &output)
 {
     return m_ss.write(output);
 }
 
 void Display::disconnectAllClients()
 {
+    m_pollTimer.stop();
+
     if (!m_clients.isEmpty()) {
         for (const auto &client : m_clients) {
             client->close();
@@ -293,46 +315,8 @@ void Display::disconnectAllClients()
     }
 }
 
-class DisplayImage : public Display
+namespace
 {
-public:
-    DisplayImage(
-        const QString &connectorName,
-        StreamSocket &ss,
-        const QString &format,
-        const bool inPlaceComposite,
-        QObject *parent = nullptr
-    )
-        : Display(connectorName, ss, inPlaceComposite, parent)
-        , m_format(format.toLocal8Bit())
-    {}
-
-private:
-    const QByteArray m_format;
-    std::chrono::time_point<std::chrono::high_resolution_clock> m_last = std::chrono::high_resolution_clock::now();
-
-    void processImage(const QImage &result) override
-    {
-        CTRACK;
-
-        Packets::ServerImage servImg{};
-        servImg.format.data = m_format;
-        {
-            QBuffer buf(&servImg.data.data);
-            buf.open(QIODevice::WriteOnly);
-            result.save(&buf, m_format, Parameters::instance.qualityLevel);
-            buf.close();
-        }
-
-        const auto curr = std::chrono::high_resolution_clock::now();
-        const auto duration = duration_cast<std::chrono::microseconds>(curr - m_last);
-        // [CHRONO]
-        qDebug() << duration;
-        m_last = curr;
-
-        sendData(Packets::Writer::generate(servImg));
-    }
-};
 
 class DisplayH265 : public Display
 {
@@ -340,14 +324,23 @@ public:
     DisplayH265(const QString &connectorName, StreamSocket &ss, const bool inPlaceComposite, QObject *parent = nullptr)
         : Display(connectorName, ss, inPlaceComposite, parent)
         , m_encoder(
-              [this](const uint8_t *data, int size, int64_t pts) { this->h265dataForward(data, size, pts); },
-              Settings::maxForwardFps
+              Encoder::createEncoder(
+                  [this](const uint8_t *data, const int size, const int64_t pts) { this->h265dataForward(data, size, pts); },
+                  Settings::maxForwardFps
+              )
           )
-    {}
+    {
+        assert(m_encoder != nullptr);
+    }
+    ~DisplayH265() override
+    {
+        delete m_encoder;
+    }
 
     void forceKeyframe() override
     {
-        m_encoder.forceKeyframe();
+        Display::forceKeyframe();
+        m_encoder->forceKeyframe();
     }
 
 private:
@@ -355,7 +348,7 @@ private:
     {
         CTRACK;
 
-        m_encoder.push_image(result.bits(), result.width(), result.height(), result.format(), result.bytesPerLine());
+        m_encoder->push_image(result.bits(), result.width(), result.height(), result.format(), result.bytesPerLine());
     }
 
     void h265dataForward(const uint8_t *data, const int size, const int64_t pts)
@@ -379,12 +372,14 @@ private:
              * natural IDR. Force an IDR on the next encode so recovery is one
              * frame instead of one GOP.
              */
-            m_encoder.forceKeyframe();
+            m_encoder->forceKeyframe();
         }
     }
 
-    Ffmpeg::Encoder m_encoder;
+    Encoder *m_encoder = nullptr;
 };
+
+} // namespace
 
 Display *generateNewDisplay(const QString &connectorName, StreamSocket &ss, QObject *parent)
 {
@@ -393,15 +388,6 @@ Display *generateNewDisplay(const QString &connectorName, StreamSocket &ss, QObj
     switch (Parameters::instance.streamFormat) {
     case Opts::DisplayStreamType::h265: {
         return new DisplayH265(connectorName, ss, inPlaceComposite, parent);
-    }
-    case Opts::DisplayStreamType::jpg: {
-        return new DisplayImage(connectorName, ss, "JPG", inPlaceComposite, parent);
-    }
-    case Opts::DisplayStreamType::png: {
-        return new DisplayImage(connectorName, ss, "PNG", inPlaceComposite, parent);
-    }
-    case Opts::DisplayStreamType::webp: {
-        return new DisplayImage(connectorName, ss, "WEBP", inPlaceComposite, parent);
     }
     }
 

@@ -1,10 +1,7 @@
 #ifndef DISPLAYMANAGER_H
 #define DISPLAYMANAGER_H
 
-#include <QMap>
 #include <QObject>
-#include <QQueue>
-#include <QSet>
 
 class NetworkClient;
 class DisplayThread;
@@ -23,7 +20,10 @@ public:
     explicit DisplayManager(StreamSocket &ss, QObject *parent = nullptr);
     ~DisplayManager() override;
 
-    /// Assigns a client to an existing display or creates a new display slot.
+    /**
+     * Assigns a client to an existing display or creates a new display slot.
+     * The parent object of client should be the instance of DisplayManager.
+     */
     bool registerClient(NetworkClient *client);
 
 private:

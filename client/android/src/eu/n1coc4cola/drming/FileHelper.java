@@ -29,18 +29,32 @@ import java.util.List;
 /**
  * Android implementation of the FileProvider API.
  * Stores all data in the app's internal storage (private).
+ * Manages certificate files and Android file-picker operations.
  */
 public class FileHelper {
+    /** Log tag. */
     private static final String TAG = "FileHelper";
+    /** File picker request ID. */
     private static final int FILE_PICKER_REQUEST = 17421;
+    /** Active singleton helper instance used for forwarding activity results. */
     private static FileHelper activeHelper;
+    /** Folder name where data's stored. */
     private static final String FOLDER_NAME = "drming";
+    /** Client certificate file name. */
     private static final String CLIENT_CERT_NAME = "cert.crt";
+    /** Client key file name. */
     private static final String CLIENT_KEY_NAME = "key.key";
 
+    /** Activity context used for file operations and resolvers. */
     private final Context mContext;
+    /** Directory storing trusted server certificates. */
     private final File serversDir;
+    /** Directory storing client certificate and key credentials. */
     private final File clientsDir;
+    /** Operation code of the in-flight file picker request. */
+    private int pendingOperation;
+    /** Target credential entry name for the in-flight operation. */
+    private String pendingName = "";
 
     private FileHelper(Context context) {
         mContext = context;
@@ -58,13 +72,12 @@ public class FileHelper {
         }
     }
 
+    /** Returns the resolver used to access shared documents. */
     private ContentResolver getContextContentResolver() {
         return mContext.getContentResolver();
     }
 
-    private int pendingOperation;
-    private String pendingName = "";
-
+    /** Opens the Android file picker for the requested operation. */
     public boolean startFilePicker(int operation, String name, String mimeType) {
         if (!(mContext instanceof Activity)) {
             Log.e(TAG, "Cannot open file picker without an Activity context");
@@ -97,6 +110,7 @@ public class FileHelper {
         return true;
     }
 
+    /** Processes the result returned by the Android activity. */
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode != FILE_PICKER_REQUEST) {
             return;
@@ -124,14 +138,17 @@ public class FileHelper {
         nativeOnFileSelected(pendingOperation, pendingName, uri.toString());
     }
 
+    /** Forwards an activity result received from Qt. */
     public static void onActivityResultFromQt(int requestCode, int resultCode, Intent data) {
         if (activeHelper != null) {
             activeHelper.onActivityResult(requestCode, resultCode, data);
         }
     }
 
+    /** Reports the selected file URI to native code. */
     private static native void nativeOnFileSelected(int operation, String name, String source);
 
+    /** Returns the default filename for an exported credential file based on operation type. */
     private String exportFileName(int operation) {
         if (operation == 3) {
             return "certificate.crt";
@@ -139,6 +156,7 @@ public class FileHelper {
         return operation == 4 ? "cert.crt" : "key.key";
     }
 
+    /** Copies an exported file to the destination URI. */
     private boolean copyToUri(Uri target, int operation, String name) {
         File source;
         if (operation == 3) {
@@ -164,6 +182,7 @@ public class FileHelper {
         }
     }
 
+    /** Returns the display name associated with a document URI. */
     private String getNameFromUri(String uriString) {
         Uri uri = Uri.parse(uriString);
 
@@ -197,6 +216,7 @@ public class FileHelper {
         return null;
     }
 
+    /** Reads a document name from the content provider. */
     private String getFileNameFromDocumentUri(Uri uri) {
         if (!ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
             return null;
@@ -228,42 +248,50 @@ public class FileHelper {
         return (fileName != null && !fileName.isEmpty()) ? fileName : null;
     }
 
-    // ------------------------------------------------------------------------
-    // Paths & file names
-    // ------------------------------------------------------------------------
+    /** Returns the absolute path to the directory containing server certificates. */
     public String getServerCertsPath() {
         return serversDir.getAbsolutePath() + "/";
     }
 
+    /** Returns the absolute path to the directory containing client credentials. */
     public String getClientPath() {
         return clientsDir.getAbsolutePath() + "/";
     }
 
+    /** Returns the standard client certificate filename. */
     public String getClientCertName() {
         return CLIENT_CERT_NAME;
     }
 
+    /** Returns the standard client private key filename. */
     public String getClientKeyName() {
         return CLIENT_KEY_NAME;
     }
 
-    // ------------------------------------------------------------------------
-    // Data classes for list results
-    // ------------------------------------------------------------------------
+    /** Metadata for a stored server certificate. */
     public static class CertInfo {
+        /** Certificate name. */
         public final String name;
+        /** Last modification date. */
         public final long lastModified;
+
         public CertInfo(String name, long lastModified) {
             this.name = name;
             this.lastModified = lastModified;
         }
     }
 
+    /** Metadata for a stored client credential pair. */
     public static class ClientInfo {
+        /** Client entry name. */
         public final String name;
+        /** Last modification date. */
         public final long lastModified;
+        /** The entry has a certificate. */
         public final boolean hasCert;
+        /** The entry has a key. */
         public final boolean hasKey;
+
         public ClientInfo(String name, long lastModified, boolean hasCert, boolean hasKey) {
             this.name = name;
             this.lastModified = lastModified;
@@ -272,9 +300,7 @@ public class FileHelper {
         }
     }
 
-    // ------------------------------------------------------------------------
-    // Load lists
-    // ------------------------------------------------------------------------
+    /** Retrieves all available servers' certificate information. */
     public List<CertInfo> getServerCerts() {
         List<CertInfo> result = new ArrayList<>();
         File[] files = serversDir.listFiles();
@@ -288,6 +314,7 @@ public class FileHelper {
         return result;
     }
 
+    /** Retrieves all available clients' information. */
     public List<ClientInfo> getClients() {
         List<ClientInfo> result = new ArrayList<>();
         File[] dirs = clientsDir.listFiles(File::isDirectory);
@@ -304,19 +331,19 @@ public class FileHelper {
         return result;
     }
 
-    // ------------------------------------------------------------------------
-    // Delete operations
-    // ------------------------------------------------------------------------
+    /** Deletes a stored server certificate. */
     public boolean deleteServerCert(String fileName) {
         File target = new File(serversDir, fileName);
         return target.delete();
     }
 
+    /** Deletes a client and its credential files. */
     public boolean deleteClient(String name) {
         File clientDir = new File(clientsDir, name);
         return deleteRecursively(clientDir);
     }
 
+    /** Deletes a client directory and its contents. */
     private boolean deleteRecursively(File file) {
         if (file.isDirectory()) {
             File[] children = file.listFiles();
@@ -329,9 +356,12 @@ public class FileHelper {
         return file.delete();
     }
 
-    // ------------------------------------------------------------------------
-    // Add operations (return codes: 0 = failure, 1 = invalid file, 2 = success)
-    // ------------------------------------------------------------------------
+    /**
+     * Adds a server certificate from the selected file.
+     *
+     * @param sourceFilePath Selected certificate file URI or path.
+     * @return Status code: 0 = failure, 1 = invalid file, 2 = success.
+     */
     public int addServerCert(String sourceFilePath) {
         String source = getNameFromUri(sourceFilePath);
         File dest = new File(serversDir, source);
@@ -345,6 +375,7 @@ public class FileHelper {
         return 2;
     }
 
+    /** Adds a client certificate to client storage. */
     public int addClientCert(String name, String sourceCertPath) {
         if (!createClientPathStorage(name)) return 0;
         File dest = new File(new File(clientsDir, name), CLIENT_CERT_NAME);
@@ -356,6 +387,7 @@ public class FileHelper {
         return 2;
     }
 
+    /** Adds a client private key to client storage. */
     public int addClientKey(String name, String sourceKeyPath) {
         if (!createClientPathStorage(name)) return 0;
         File dest = new File(new File(clientsDir, name), CLIENT_KEY_NAME);
@@ -367,6 +399,7 @@ public class FileHelper {
         return 2;
     }
 
+    /** Creates the storage directory for a client. */
     private boolean createClientPathStorage(String name) {
         File clientDir = new File(clientsDir, name);
         if (!clientDir.exists()) {
@@ -375,6 +408,7 @@ public class FileHelper {
         return true;
     }
 
+    /** Copies a file from source to destination. */
     private boolean copyFile(File src, File dst) {
         try (InputStream in = new FileInputStream(src);
             FileOutputStream out = new FileOutputStream(dst)) {
@@ -390,6 +424,7 @@ public class FileHelper {
         }
     }
 
+    /** Copies a selected document into app storage. */
     private boolean copyFromUri(Uri uri, File dst) {
         ContentResolver resolver = null;
         try {
@@ -417,6 +452,7 @@ public class FileHelper {
         }
     }
 
+    /** Copies a file from the supplied local path. */
     private boolean copyFromPathString(String sourcePath, File dst) {
         if (sourcePath == null) return false;
         final String trimmed = sourcePath.trim();
@@ -430,9 +466,7 @@ public class FileHelper {
         }
     }
 
-    // ------------------------------------------------------------------------
-    // Validation helpers
-    // ------------------------------------------------------------------------
+    /** Checks whether a certificate file is readable and valid. */
     private boolean isCertValid(File certFile) {
         try (FileInputStream fis = new FileInputStream(certFile)) {
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
@@ -444,6 +478,7 @@ public class FileHelper {
         }
     }
 
+    /** Checks whether a private key file is readable and valid. */
     private boolean isKeyValid(File keyFile) {
         try {
             byte[] keyBytes = Files.readAllBytes(keyFile.toPath());
@@ -475,6 +510,7 @@ public class FileHelper {
         }
     }
 
+    /** Converts PEM certificate data to DER bytes. */
     private byte[] pemToDer(String pem) {
         int begin = pem.indexOf("-----BEGIN ");
         int beginEnd = pem.indexOf("-----", begin + 11);
@@ -495,19 +531,19 @@ public class FileHelper {
         return android.util.Base64.decode(encoded, android.util.Base64.DEFAULT);
     }
 
-    // ------------------------------------------------------------------------
-    // Raw data access
-    // ------------------------------------------------------------------------
+    /** Loads a client certificate as bytes. */
     public byte[] getClientCertData(String name) {
         File certFile = new File(new File(clientsDir, name), CLIENT_CERT_NAME);
         return readFileBytes(certFile);
     }
 
+    /** Loads a client private key as bytes. */
     public byte[] getClientKeyData(String name) {
         File keyFile = new File(new File(clientsDir, name), CLIENT_KEY_NAME);
         return readFileBytes(keyFile);
     }
 
+    /** Loads the trusted certificate bundle. */
     public ArrayList<byte[]> getTrustedCertsData() {
         ArrayList<byte[]> result = new ArrayList<>();
         File[] files = serversDir.listFiles();
@@ -522,6 +558,7 @@ public class FileHelper {
         return result;
     }
 
+    /** Reads the complete contents of a file. */
     private byte[] readFileBytes(File file) {
         if (!file.exists() || !file.canRead()) return null;
         try (FileInputStream fis = new FileInputStream(file)) {
@@ -534,9 +571,7 @@ public class FileHelper {
         }
     }
 
-    // ------------------------------------------------------------------------
-    // Client entry rename
-    // ------------------------------------------------------------------------
+    /** Updates the stored files for a client. */
     public boolean updateClientEntry(String src, String dst) {
         if (src == null || dst == null || dst.isEmpty()) {
             return false;
@@ -556,9 +591,7 @@ public class FileHelper {
         return true;
     }
 
-    // ------------------------------------------------------------------------
-    // Utility: get list of client names that have both cert and key valid
-    // ------------------------------------------------------------------------
+    /** Returns clients with usable certificate and key files. */
     public String[] getValidClientEntries() {
         List<String> valid = new ArrayList<>();
         for (ClientInfo info : getClients()) {

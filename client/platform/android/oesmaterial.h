@@ -5,6 +5,7 @@
 
 namespace Platform {
 
+/// Renders a decoded external texture.
 class OESMaterial : public QSGMaterial
 {
 public:
@@ -13,20 +14,24 @@ public:
         setFlag(Blending, false);
     }
 
+    /// Returns the material type used by Qt Quick.
     QSGMaterialType *type() const override
     {
         static QSGMaterialType t;
         return &t;
     }
 
+    /// Creates the material shader implementation.
     QSGMaterialShader *createShader(QSGRendererInterface::RenderMode) const override;
 
 private:
+    /// External texture referenced by the material.
     QSGTexture *texture = nullptr;
 
     friend class OESMaterialShader;
 };
 
+/// Defines the shader used by the external-texture material.
 class OESMaterialShader : public QSGMaterialShader
 {
 public:
@@ -36,6 +41,7 @@ public:
         setShaderFileName(FragmentStage, ":/shaders/oes.frag.qsb");
     }
 
+    /// Updates the image sampled by the material.
     void updateSampledImage(
         RenderState &,
         const int binding,

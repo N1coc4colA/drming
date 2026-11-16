@@ -9,9 +9,12 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 
+/** Bridges Qt UI calls to the Android activity. */
 public class AndroidUi {
+    /** Associated Android Activity instance. */
     private final Activity mActivity;
 
+    /** Creates the Android UI bridge. */
     public AndroidUi(Context context) {
         if (!(context instanceof Activity)) {
             throw new IllegalArgumentException("Context must be an Activity");
@@ -21,6 +24,7 @@ public class AndroidUi {
         mActivity.getWindow().setStatusBarColor(Color.rgb(30, 30, 30));
     }
 
+    /** Hides system UI and enters immersive full-screen mode. */
     public void enterFullScreen() {
         mActivity.runOnUiThread(() -> {
             Window window = mActivity.getWindow();
@@ -48,6 +52,7 @@ public class AndroidUi {
         });
     }
 
+    /** Restores the system UI after immersive mode. */
     public void leaveFullScreen() {
         mActivity.runOnUiThread(() -> {
             Window window = mActivity.getWindow();

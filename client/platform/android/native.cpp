@@ -14,13 +14,16 @@
 #include "fileprovider.h"
 
 namespace {
+/// Tracks whether ctrack results have already been printed.
 std::atomic_bool ctrackPrinted = false;
 }
 
+/// Wraps a Java helper for native access.
 template<typename T>
 class JavaProxy
 {
 public:
+    /// Wraps the Java helper for native access.
     explicit JavaProxy(T &instance)
         : m_instance(instance)
     {}
@@ -39,7 +42,8 @@ private:
     T &m_instance;
 };
 
-void onActivityDestroyed()
+/// Releases native resources when the activity is destroyed.
+static void onActivityDestroyed()
 {
 
     if (ctrackPrinted.exchange(true)) {
@@ -49,42 +53,42 @@ void onActivityDestroyed()
     qInfo().noquote() << QString::fromStdString(ctrack::result_as_string());
 }
 
-void onServiceFound(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jtype, const jstring jprotocol)
+/// Forwards a newly discovered service to native code.
+static void onServiceFound(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jtype)
 {
     Q_UNUSED(clazz);
 
     const char *name = env->GetStringUTFChars(jname, nullptr);
     const char *type = env->GetStringUTFChars(jtype, nullptr);
-    const char *protocol = env->GetStringUTFChars(jprotocol, nullptr);
 
-    Mdns::instance()->onServiceFound(QString::fromUtf8(name), QString::fromUtf8(type), QString::fromUtf8(protocol));
+    Mdns::instance()->onServiceFound(QString::fromUtf8(name), QString::fromUtf8(type));
 
     env->ReleaseStringUTFChars(jname, name);
     env->ReleaseStringUTFChars(jtype, type);
 }
 
-void onServiceLost(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jip, const jstring jprotocol)
+/// Notifies native code that a discovered service disappeared.
+static void onServiceLost(JNIEnv *env, const jclass clazz, const jstring jname, const jstring jip)
 {
     Q_UNUSED(clazz);
 
     const char *name = env->GetStringUTFChars(jname, nullptr);
     const char *ip = env->GetStringUTFChars(jip, nullptr);
-    const char *protocol = env->GetStringUTFChars(jprotocol, nullptr);
 
-    Mdns::instance()->onServiceLost(QString::fromUtf8(name), QString::fromUtf8(ip), QString::fromUtf8(protocol));
+    Mdns::instance()->onServiceLost(QString::fromUtf8(name), QString::fromUtf8(ip));
 
     env->ReleaseStringUTFChars(jname, name);
     env->ReleaseStringUTFChars(jip, ip);
 }
 
-void onServiceResolved(
+/// Forwards the resolved service address and port to native code.
+static void onServiceResolved(
     JNIEnv *env,
     const jclass clazz,
     const jstring jname,
     const jstring jhost,
     const jstring jip,
-    const jint port,
-    const jstring jprotocol
+    const jint port
 )
 {
     Q_UNUSED(clazz);
@@ -92,22 +96,16 @@ void onServiceResolved(
     const char *name = env->GetStringUTFChars(jname, nullptr);
     const char *ip = env->GetStringUTFChars(jip, nullptr);
     const char *host = env->GetStringUTFChars(jhost, nullptr);
-    const char *protocol = env->GetStringUTFChars(jprotocol, nullptr);
 
-    Mdns::instance()->onServiceResolved(
-        QString::fromUtf8(name),
-        QString::fromUtf8(host),
-        QString::fromUtf8(ip),
-        port,
-        QString::fromUtf8(protocol)
-    );
+    Mdns::instance()->onServiceResolved(QString::fromUtf8(name), QString::fromUtf8(host), QString::fromUtf8(ip), port);
 
     env->ReleaseStringUTFChars(jname, name);
-    env->ReleaseStringUTFChars(jhost, host);
     env->ReleaseStringUTFChars(jip, ip);
+    env->ReleaseStringUTFChars(jhost, host);
 }
 
-void onConnectivityChanged(const JNIEnv *env, const jclass clazz, const jboolean connected)
+/// Forwards connectivity changes to the native network state.
+static void onConnectivityChanged(const JNIEnv *env, const jclass clazz, const jboolean connected)
 {
     Q_UNUSED(env);
     Q_UNUSED(clazz);
@@ -115,8 +113,9 @@ void onConnectivityChanged(const JNIEnv *env, const jclass clazz, const jboolean
     NetworkState::instance()->onConnectivityChanged(connected);
 }
 
-void onFileSelected(
-    JNIEnv *env,
+/// Imports the file selected by the Android picker.
+static void onFileSelected(
+    const JNIEnv *env,
     const jclass clazz,
     const jint operation,
     const jstring name,
@@ -126,18 +125,19 @@ void onFileSelected(
     Q_UNUSED(env);
     Q_UNUSED(clazz);
 
-    auto *provider = dynamic_cast<Platform::FileProvider *>(::FileProvider::instance());
-    if (provider) {
+    if (auto *provider = dynamic_cast<Platform::FileProvider *>(FileProvider::instance())) {
         provider->completeFileImport(operation, QJniObject(name).toString(), QJniObject(source).toString());
     }
 }
 
 template<>
+/// Wraps a Java helper for native access.
 class JavaProxy<Platform::FileProvider>
 {
     using T = Platform::FileProvider;
 
 public:
+    /// Wraps the Java helper for native access.
     explicit JavaProxy(T &instance)
         : m_instance(instance)
     {}
@@ -147,11 +147,22 @@ public:
         return m_instance;
     }
 
+    const T &operator->() const
+    {
+        return m_instance;
+    }
+
     auto &object()
     {
         return m_instance.m_object;
     }
 
+    [[nodiscard]] const auto &object() const
+    {
+        return m_instance.m_object;
+    }
+
+    /// Binds Java callbacks and accessors to native operations.
     void setup()
     {
         auto &instance = m_instance.m_object;
@@ -282,7 +293,8 @@ private:
     T &m_instance;
 };
 
-bool registerNativeMethods_MdnsHelper(const QJniObject &m_javaHelper)
+/// Registers JNI callbacks for mDNS discovery.
+static bool registerNativeMethods_MdnsHelper(const QJniObject &m_javaHelper)
 {
     const auto env = QJniEnvironment().jniEnv();
     if (!env) {
@@ -295,15 +307,13 @@ bool registerNativeMethods_MdnsHelper(const QJniObject &m_javaHelper)
         return false;
     }
 
-    const std::vector<JNINativeMethod> methods = { { "nativeOnServiceFound",
-                                                       "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-                                                       reinterpret_cast<void *>(onServiceFound) },
-        { "nativeOnServiceLost",
-            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-            reinterpret_cast<void *>(onServiceLost) },
+    const std::vector<JNINativeMethod> methods = {
+        { "nativeOnServiceFound", "(Ljava/lang/String;Ljava/lang/String;)V", reinterpret_cast<void *>(onServiceFound) },
+        { "nativeOnServiceLost", "(Ljava/lang/String;Ljava/lang/String;)V", reinterpret_cast<void *>(onServiceLost) },
         { "nativeOnServiceResolved",
-            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)V",
-            reinterpret_cast<void *>(onServiceResolved) } };
+            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V",
+            reinterpret_cast<void *>(onServiceResolved) }
+    };
     const auto regResult = env->RegisterNatives(clazz, methods.data(), static_cast<jint>(methods.size()));
     if (regResult != 0) {
         qWarning() << "Failed to register native methods for MdnsHelper:" << regResult;
@@ -317,7 +327,8 @@ bool registerNativeMethods_MdnsHelper(const QJniObject &m_javaHelper)
     return true;
 }
 
-bool registerNativeMethods_NetworkHelper(const QJniObject &m_javaHelper)
+/// Registers the JNI connectivity callback.
+static bool registerNativeMethods_NetworkHelper(const QJniObject &m_javaHelper)
 {
     const auto env = QJniEnvironment().jniEnv();
     if (!env) {
@@ -346,7 +357,8 @@ bool registerNativeMethods_NetworkHelper(const QJniObject &m_javaHelper)
     return true;
 }
 
-bool registerNativeMethods_FileHelper(const QJniObject &m_javaHelper)
+/// Registers JNI callbacks for file operations.
+static bool registerNativeMethods_FileHelper(const QJniObject &m_javaHelper)
 {
     const auto env = QJniEnvironment().jniEnv();
     if (!env) {

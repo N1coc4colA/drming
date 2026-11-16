@@ -1,16 +1,33 @@
 #include "displaythread.h"
 
+#include <QPointer>
+
 DisplayThread::DisplayThread(Display *display, QObject *parent)
     : QThread(parent)
     , m_display(display)
 {
-    m_display->setParent(this);
+    connect(m_display, &Display::nowFree, this, [this] { Q_EMIT nowFree(this); }, Qt::DirectConnection);
+}
 
-    connect(m_display, &Display::nowFree, this, [this]() { Q_EMIT nowFree(this); }, Qt::QueuedConnection);
+DisplayThread::~DisplayThread()
+{
+    quit();
+    wait();
+
+    delete m_display;
 }
 
 void DisplayThread::addClient(NetworkClient *client)
 {
     qDebug() << "Adding client to thread";
-    m_display->addClient(client);
+    const QPointer guardedClient(client);
+    QMetaObject::invokeMethod(
+        m_display,
+        [display = m_display, guardedClient] {
+            if (guardedClient) {
+                display->addClient(guardedClient);
+            }
+        },
+        Qt::QueuedConnection
+    );
 }

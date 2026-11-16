@@ -66,7 +66,7 @@ int FileProvider::exportClientKey(const QString &name)
     return jStartFilePicker(5, name, "application/x-pem-file") ? -1 : 0;
 }
 
-void FileProvider::completeFileImport(int operation, const QString &name, const QString &source)
+void FileProvider::completeFileImport(const int operation, const QString &name, const QString &source)
 {
     if (operation >= 3) {
         Q_EMIT fileImportFinished(operation, source == "2" ? 2 : 0);

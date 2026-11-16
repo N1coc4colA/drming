@@ -6,6 +6,7 @@
 
 namespace Platform {
 namespace {
+/// Vertex shader code.
 constexpr auto kVertexShader = R"(
     attribute highp vec4 aPosition;
     attribute highp vec2 aTexCoord;
@@ -17,6 +18,7 @@ constexpr auto kVertexShader = R"(
     }
 )";
 
+/// Fragment shader code.
 constexpr auto kFragmentShader = R"(
     #extension GL_OES_EGL_image_external : require
     precision mediump float;
@@ -27,6 +29,7 @@ constexpr auto kFragmentShader = R"(
     }
 )";
 
+/// Compiles a GLES shader and reports errors.
 GLuint compileShader(const GLenum type, const char *src)
 {
     const auto shader = glCreateShader(type);
@@ -83,6 +86,12 @@ void OESRenderNode::ensureProgram()
     prog.mvpUniform = glGetUniformLocation(prog.program, "uMvp");
 }
 
+void OESRenderNode::releaseResources()
+{
+    m_program.reset();
+    m_texId.reset();
+}
+
 void OESRenderNode::render(const RenderState *state)
 {
     if (!m_texId.has_value()) [[unlikely]] {
@@ -117,7 +126,7 @@ void OESRenderNode::render(const RenderState *state)
         y1,
     };
     // MirrorVertically-equivalent: flip V so the OES source (bottom-left origin) displays right-side up.
-    const GLfloat texCoords[] = {
+    constexpr GLfloat texCoords[] = {
         0.0f,
         0.0f,
         1.0f,

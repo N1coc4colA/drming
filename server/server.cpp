@@ -16,9 +16,10 @@
 
 static PeerKey keyFor(const QHostAddress &a, const quint16 p)
 {
-    PeerKey k;
-    k.port = p;
-    k.proto = a.protocol();
+    PeerKey k{
+        .proto = a.protocol(),
+        .port = p,
+    };
 
     switch (k.proto) {
     case QAbstractSocket::IPv4Protocol: {
@@ -55,15 +56,14 @@ Server::~Server()
 
 bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, const quint16 port)
 {
-    if (!loadServerCertsConfig(
-            m_sslConfig,
-            "dtls",
-            Parameters::instance.serverCertPath,
-            Parameters::instance.serverKeyPath
-        )) {
+    const auto conf = loadServerCertsConfig(Parameters::instance.serverCertPath, Parameters::instance.serverKeyPath);
+
+    if (!conf) {
         qCritical() << "SSL config not loaded; DTLS connections may not use server certificate.";
         return false;
     }
+
+    m_sslConfig = conf.value();
 
     if (!address4.isNull()) {
         if (!m_socket4.first.bind(address4, port, QAbstractSocket::ShareAddress)) {
@@ -82,6 +82,11 @@ bool Server::listen(const QHostAddress &address4, const QHostAddress &address6, 
     }
 
     return true;
+}
+
+void Server::setClientsOwner(QObject *owner)
+{
+    m_clientsOwner = owner;
 }
 
 void Server::close()
@@ -125,6 +130,7 @@ void Server::onDatagramReceived6()
 
 void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
 {
+    assert(m_clientsOwner != nullptr);
     CTRACK;
 
     auto &socket = pair.first;
@@ -154,7 +160,7 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
         const auto key = keyFor(sender, senderPort);
 
         // Active client?
-        if (auto client = m_clients.value(key, nullptr)) {
+        if (const auto client = m_clients.value(key, nullptr)) {
             client->incomingEncryptedData(dgram);
             continue;
         }
@@ -170,7 +176,7 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
 
             if (dtls->isConnectionEncrypted()) {
                 qDebug() << "DTLS encryption established for" << sender << senderPort;
-                auto client = new NetworkClient(dtls, sender, senderPort, pair, this);
+                auto client = new NetworkClient(dtls, sender, senderPort, pair, m_clientsOwner);
                 m_pendingHandshakes.remove(key);
                 m_clients.insert(key, client);
                 connect(client, &NetworkClient::disconnected, this, &Server::onClientDisconnected);
@@ -202,7 +208,7 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
 
         if (dtls->isConnectionEncrypted()) {
             qDebug() << "DTLS encryption established for" << sender << senderPort;
-            auto client = new NetworkClient(dtls, sender, senderPort, pair, this);
+            auto client = new NetworkClient(dtls, sender, senderPort, pair, m_clientsOwner);
             m_pendingHandshakes.remove(key);
             m_clients.insert(key, client);
             connect(client, &NetworkClient::disconnected, this, &Server::onClientDisconnected);
@@ -217,7 +223,7 @@ void Server::processSocketPendings(QPair<QUdpSocket, QMutex> &pair)
 
 void Server::onClientDisconnected()
 {
-    if (auto client = qobject_cast<NetworkClient *>(sender())) {
+    if (const auto client = qobject_cast<NetworkClient *>(sender())) {
         removeClient(client);
     }
 }

@@ -3,7 +3,6 @@
 #include <drm_fourcc.h>
 
 #include "displayreader.h"
-#include "ffmpeg.h"
 #include "parameters.h"
 #include "streamsocket.h"
 #include "utils.h"
@@ -13,7 +12,8 @@ class TestStreamSocket final : public StreamSocket
 public:
     using StreamSocket::StreamSocket;
 
-    void addData(QByteArray) override
+protected:
+    void addData(const QByteArray &) override
     {}
 };
 
@@ -46,13 +46,13 @@ private Q_SLOTS:
         constexpr uint32_t width = 2;
         constexpr uint32_t height = 1;
         constexpr uint32_t stride = 8;
-        uchar pixels[stride] = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
+        constexpr uchar pixels[stride] = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
         const auto descriptor = DrmFormat::resolve(DRM_FORMAT_ABGR8888);
         QVERIFY(descriptor.has_value());
 
         const auto image = DisplayReader::imageFromFrameBuffer(pixels, width, height, stride, *descriptor);
         QCOMPARE(image.size(), QSize(2, 1));
-        QCOMPARE(image.bytesPerLine(), int(stride));
+        QCOMPARE(image.bytesPerLine(), static_cast<int>(stride));
         const auto *converted = image.constBits();
         QCOMPARE(converted[0], uchar{ 0x33 });
         QCOMPARE(converted[1], uchar{ 0x22 });
@@ -70,7 +70,7 @@ private Q_SLOTS:
         primary.fill(Qt::black);
 
         auto composite = primary.copy();
-        CursorFrameBuffer invalid{};
+        constexpr CursorFrameBuffer invalid{};
         const auto descriptor = DrmFormat::resolve(DRM_FORMAT_ARGB8888);
         QVERIFY(descriptor.has_value());
         DisplayReader::compositeWithCursor(primary, invalid, *descriptor, composite);
@@ -86,7 +86,7 @@ private Q_SLOTS:
         cursor.crtc_x = 1;
         cursor.crtc_y = 1;
         DisplayReader::compositeWithCursor(primary, cursor, *descriptor, composite);
-        QCOMPARE(primary.pixelColor(1, 1), QColor(Qt::red));
+        QCOMPARE(composite.pixelColor(1, 1), QColor(Qt::red));
     }
 
     void frameBufferReleaseClearsState()
@@ -110,25 +110,6 @@ private Q_SLOTS:
         DisplayReader::releaseCursorFrameBuffer(cursor);
         QCOMPARE(cursor.fd, -1);
         QCOMPARE(cursor.width, uint32_t{ 0 });
-    }
-
-    void ffmpegPixelFormatMapping()
-    {
-        QCOMPARE(Ffmpeg::Encoder::formatFromFcc(DRM_FORMAT_ARGB8888), AV_PIX_FMT_ARGB);
-        QCOMPARE(Ffmpeg::Encoder::formatFromFcc(DRM_FORMAT_ABGR8888), AV_PIX_FMT_ABGR);
-        QCOMPARE(Ffmpeg::Encoder::formatFromFcc(DRM_FORMAT_RGB565), AV_PIX_FMT_RGB565);
-        QCOMPARE(Ffmpeg::Encoder::formatFromFcc(0xdeadbeef), AV_PIX_FMT_NONE);
-        QCOMPARE(Ffmpeg::Encoder::formatFromQt(QImage::Format_ARGB32), AV_PIX_FMT_BGRA);
-        QCOMPARE(Ffmpeg::Encoder::formatFromQt(QImage::Format_RGB32), AV_PIX_FMT_BGR0);
-        QCOMPARE(Ffmpeg::Encoder::formatFromQt(QImage::Format_RGB16), AV_PIX_FMT_RGB565LE);
-        QTest::ignoreMessage(QtWarningMsg, "QImage::Format unsupported by FFmpeg: QImage::Format_Invalid");
-        QCOMPARE(Ffmpeg::Encoder::formatFromQt(QImage::Format_Invalid), AV_PIX_FMT_NONE);
-    }
-
-    void ffmpegErrorText()
-    {
-        QVERIFY(!Ffmpeg::avError(-1).isEmpty());
-        QVERIFY(Ffmpeg::avError(0).contains("Success"));
     }
 
     void parametersHaveExpectedZeroInitialization()
@@ -155,7 +136,7 @@ private Q_SLOTS:
         TestStreamSocket socket;
         const auto initialKey = socket.getKey();
         const auto initialStamp = socket.getKeystamp();
-        QSignalSpy keySpy(&socket, &UdpStreamSocket::keyChanged);
+        const QSignalSpy keySpy(&socket, &UdpStreamSocket::keyChanged);
         socket.setKey(initialKey, initialStamp);
         QCOMPARE(keySpy.count(), 0);
         socket.setKey(QByteArrayLiteral("server-test-key"), 12);

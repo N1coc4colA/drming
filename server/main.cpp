@@ -8,6 +8,10 @@
 #include <QCoreApplication>
 #include <QSocketNotifier>
 
+#ifndef NDEBUG
+#include <QLoggingCategory>
+#endif
+
 #include <ctrack.hpp>
 
 #include <csignal>
@@ -18,9 +22,10 @@ namespace {
 
 int sigFd[2] = { -1, -1 };
 
+/// Signal handler that writes a byte to the self-pipe to initiate shutdown.
 void requestShutdown(const int sig)
 {
-    const char byte = 1;
+    constexpr char byte = 1;
     // write() and signal() are async-signal-safe; qApp->quit() is not.
     ::write(sigFd[0], &byte, sizeof(byte));
     // second Ctrl+C gets the default (hard) action
@@ -31,6 +36,10 @@ void requestShutdown(const int sig)
 
 int main(int argc, char *argv[])
 {
+#ifndef NDEBUG
+    QLoggingCategory::setFilterRules("*.debug=true");
+#endif
+
     // Keep the server headless: all UI-facing work is performed by the client.
     QCoreApplication app(argc, argv);
     QCoreApplication::setApplicationName("drming");
@@ -41,7 +50,7 @@ int main(int argc, char *argv[])
     }
 
     QSocketNotifier sigNotifier(sigFd[1], QSocketNotifier::Read);
-    QObject::connect(&sigNotifier, &QSocketNotifier::activated, [&sigNotifier]() {
+    QObject::connect(&sigNotifier, &QSocketNotifier::activated, [&sigNotifier] {
         char byte;
         (void)::read(sigFd[1], &byte, sizeof(byte));
         sigNotifier.setEnabled(false);
@@ -67,16 +76,18 @@ int main(int argc, char *argv[])
     StreamSocket audioSocket{};
 
     DisplayManager manager(videoSocket);
+    server.setClientsOwner(&manager);
 
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &server, &Server::close);
     QObject::connect(&server, &Server::clientConnected, [&manager](NetworkClient *client) {
         // An error occurred.
         if (!manager.registerClient(client)) {
             // If registration failed, drop client
-            client->deleteLater();
+            // Rest of the clean up will be performed automatically.
+            client->close();
         }
     });
-    QObject::connect(&videoSocket, &StreamSocket::keyChanged, [&videoSocket, &audioSocket]() {
+    QObject::connect(&videoSocket, &StreamSocket::keyChanged, [&videoSocket, &audioSocket] {
         audioSocket.setKey(videoSocket.getKey(), videoSocket.getKeystamp());
     });
 
@@ -96,7 +107,11 @@ int main(int argc, char *argv[])
     }
     audioSocket.setKey(videoSocket.getKey(), videoSocket.getKeystamp());
 
-    if (!server.listen(Parameters::instance.serviceIp, Parameters::instance.serviceIp, Parameters::instance.port)) {
+    if (!server.listen(
+            Parameters::instance.serviceIp,
+            Parameters::instance.serviceIp,
+            checked_cast<quint16>(Parameters::instance.port)
+        )) {
         return EXIT_FAILURE;
     }
 
@@ -105,8 +120,7 @@ int main(int argc, char *argv[])
             Parameters::instance.serviceIface,
             Parameters::instance.serviceIp.protocol() == QAbstractSocket::IPv6Protocol,
             Parameters::instance.serviceName,
-            "_drming._udp",
-            static_cast<uint16_t>(Parameters::instance.port),
+            checked_cast<uint16_t>(Parameters::instance.port),
             &app
         );
         publisher->start();

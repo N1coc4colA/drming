@@ -33,12 +33,14 @@ using Endpoint = QPair<QHostAddress, quint16>;
 
 // #define ENABLE_ENCRYPT
 
+/// Base UDP stream socket supporting batch transmission, optional AES-256 encryption, and jitter buffer reassembly.
 class UdpStreamSocket : public QObject
 {
     Q_OBJECT
     const bool NeedsPacketPrint = false;
 
 public:
+    /// Initializes the stream socket and connects internal socket signals.
     explicit UdpStreamSocket(QObject *parent = nullptr, const bool needsPacketPrint = false)
         : QObject(parent)
         , NeedsPacketPrint(needsPacketPrint)
@@ -49,52 +51,63 @@ public:
         connect(&m_socket, &QUdpSocket::errorOccurred, this, &UdpStreamSocket::errorOccurred);
         connect(&m_socket, &QUdpSocket::readyRead, this, &UdpStreamSocket::onReadyRead4);
 
-        const auto bufferSize = 128 * 1024 * 1024;
+        constexpr auto bufferSize = 128 * 1024 * 1024;
         m_socket.setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, bufferSize);
 
         rotateKey();
     }
 
-    inline Packets::Keystamp getKeystamp() const
+    /// Returns the current encryption keystamp identifier.
+    [[nodiscard]] Packets::Keystamp getKeystamp() const
     {
         return m_ks;
     }
-    inline QByteArray getKey() const
+    /// Returns the active session encryption key.
+    [[nodiscard]] QByteArray getKey() const
     {
         return m_key;
     }
 
-    inline auto ipv4Address() const
+    /// Returns the bound local IPv4 address.
+    [[nodiscard]] auto ipv4Address() const
     {
         return m_ipAddress;
     }
 
-    inline auto socket()
+    /// Returns a pointer to the underlying QUdpSocket.
+    auto socket()
     {
         return &m_socket;
     }
 
-    inline auto clearJitterBuffer()
+    /// Clears all chunks from the internal jitter buffer.
+    void clearJitterBuffer()
     {
         m_jitterBuffer.clear();
-    };
+    }
 
 Q_SIGNALS:
+    /// Emitted when the underlying UDP socket is connected.
     void connected();
+    /// Emitted when the underlying UDP socket is disconnected.
     void disconnected();
+    /// Emitted when a socket error occurs.
     void errorOccurred(QAbstractSocket::SocketError error);
+    /// Emitted when the encryption key or keystamp is changed.
     void keyChanged();
 
 public Q_SLOTS:
+    /// Connects the socket to the specified remote host and port.
     void connectToHost(const QHostAddress &address, const quint16 port)
     {
         m_socket.connectToHost(address, port);
     }
 
+    /// Joins the multicast group on all eligible network interfaces.
+    // Supports only one address per net iface.
     void connectToMulticast(const QHostAddress &address, const quint16 port)
     {
         const auto proto = address.protocol();
-
         if (proto == QAbstractSocket::IPv4Protocol || proto == QAbstractSocket::IPv6Protocol) {
             if (!m_socket.bind(
                     proto == QAbstractSocket::IPv4Protocol ? QHostAddress::AnyIPv4 : QHostAddress::AnyIPv6,
@@ -105,9 +118,11 @@ public Q_SLOTS:
                 // [TODO] Propagate the error
                 return;
             }
+
+            m_multicastPort = port;
         } else {
             qWarning() << "Invalid protocol:" << proto;
-            // [TOOD] Propagate the error
+            // [TODO] Propagate the error
             return;
         }
 
@@ -115,6 +130,10 @@ public Q_SLOTS:
         for (const auto &iface : QNetworkInterface::allInterfaces()) {
             const auto flags = iface.flags();
             const auto name = iface.name();
+
+            if (m_multicastInterfaces.contains(iface.hardwareAddress())) {
+                continue;
+            }
 
             if (!flags.testFlag(QNetworkInterface::CanMulticast) || !flags.testFlag(QNetworkInterface::IsUp)
                 || flags.testFlag(QNetworkInterface::IsLoopBack) || flags.testFlag(QNetworkInterface::IsPointToPoint)) {
@@ -131,6 +150,9 @@ public Q_SLOTS:
                 if (m_socket.joinMulticastGroup(address, iface)) {
                     qDebug() << "Joined multicast group" << address << "on interface" << iface.name();
                     joined = true;
+
+                    m_multicastInterfaces.insert(iface.hardwareAddress());
+                    m_multicastHostAddresses.insert(address);
                 }
             }
         }
@@ -143,10 +165,10 @@ public Q_SLOTS:
         }
     }
 
+    /// Joins the multicast group on the specified network interface.
     void connectToMulticast(const QHostAddress &address, const quint16 port, const QNetworkInterface &iface)
     {
-        const auto proto = address.protocol();
-        if (proto == QAbstractSocket::IPv4Protocol || proto == QAbstractSocket::IPv6Protocol) {
+        if (const auto proto = address.protocol(); proto == QAbstractSocket::IPv4Protocol || proto == QAbstractSocket::IPv6Protocol) {
             if (!m_socket.bind(
                     proto == QAbstractSocket::IPv4Protocol ? QHostAddress::AnyIPv4 : QHostAddress::AnyIPv6,
                     port,
@@ -158,7 +180,7 @@ public Q_SLOTS:
             }
         } else {
             qWarning() << "Invalid protocol:" << proto;
-            // [TOOD] Propagate the error
+            // [TODO] Propagate the error
             return;
         }
 
@@ -169,6 +191,7 @@ public Q_SLOTS:
         }
     }
 
+    /// Binds the socket to receive multicast datagrams on the specified address, port, and interface.
     bool listen(const QHostAddress &address, const quint16 port, const QNetworkInterface &iface)
     {
         if (!address.isNull() && !listen(m_socket, QHostAddress::AnyIPv4, address, port, iface)) {
@@ -180,11 +203,20 @@ public Q_SLOTS:
         return true;
     }
 
+    /// Leaves all joined multicast groups and closes the underlying socket.
     void close()
     {
+        for (const auto &addr : m_multicastHostAddresses) {
+            m_socket.leaveMulticastGroup(addr);
+        }
+
+        m_multicastHostAddresses.clear();
+        m_multicastInterfaces.clear();
+
         m_socket.close();
     }
 
+    /// Transmits payload data to the bound socket destination.
     bool write(const QByteArray &data)
     {
         if (m_socket.state() == QAbstractSocket::BoundState
@@ -195,11 +227,13 @@ public Q_SLOTS:
         return true;
     }
 
+    /// Processes incoming IPv4 datagrams from the socket.
     void onReadyRead4()
     {
         onReadyRead(m_socket);
     }
 
+    /// Sets the active encryption key and keystamp.
     void setKey(const QByteArray &key, const Packets::Keystamp ks)
     {
         if (key == m_key && ks == m_ks) {
@@ -211,6 +245,7 @@ public Q_SLOTS:
         Q_EMIT keyChanged();
     }
 
+    /// Generates a new random encryption key and increments the keystamp.
     void rotateKey()
     {
         m_keyCount++;
@@ -229,12 +264,13 @@ public Q_SLOTS:
     }
 
 protected:
-    virtual void addData(QByteArray additional) = 0;
+    /// Invoked when a complete packet payload is reassembled and ready for processing.
+    virtual void addData(const QByteArray &additional) = 0;
     /**
      * Called when the jitter buffer abandons an incomplete timestamp because
      * a chunk was lost in transit. Subclasses use this to request an IDR.
      */
-    virtual void onFrameSkipped() {};
+    virtual void onFrameSkipped() {}
 
 private:
     QHostAddress m_ipAddress{};
@@ -249,9 +285,13 @@ private:
     QByteArray m_key;
     QAESEncryption m_aes = { QAESEncryption::AES_256, QAESEncryption::CBC, QAESEncryption::PKCS7 };
 
+    QSet<QString> m_multicastInterfaces{};
+    QSet<QHostAddress> m_multicastHostAddresses{};
+    quint16 m_multicastPort = 0;
+
     static QByteArray generate(const qsizetype len)
     {
-        assert(len >= 0 && static_cast<size_t>(len) % sizeof(quint32) == 0);
+        assert(len >= 0 && checked_cast<size_t>(len) % sizeof(quint32) == 0);
 
         QByteArray d(len, Qt::Uninitialized);
 
@@ -262,12 +302,12 @@ private:
         return d;
     }
 
-    static inline QByteArray generateIV()
+    static QByteArray generateIV()
     {
         return generate(Settings::ivSize);
     }
 
-    bool listen(
+    static bool listen(
         QUdpSocket &socket,
         const QHostAddress &bindAddr,
         const QHostAddress &address,
@@ -292,7 +332,7 @@ private:
         }
 
         // Set TTL directly on the socket instead of using Qt's datagram classes and repeatedly set it.
-        const int sockFd = static_cast<int>(socket.socketDescriptor());
+        const int sockFd = checked_cast<int>(socket.socketDescriptor());
         constexpr int ttl = 5;
         setsockopt(sockFd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
         setsockopt(sockFd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
@@ -405,7 +445,7 @@ private:
             + Settings::ivSize + sizeof(Packets::Keystamp);
         static constexpr qsizetype headerSize_s = to_signed(headerSize);
 
-        const auto fd = static_cast<int>(socket.socketDescriptor());
+        const auto fd = checked_cast<int>(socket.socketDescriptor());
         if (fd < 0) [[unlikely]] {
             return false;
         }
@@ -441,8 +481,8 @@ private:
         // Batch 32 datagrams per syscall. Everything below is stack-allocated
         // so there's no per-write heap churn beyond the payload buffers.
         static constexpr int kBatch = 32;
-        struct mmsghdr mmsgs[kBatch];
-        struct iovec iovs[kBatch];
+        mmsghdr mmsgs[kBatch];
+        iovec iovs[kBatch];
         QByteArray buffers[kBatch];
         uint inFlight = 0;
 
@@ -474,11 +514,12 @@ private:
             const auto order_be = qToBigEndian(order);
             const size_t chunkSize = std::min(innerSize, size - offset);
 
-            QByteArray ciphertext{};
             const char *payload = nullptr;
             qsizetype payloadSize = 0;
 
 #ifdef ENABLE_ENCRYPT
+            QByteArray ciphertext{};
+
             {
                 bool ok = false;
                 ciphertext = m_aes.encode(data.sliced(offset, chunkSize), m_key, iv, &ok);
@@ -540,10 +581,12 @@ private:
     }
 };
 
+/// Holds shared references to an owner instance, DTLS session, UDP socket, and mutex.
 template<typename T>
 class DtlsCommon
 {
 public:
+    /// Initializes DTLS common state references.
     explicit DtlsCommon(T &owner, QDtls *dtls, QUdpSocket *socket, QMutex *mtx = nullptr)
         : m_owner(owner)
         , m_dtls(dtls)
@@ -551,40 +594,49 @@ public:
         , m_mtx(mtx)
     {}
 
+    /// Sets the active QDtls session pointer.
     void setDtls(QDtls *dtls)
     {
         m_dtls = dtls;
     }
+    /// Sets the active QUdpSocket pointer.
     void setSocket(QUdpSocket *socket)
     {
         m_socket = socket;
     }
+    /// Sets the synchronization mutex.
     void setMutex(QMutex *mtx)
     {
         m_mtx = mtx;
     }
 
+    /// Returns the active QDtls session pointer.
     QDtls *dtls()
     {
         return m_dtls;
     }
-    const QDtls *dtls() const
+    /// Returns the active const QDtls session pointer.
+    [[nodiscard]] const QDtls *dtls() const
     {
         return m_dtls;
     }
+    /// Returns the underlying QUdpSocket pointer.
     QUdpSocket *socket()
     {
         return m_socket;
     }
-    const QUdpSocket *socket() const
+    /// Returns the underlying const QUdpSocket pointer.
+    [[nodiscard]] const QUdpSocket *socket() const
     {
         return m_socket;
     }
+    /// Returns the synchronization mutex.
     QMutex *mutex()
     {
         return m_mtx;
     }
-    const QMutex *mutex() const
+    /// Returns the const synchronization mutex.
+    [[nodiscard]] const QMutex *mutex() const
     {
         return m_mtx;
     }
@@ -595,6 +647,7 @@ public:
     QMutex *m_mtx;
 };
 
+/// Implements chunked payload encryption and transmission over DTLS.
 template<typename T, typename Storage = DtlsCommon<T>>
 class DtlsWriterImpl
 {
@@ -603,7 +656,8 @@ public:
         : m_storage(storage)
     {}
 
-    inline std::optional<quint64> writeDtls(const QByteArray &data)
+    /// Encrypts and transmits a payload split across DTLS datagram chunks.
+    std::optional<quint64> writeDtls(const QByteArray &data)
     {
         CTRACK;
 
@@ -648,6 +702,8 @@ public:
                 }
                 case QDtlsError::UnderlyingSocketError:
                 case QDtlsError::NoError: {
+                    qWarning() << "DTLS write transient error on ts" << m_ts << "order" << order
+                               << static_cast<int>(err) << m_storage.m_dtls->dtlsErrorString();
                     continue;
                 }
                 default: {
@@ -674,6 +730,7 @@ private:
     Packets::Timestamp m_ts = 0;
 };
 
+/// Implements DTLS datagram reception, decryption, and jitter buffer reassembly.
 template<typename T, typename Storage = DtlsCommon<T>>
 class DtlsReaderImpl
 {
@@ -682,7 +739,8 @@ public:
         : m_storage(storage)
     {}
 
-    inline void processDtls(const QByteArray &dgram)
+    /// Decrypts an incoming DTLS datagram and pushes payload chunks to the jitter buffer.
+    void processDtls(const QByteArray &dgram)
     {
         CTRACK;
 
@@ -693,8 +751,9 @@ public:
             plain = m_storage.m_dtls->decryptDatagram(m_storage.m_socket, dgram);
         }
 
+        static constexpr qsizetype minPktSize = sizeof(Packets::Timestamp) + sizeof(Packets::Ordering) * 2;
         if (!plain.isEmpty()) {
-            if (plain.size() < static_cast<qsizetype>(sizeof(Packets::Timestamp) + sizeof(Packets::Ordering) * 2)) {
+            if (plain.size() < minPktSize) {
                 qWarning() << "Invalid DTLS decrypted packet size has been received:" << plain.size();
                 return;
             }
@@ -741,26 +800,29 @@ private:
     Packets::JitterBuffer<> m_jitterBuffer;
 };
 
+/// Combines DtlsCommon with DtlsReaderImpl for read-only DTLS reception.
 template<typename T>
 class DtlsReader : public DtlsCommon<T>, public DtlsReaderImpl<T, DtlsReader<T>>
 {
 public:
     explicit DtlsReader(T &owner, QDtls *dtls, QUdpSocket *socket, QMutex *mtx = nullptr)
         : DtlsCommon<T>(owner, dtls, socket, mtx)
-        , DtlsReaderImpl<T, DtlsReader<T>>(*this)
+        , DtlsReaderImpl<T, DtlsReader>(*this)
     {}
 };
 
+/// Combines DtlsCommon with DtlsWriterImpl for write-only DTLS transmission.
 template<typename T>
 class DtlsWriter : public DtlsCommon<T>, public DtlsWriterImpl<T, DtlsWriter<T>>
 {
 public:
     explicit DtlsWriter(T &owner, QDtls *dtls, QUdpSocket *socket, QMutex *mtx = nullptr)
         : DtlsCommon<T>(owner, dtls, socket, mtx)
-        , DtlsWriterImpl<T, DtlsWriter<T>>(*this)
+        , DtlsWriterImpl<T, DtlsWriter>(*this)
     {}
 };
 
+/// Combines DtlsCommon with bidirectional DTLS read and write capabilities.
 template<typename T>
 class DtlsReaderWriter :
     public DtlsCommon<T>,

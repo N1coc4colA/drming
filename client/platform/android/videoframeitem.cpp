@@ -1,7 +1,5 @@
 #include "videoframeitem.h"
 
-#include <QOpenGLContext>
-#include <QQuickWindow>
 #include <QSGSimpleTextureNode>
 #include <QThread>
 
@@ -15,7 +13,8 @@
 
 namespace Platform {
 
-QRectF fitKeepAspect(const QSizeF &itemSize, const QSizeF &imgSize)
+/// Computes a centered rectangle that preserves image aspect ratio.
+static QRectF fitKeepAspect(const QSizeF &itemSize, const QSizeF &imgSize)
 {
     CTRACK;
 
@@ -37,8 +36,14 @@ VideoFrameItem::VideoFrameItem(QQuickItem *parent)
 {
     setFlag(ItemHasContents, true);
 
-    connect(this, &VideoFrameItem::visibleChanged, this, [this]() {
+    connect(this, &VideoFrameItem::visibleChanged, this, [this] {
         isVisible() ? m_aui->enterFullScreen() : m_aui->leaveFullScreen();
+    });
+    // In VideoFrameItem's ctor, if m_decoder is set:
+    connect(window(), &QQuickWindow::sceneGraphInvalidated, this, [this] {
+        if (m_decoder) {
+            m_decoder->invalidateGLResources();
+        }
     });
 }
 
@@ -46,15 +51,17 @@ void VideoFrameItem::setDecoder(VideoDecoder *decoder)
 {
     m_decoder = decoder;
 
-    if (decoder) [[unlikely]] {
-        if (m_textureMode != TextureMode::OES) [[unlikely]] {
-            m_previousTextureMode = m_textureMode;
-            m_textureMode = TextureMode::OES;
+    const auto texMode = m_textureMode.load(std::memory_order_acquire);
+    if (decoder) [[likely]] {
+        if (texMode != OES) [[unlikely]] {
+            m_previousTextureMode.store(texMode, std::memory_order_release);
+            m_textureMode.store(OES, std::memory_order_release);
         }
 
         update();
     }
 }
+
 
 void VideoFrameItem::setImage(const QImage &image, const quint64 receiveNs)
 {
@@ -66,23 +73,28 @@ void VideoFrameItem::setImage(const QImage &image, const quint64 receiveNs)
 
     {
         QMutexLocker locker(&m_mtx);
-        m_frameQueue.push_back({ image, receiveNs });
+        m_frameQueue.push_back({ .image = image, .receiveNs = receiveNs });
         while (m_frameQueue.size() > MaxPresentationQueue) {
-            m_frameQueue.pop_front(); // drop oldest frame
+            m_frameQueue.pop_front(); // drop the oldest frame
+            if (m_telemetry) {
+                m_telemetry->recordDropped();
+            }
         }
     }
 
-    if (m_textureMode != TextureMode::Simple) [[unlikely]] {
-        m_previousTextureMode = m_textureMode;
-        m_textureMode = TextureMode::Simple;
+    const auto texMode = m_textureMode.load(std::memory_order_acquire);
+    if (texMode != Simple) [[unlikely]] {
+        m_previousTextureMode.store(texMode, std::memory_order_release);
+        m_textureMode.store(Simple, std::memory_order_release);
     }
 
     if (thread() == QThread::currentThread()) {
         update();
     } else {
-        QMetaObject::invokeMethod(this, [this]() { update(); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this] { update(); }, Qt::QueuedConnection);
     }
 }
+
 
 void VideoFrameItem::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
 {
@@ -93,32 +105,34 @@ void VideoFrameItem::geometryChange(const QRectF &newGeometry, const QRectF &old
     }
 }
 
+
 QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data)
 {
     CTRACK;
 
     Q_UNUSED(data);
 
-    if (m_textureMode != m_previousTextureMode) {
+    const auto texMode = m_textureMode.load(std::memory_order_acquire);
+
+    if (texMode != m_previousTextureMode) {
         if (oldNode) {
             delete oldNode;
             oldNode = nullptr;
         }
-        m_previousTextureMode = m_textureMode;
+        m_previousTextureMode.store(texMode, std::memory_order_release);
     }
 
-    switch (m_textureMode) {
-    case TextureMode::OES: {
-        if (m_decoder) [[unlikely]] {
-            auto node = static_cast<QSGNode *>(oldNode);
+    switch (texMode) {
+    case OES: {
+        if (m_decoder) [[likely]] {
+            auto node = oldNode;
             if (!node) [[unlikely]] {
                 node = new QSGNode();
             }
 
             if (m_decoder->consumeFrame()) {
-                const auto texId = m_decoder->oesTextureId();
-                if (texId.has_value()) [[unlikely]] {
-                    auto oesNode = node->childCount() ? static_cast<OESRenderNode *>(node->firstChild()) : nullptr;
+                if (const auto texId = m_decoder->oesTextureId(); texId.has_value()) [[unlikely]] {
+                    auto oesNode = node->childCount() ? dynamic_cast<OESRenderNode *>(node->firstChild()) : nullptr;
                     if (!oesNode) [[unlikely]] {
                         oesNode = new OESRenderNode();
                         node->removeAllChildNodes();
@@ -136,35 +150,39 @@ QSGNode *VideoFrameItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
 
         break;
     }
-    case TextureMode::Simple: {
-        auto node = static_cast<QSGSimpleTextureNode *>(oldNode);
+    case Simple: {
+        auto node = dynamic_cast<QSGSimpleTextureNode *>(oldNode);
         if (!node) [[unlikely]] {
             node = new QSGSimpleTextureNode();
             node->setFiltering(QSGTexture::Linear);
         }
 
         bool textureChanged = false;
-        QImage localImage;
+        QImage localImage{};
         bool hasMore = false;
 
         {
             QMutexLocker locker(&m_mtx);
             if (!m_frameQueue.empty()) {
-                auto entry = std::move(m_frameQueue.front());
+                auto [image, receiveNs] = std::move(m_frameQueue.front());
                 m_frameQueue.pop_front();
-                localImage = std::move(entry.image);
+                localImage = std::move(image);
                 m_imageSize = localImage.size();
                 textureChanged = true;
                 hasMore = !m_frameQueue.empty();
 
-                if (entry.receiveNs > 0 && m_latencyCallback) {
-                    m_latencyCallback(steadyNowNs() - entry.receiveNs);
+                if (m_telemetry) {
+                    m_telemetry->setRenderQueueDepth(narrow<quint8>(m_frameQueue.size()));
+                }
+
+                if (receiveNs > 0 && m_latencyCallback) {
+                    m_latencyCallback(steadyNowNs() - receiveNs);
                 }
             }
         }
 
         if (textureChanged && !localImage.isNull()) [[likely]] {
-            if (auto fallbackTex = window()->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque))
+            if (const auto fallbackTex = window()->createTextureFromImage(localImage, QQuickWindow::TextureIsOpaque))
                 [[likely]] {
                 fallbackTex->setFiltering(QSGTexture::Linear);
                 node->setTexture(fallbackTex);

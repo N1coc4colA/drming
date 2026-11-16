@@ -27,19 +27,19 @@ Mdns::Mdns(QObject *parent)
     m_instance = this;
 }
 
-void Mdns::onServiceFound(const QString &name, const QString &type, const QString &protocol)
+void Mdns::onServiceFound(const QString &name, const QString &type)
 {
     qDebug() << "Found:" << name << type;
 
     const auto fullName = name + "*";
-    const ServiceInfo info{ name, type, "", "", protocol, -1 };
+    const ServiceInfo info{ .name = name, .type = type, .host = "", .ip = "", .port = -1 };
     m_services[fullName] = info;
 
-    Q_EMIT serviceFound(fullName, info, protocol);
+    Q_EMIT serviceFound(fullName, info);
     Q_EMIT countChanged(count());
 }
 
-void Mdns::onServiceLost(const QString &name, const QString &ip, const QString &protocol)
+void Mdns::onServiceLost(const QString &name, const QString &ip)
 {
     qDebug() << "Lost:" << name;
 
@@ -47,7 +47,8 @@ void Mdns::onServiceLost(const QString &name, const QString &ip, const QString &
     m_services.remove(fullName);
     if (ip.isEmpty()) {
         QStringList keys{};
-        for (const auto &key : m_services.keys()) {
+        for (auto it = m_services.keyBegin(); it != m_services.keyEnd(); ++it) {
+            const QString &key = *it;
             if (key.startsWith(name)) {
                 keys.append(key);
             }
@@ -55,30 +56,23 @@ void Mdns::onServiceLost(const QString &name, const QString &ip, const QString &
 
         for (const auto &key : keys) {
             m_services.remove(key);
-            Q_EMIT serviceLost(key, protocol);
+            Q_EMIT serviceLost(key);
         }
     }
 
-    Q_EMIT serviceLost(fullName, protocol);
+    Q_EMIT serviceLost(fullName);
     Q_EMIT countChanged(count());
 }
 
-void Mdns::onServiceResolved(
-    const QString &name,
-    const QString &host,
-    const QString &ip,
-    const int port,
-    const QString &protocol
-)
+void Mdns::onServiceResolved(const QString &name, const QString &host, const QString &ip, const int port)
 {
-    qDebug() << "Resolved:" << name << host << ip << port << protocol;
+    qDebug() << "Resolved:" << name << host << ip << port;
 
     const auto fullName = name + "*" + ip;
     m_services[fullName].name = name;
     m_services[fullName].host = host;
     m_services[fullName].ip = ip;
     m_services[fullName].port = port;
-    m_services[fullName].protocol = protocol;
 
-    Q_EMIT serviceResolved(fullName, m_services[fullName], protocol);
+    Q_EMIT serviceResolved(fullName, m_services[fullName]);
 }

@@ -146,6 +146,7 @@ void swizzle_bgr565(QImage &img)
 // Used for both 16-bit-per-channel (unitBytes=2, pixelBytes=8) and
 // 32-bit-per-channel (unitBytes=4, pixelBytes=16).
 template<int UnitBytes>
+/// Swaps red and blue channels for 16-bit or 32-bit per channel formats.
 void swizzle_swap_rb_wide(QImage &img)
 {
     constexpr int pixelBytes = UnitBytes * 4;
@@ -316,9 +317,9 @@ std::optional<FormatDescriptor> resolve(const uint32_t drmFourcc)
 {
     CTRACK;
 
-    for (const auto &e : kTable) {
-        if (e.drmFourcc == drmFourcc) {
-            return FormatDescriptor{ e.qtFormat, e.convert };
+    for (const auto & [drmFourccCandidate, qtFormat, convert] : kTable) {
+        if (drmFourcc == drmFourccCandidate) {
+            return FormatDescriptor{ .qtFormat = qtFormat, .convert = convert };
         }
     }
 

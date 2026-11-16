@@ -7,54 +7,60 @@ import android.util.Log;
 import java.net.InetAddress;
 import java.util.List;
 
+/** Discovers and resolves services through Android NSD. */
 public class MdnsHelper {
+    /** Log tag. */
     private static final String TAG = "MdnsHelper";
 
+    /** Active NSD manager. */
     private NsdManager nsdManager;
-    private NsdManager.DiscoveryListener dtlsDiscoveryListener;
-
+    /** Stores the discovery listener. */
+    private NsdManager.DiscoveryListener discoveryListener;
+    /** Stores the is discovering. */
     private boolean isDiscovering = false;
 
-    private NsdManager.DiscoveryListener buildListener(String protocol) {
+    /** Handles build listener. */
+    private NsdManager.DiscoveryListener buildListener() {
         return new NsdManager.DiscoveryListener() {
             @Override
             public void onDiscoveryStarted(String regType) {
-                Log.d(TAG, "Discovery started: " + regType + " on protocol " + protocol);
+                Log.d(TAG, "Discovery started: " + regType);
             }
 
             @Override
             public void onServiceFound(NsdServiceInfo serviceInfo) {
-                Log.d(TAG, "Service found: " + serviceInfo.getServiceName() + " with protocol " + protocol);
-                nativeOnServiceFound(serviceInfo.getServiceName(), serviceInfo.getServiceType(), protocol);
+                Log.d(TAG, "Service found: " + serviceInfo.getServiceName());
+                nativeOnServiceFound(serviceInfo.getServiceName(), serviceInfo.getServiceType());
                 // Create a fresh ResolveListener for every service to avoid
                 // "listener already in use" when multiple services are found
                 // in rapid succession.
-                nsdManager.resolveService(serviceInfo, createResolveListener(protocol));
+                nsdManager.resolveService(serviceInfo, createResolveListener());
             }
 
             @Override
             public void onServiceLost(NsdServiceInfo serviceInfo) {
-                Log.d(TAG, "Service lost: " + serviceInfo.getServiceName() + " of protocol " + protocol);
-                nativeOnServiceLost(serviceInfo.getServiceName(), "", protocol);
+                Log.d(TAG, "Service lost: " + serviceInfo.getServiceName());
+                nativeOnServiceLost(serviceInfo.getServiceName(), "");
             }
 
             @Override
             public void onDiscoveryStopped(String regType) {
-                Log.d(TAG, "Discovery stopped for protocol " + protocol);
+                Log.d(TAG, "Discovery stopped");
             }
 
             @Override
             public void onStartDiscoveryFailed(String regType, int errorCode) {
-                Log.e(TAG, "Start discovery failed for protocol " + protocol + ": " + errorCode);
+                Log.e(TAG, "Start discovery failed: " + errorCode);
             }
 
             @Override
             public void onStopDiscoveryFailed(String regType, int errorCode) {
-                Log.e(TAG, "Stop discovery failed for protocol " + protocol + ": " + errorCode);
+                Log.e(TAG, "Stop discovery failed: " + errorCode);
             }
         };
     }
 
+    /** Creates a mdns helper. */
     public MdnsHelper(Context context) {
         if (context != null) {
             nsdManager = (NsdManager) context.getSystemService(Context.NSD_SERVICE);
@@ -63,22 +69,24 @@ public class MdnsHelper {
         }
     }
 
+    /** Starts service discovery. */
     public void startDiscovery() {
         if (isDiscovering || nsdManager == null) {
             return;
         }
 
-        dtlsDiscoveryListener = buildListener("dtls");
+        discoveryListener = buildListener();
 
-        nsdManager.discoverServices("_drming._udp.", NsdManager.PROTOCOL_DNS_SD, dtlsDiscoveryListener);
+        nsdManager.discoverServices("_drming._udp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener);
 
         isDiscovering = true;
     }
 
+    /** Stops service discovery and releases its listeners. */
     public void stopDiscovery() {
         if (isDiscovering && nsdManager != null) {
-            if (dtlsDiscoveryListener != null) {
-                nsdManager.stopServiceDiscovery(dtlsDiscoveryListener);
+            if (discoveryListener != null) {
+                nsdManager.stopServiceDiscovery(discoveryListener);
             }
 
             isDiscovering = false;
@@ -87,13 +95,14 @@ public class MdnsHelper {
 
     // Returns a new ResolveListener instance each time it is called.
     // NsdManager requires a distinct listener object per concurrent resolve.
-    private NsdManager.ResolveListener createResolveListener(String protocol) {
+    /** Handles create resolve listener. */
+    private NsdManager.ResolveListener createResolveListener() {
         return new NsdManager.ResolveListener() {
             @Override
             public void onResolveFailed(NsdServiceInfo serviceInfo, int errorCode) {
-                // Toujours appelé avec errorCode = 0
+                // Always called with errorCode = 0
                 Log.e(TAG, "Resolve failed for " + serviceInfo.getServiceName()
-                        + " of protocol " + protocol + ": error " + errorCode);
+                        + ", error " + errorCode);
             }
 
             @Override
@@ -112,7 +121,7 @@ public class MdnsHelper {
                             }
                         }
 
-                        nativeOnServiceResolved(serviceName, host, ip, port, protocol);
+                        nativeOnServiceResolved(serviceName, host, ip, port);
                     }
 
                     return;
@@ -129,14 +138,17 @@ public class MdnsHelper {
                         }
                     }
 
-                    nativeOnServiceResolved(serviceName, host, ip, port, protocol);
+                    nativeOnServiceResolved(serviceName, host, ip, port);
                 }
             }
         };
     }
 
     // Native callbacks (must be registered from C++)
-    private static native void nativeOnServiceFound(String name, String type, String protocol);
-    private static native void nativeOnServiceLost(String name, String ip, String protocol);
-    private static native void nativeOnServiceResolved(String name, String host, String ip, int port, String protocol);
+    /** Reports a discovered service to native code. */
+    private static native void nativeOnServiceFound(String name, String type);
+    /** Reports a lost service to native code. */
+    private static native void nativeOnServiceLost(String name, String ip);
+    /** Reports resolved service details to native code. */
+    private static native void nativeOnServiceResolved(String name, String host, String ip, int port);
 }

@@ -21,6 +21,7 @@
 
 namespace {
 
+/// Returns the root mount path for configfs.
 QString configfsRootPath()
 {
     if (QDir(QStringLiteral("/sys/kernel/config/vkms")).exists()) {
@@ -34,6 +35,7 @@ QString configfsRootPath()
     return QStringLiteral("/sys/kernel/config");
 }
 
+/// Writes byte data to a file path, returning true on success.
 bool writeFile(const QString &path, const QByteArray &value)
 {
     QFile f(path);
@@ -45,6 +47,7 @@ bool writeFile(const QString &path, const QByteArray &value)
     return f.write(value) == value.size();
 }
 
+/// Checks whether the configfs filesystem is mounted.
 bool isConfigfsMounted()
 {
     QFile f("/proc/mounts");
@@ -56,6 +59,7 @@ bool isConfigfsMounted()
     return m.contains("configfs") && (m.contains("/sys/kernel/config ") || m.contains("/config "));
 }
 
+/// Checks whether the vkms kernel module is loaded.
 bool isVkmsModuleLoaded()
 {
     QFile f("/proc/modules");
@@ -66,6 +70,7 @@ bool isVkmsModuleLoaded()
     return f.readAll().contains("vkms ");
 }
 
+/// Checks whether VKMS support is enabled in the running kernel config.
 bool isVkmsConfigEnabled()
 {
     for (const auto &name : { QString("/proc/config.gz"), QString("/boot/config-") + QSysInfo::kernelVersion() }) {
@@ -87,6 +92,7 @@ bool isVkmsConfigEnabled()
     return false;
 }
 
+/// Attempts to load the vkms kernel module using modprobe.
 bool loadVkmsModule()
 {
     qInfo() << "Inserting vkms";
@@ -112,7 +118,7 @@ DispSetup::DispSetup(const QString &instanceName)
     , m_connectorPath(m_basePath + "/connectors/connector0")
     , m_enabledPath(m_basePath + "/enabled")
 {
-    constexpr std::array<bool (DispSetup::*)() const, 14> funcs{
+    constexpr std::array funcs{
         &DispSetup::makeEnvChecks,
         &DispSetup::makeVkmsInstance,
         &DispSetup::makeCrtc,
@@ -277,15 +283,14 @@ bool DispSetup::setCursorPlaneType() const
     return true;
 }
 
-bool DispSetup::linkPlaneToCrtc(const QString &planePath, const QString &crtcPath) const
+bool DispSetup::linkPlaneToCrtc(const QString &planePath, const QString &crtcPath)
 {
     const auto linkDir = planePath + "/possible_crtcs";
     const auto linkPath = linkDir + "/crtc0";
     const auto link = linkPath.toLocal8Bit();
     const auto tgt = crtcPath.toLocal8Bit();
 
-    int i = 0;
-    for (; i < Settings::maximumLPTries; i++) {
+    for (int i = 0; i < Settings::maximumLPTries; i++) {
         msleep(500);
 
         if (QFileInfo::exists(linkPath)) {
@@ -365,9 +370,7 @@ bool DispSetup::makeConnector() const
 
 bool DispSetup::writeEdidAndEnable() const
 {
-    const auto statusPath = m_connectorPath + "/status";
-
-    if (!writeFile(statusPath, "1")) {
+    if (!writeFile(m_connectorPath + "/status", "1")) {
         qCritical() << "Failed to set connector status.";
         return false;
     }
@@ -378,9 +381,8 @@ bool DispSetup::writeEdidAndEnable() const
 QString DispSetup::findVirtualConnectorName() const
 {
     const QDir drmDir(QStringLiteral("/sys/class/drm"));
-    const auto entries = drmDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
 
-    for (const QString &entry : entries) {
+    for (const QString &entry : drmDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
         if (!entry.contains(QStringLiteral("-Virtual-"))) {
             continue;
         }
@@ -399,9 +401,7 @@ QString DispSetup::findVirtualConnectorName() const
             continue;
         }
 
-        const auto target = deviceInfo.symLinkTarget();
-
-        if (target.contains(m_instanceName)) {
+        if (deviceInfo.symLinkTarget().contains(m_instanceName)) {
             return entry;
         }
     }

@@ -58,6 +58,7 @@ jobs:
             test_jitterbuffer \
             test_drmformat \
             test_socket \
+            test_av \
             --parallel
           ctest --test-dir build/server --output-on-failure
 
@@ -69,6 +70,8 @@ jobs:
           -DANDROID_MULTI_MODE=OFF
 
       - name: Build and run client tests
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
           cmake --build build/client --target test_socket --parallel
           ctest --test-dir build/client --output-on-failure

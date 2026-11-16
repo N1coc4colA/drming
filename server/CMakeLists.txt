@@ -53,6 +53,9 @@ add_subdirectory(
 )
 
 # ---- Core library ------------------------------------------------------------
+file(GLOB_RECURSE ENCODER_SOURCES ${PROJECT_SOURCE_DIR}/encoder/*.cpp)
+file(GLOB_RECURSE ENCODER_HEADERS ${PROJECT_SOURCE_DIR}/encoder/*.h)
+
 set(DRMING_SERVER_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/certificatesupport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/parser.h
@@ -60,6 +63,7 @@ set(DRMING_SERVER_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/udp.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../settings.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../helpers.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../registrar.h
 
     avahi_publisher.h avahi_publisher.cpp
     commandparser.h commandparser.cpp
@@ -68,7 +72,7 @@ set(DRMING_SERVER_CORE_SOURCES
     displayreader.h displayreader.cpp
     displaythread.h displaythread.cpp
     dispsetup.h dispsetup.cpp
-    ffmpeg.h ffmpeg.cpp
+    encoder.h encoder.cpp
     networkclient.h networkclient.cpp
     parameters.h parameters.cpp
     server.h server.cpp
@@ -80,8 +84,10 @@ set(DRMING_SERVER_CORE_SOURCES
 
 add_library(
 drming_server_core
-    STATIC
+    OBJECT
         ${DRMING_SERVER_CORE_SOURCES}
+        ${ENCODER_HEADERS}
+        ${ENCODER_SOURCES}
 )
 
 target_include_directories(

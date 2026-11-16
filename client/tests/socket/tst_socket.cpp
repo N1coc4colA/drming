@@ -18,7 +18,7 @@ class TestUdpStreamSocket final : public UdpStreamSocket
 public:
     using UdpStreamSocket::UdpStreamSocket;
 
-    void addData(QByteArray) override
+    void addData(const QByteArray &) override
     {}
 };
 
@@ -45,11 +45,11 @@ public:
 private Q_SLOTS:
     void serviceInfoEqualityAndHash()
     {
-        const ServiceInfo first{ "name", "type", "host", "127.0.0.1", "ssl", 443 };
+        const ServiceInfo first{ "name", "type", "host", "127.0.0.1", 443 };
         const ServiceInfo same = first;
-        const ServiceInfo different{ "name", "type", "host", "127.0.0.1", "dtls", 443 };
+        const ServiceInfo different{ "name", "type", "host", "127.0.0.1", 445 };
 
-        QCOMPARE(first.toHashable(), QStringLiteral("nametypehost127.0.0.1ssl443"));
+        QCOMPARE(first.toHashable(), QStringLiteral("nametypehost127.0.0.1443"));
         QVERIFY(first == same);
         QVERIFY(first != different);
         QCOMPARE(std::hash<ServiceInfo>{}(first), qHash(first.toHashable()));
@@ -62,20 +62,20 @@ private Q_SLOTS:
         QSignalSpy lostSpy(&m_mdns, &Mdns::serviceLost);
         QSignalSpy countSpy(&m_mdns, &Mdns::countChanged);
 
-        m_mdns.onServiceFound("desk", "_drming._tcp", "ssl");
+        m_mdns.onServiceFound("desk", "_drming._udp");
         QCOMPARE(m_mdns.count(), 1);
         QCOMPARE(foundSpy.count(), 1);
         QCOMPARE(foundSpy.at(0).at(0).toString(), QStringLiteral("desk*"));
 
-        m_mdns.onServiceResolved("desk", "desk.local", "192.0.2.1", 443, "ssl");
+        m_mdns.onServiceResolved("desk", "desk.local", "192.0.2.1", 443);
         QCOMPARE(m_mdns.count(), 2);
         QCOMPARE(resolvedSpy.count(), 1);
 
-        m_mdns.onServiceLost("desk", "192.0.2.1", "ssl");
+        m_mdns.onServiceLost("desk", "192.0.2.1");
         QCOMPARE(m_mdns.count(), 1);
         QCOMPARE(lostSpy.count(), 1);
 
-        m_mdns.onServiceLost("desk", {}, "ssl");
+        m_mdns.onServiceLost("desk", {});
         QCOMPARE(m_mdns.count(), 0);
         QCOMPARE(lostSpy.count(), 2);
         QCOMPARE(countSpy.count(), 3);
@@ -85,7 +85,7 @@ private Q_SLOTS:
     {
         ServicesModel model;
 
-        m_mdns.onServiceResolved("camera", "camera.local", "192.0.2.2", 8443, "dtls");
+        m_mdns.onServiceResolved("camera", "camera.local", "192.0.2.2", 8443);
         QCOMPARE(model.count(), 1);
         QCOMPARE(model.rowCount({}), 1);
         QCOMPARE(model.rowCount(model.index(0, 0)), 0);
@@ -94,18 +94,21 @@ private Q_SLOTS:
         QCOMPARE(model.data(model.index(0, 0), ServicesModel::IpRole).toString(), QStringLiteral("192.0.2.2"));
         QCOMPARE(model.data(model.index(0, 0), ServicesModel::PortRole).toInt(), 8443);
         QCOMPARE(model.data(model.index(0, 0), ServicesModel::TypeRole).toString(), QString());
-        QCOMPARE(model.data(model.index(0, 0), ServicesModel::ProtocolRole).toString(), QStringLiteral("dtls"));
         QCOMPARE(model.get(0).value("name").toString(), QStringLiteral("camera"));
         QVERIFY(model.get(-1).isEmpty());
         QVERIFY(model.get(1).isEmpty());
         QVERIFY(!model.data({}, ServicesModel::NameRole).isValid());
 
-        m_mdns.onServiceResolved("camera", "new.local", "192.0.2.3", 9443, "ssl");
-        QCOMPARE(model.count(), 1);
-        QCOMPARE(model.get(0).value("host").toString(), QStringLiteral("new.local"));
+        m_mdns.onServiceResolved("camera", "new.local", "192.0.2.3", 9443);
+        // It is possible that due to Avahi's behaviour, a same iface with multiple IPs advertize
+        // this same number of service on each IP although you explicitly told it to do so on only
+        // one IP of one iface.
+        QCOMPARE(model.count(), 2);
+        QCOMPARE(model.get(0).value("host").toString(), QStringLiteral("camera.local"));
+        QCOMPARE(model.get(1).value("host").toString(), QStringLiteral("new.local"));
 
-        m_mdns.onServiceLost("camera", "192.0.2.3", "ssl");
-        QCOMPARE(model.count(), 0);
+        m_mdns.onServiceLost("camera", "192.0.2.3");
+        QCOMPARE(model.count(), 1);
         model.clear();
     }
 
@@ -113,7 +116,7 @@ private Q_SLOTS:
     {
         FilesModel model;
         const QDateTime timestamp(QDate(2026, 10, 19), QTime(18, 9));
-        model.setData({ { timestamp, "client.crt", { { "valid", true } } } });
+        model.setContent({ { timestamp, "client.crt", { { "valid", true } } } });
 
         QCOMPARE(model.count(), 1);
         QCOMPARE(model.rowCount({}), 1);
@@ -135,9 +138,13 @@ private Q_SLOTS:
         palette.setColor(QPalette::Window, QColor("#123456"));
         qApp->setPalette(palette);
 
-        writePalette(path);
-        QCOMPARE(readPalette(path).color(QPalette::Window), QColor("#123456"));
-        QCOMPARE(readPalette(directory.filePath("missing.data")), qApp->palette());
+        QCOMPARE(writePalette(path), true);
+        const auto pal = readPalette(path);
+
+        QCOMPARE(pal.has_value(), true);
+        QCOMPARE(pal.value().color(QPalette::Window), QColor("#123456"));
+        const auto missing = readPalette(directory.filePath("missing.data"));
+        QVERIFY(!missing.has_value());
     }
 
     void imageDecoderDecodesAndResets()

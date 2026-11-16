@@ -29,6 +29,7 @@ using Ordering = quint32;
 using Timestamp = quint16;
 using Keystamp = qint16;
 
+/// Packet type identifiers for network serialization.
 enum class Type : quint16 {
     None = 0,
 
@@ -46,7 +47,6 @@ enum class Type : quint16 {
     ClientResolution,
 
     ServerBrightness,
-    ServerImage,
     ServerStream,
 
     SpeedInfo,
@@ -177,22 +177,23 @@ using fields_type = std::remove_reference_t<decltype(PacketType::fields)>;
 
 } // namespace details
 
+/// Base wrapper for a packet field during serialization.
 template<typename T, bool IsVariable = false, bool HasLimit = false>
 struct Field
 {
     using data_type = T;
 
-    static constexpr bool __is_field = true;
-    static constexpr bool __is_variable = IsVariable;
-    static constexpr bool __has_limits = HasLimit;
+    static constexpr bool _is_field = true;
+    static constexpr bool _is_variable = IsVariable;
+    static constexpr bool _has_limits = HasLimit;
 
     T data{};
 
-    inline T &operator->()
+    T &operator->()
     {
         return data;
     }
-    inline const T &operator->() const
+    const T &operator->() const
     {
         return data;
     }
@@ -200,14 +201,16 @@ struct Field
 
 // SizedField implies IsVariable = true. Whether it has limits is decided by
 // the concrete variable field templates below.
+/// Field wrapper with an explicit length prefix.
 template<typename T, typename SizeType>
-struct SizedField : public Field<T, true>
+struct SizedField : Field<T, true>
 {
     using size_type = SizeType;
     SizeType size{};
 };
 
 // Fixed-size, compile-time-bounded field: not variable, has limits.
+/// Compile-time fixed-size bounded field.
 template<typename T, typename LimitType, LimitType Min, LimitType Max>
 struct FixedField : Field<T, false, true>
 {
@@ -216,17 +219,18 @@ struct FixedField : Field<T, false, true>
 };
 
 // Fixed-size, runtime-bounded field: not variable, has limits.
+/// Runtime-bounded field.
 template<
     typename T,
     typename LimitType,
     LimitType DefaultMin = 0,
     LimitType DefaultMax = std::numeric_limits<LimitType>::max()>
-struct BoundField : public Field<T, false, true>
+struct BoundField : Field<T, false, true>
 {
     LimitType min = DefaultMin;
     LimitType max = DefaultMax;
 
-    inline constexpr void setBounds(const LimitType mn, const LimitType mx)
+    constexpr void setBounds(const LimitType mn, const LimitType mx)
     {
         min = std::max(mn, DefaultMin);
         max = std::min(mx, DefaultMax);
@@ -234,35 +238,38 @@ struct BoundField : public Field<T, false, true>
 };
 
 // Variable-size, compile-time-bounded field: variable, has limits.
+/// Variable-size field with compile-time limits.
 template<typename T, typename LimitType, LimitType Min, LimitType Max>
 struct VariableFixedField : SizedField<T, LimitType>
 {
-    static constexpr bool __has_limits = true;
+    static constexpr bool _has_limits = true;
 
     static constexpr LimitType min = Min;
     static constexpr LimitType max = Max;
 };
 
 // Variable-size, runtime-bounded field: variable, has limits.
+/// Variable-size field with runtime-configurable limits.
 template<
     typename T,
     typename LimitType,
     LimitType DefaultMin = 0,
     LimitType DefaultMax = std::numeric_limits<LimitType>::max()>
-struct VariableBoundField : public SizedField<T, LimitType>
+struct VariableBoundField : SizedField<T, LimitType>
 {
-    static constexpr bool __has_limits = true;
+    static constexpr bool _has_limits = true;
 
     LimitType min = DefaultMin;
     LimitType max = DefaultMax;
 
-    inline constexpr void setBounds(const LimitType mn, const LimitType mx)
+    constexpr void setBounds(const LimitType mn, const LimitType mx)
     {
         min = std::max(mn, DefaultMin);
         max = std::min(mx, DefaultMax);
     }
 };
 
+/// Field constrained to a compile-time enum range.
 template<typename EnumType>
     requires requires() {
         std::is_enum_v<EnumType>;
@@ -271,10 +278,11 @@ template<typename EnumType>
         std::is_same_v<typename EnumType::UPPER, EnumType>;
         std::is_same_v<typename EnumType::LOWER, EnumType>;
     }
-struct EnumField : public FixedField<EnumType, EnumType, EnumType::LOWER, EnumType::UPPER>
+struct EnumField : FixedField<EnumType, EnumType, EnumType::LOWER, EnumType::UPPER>
 {
 };
 
+/// Field constrained to a runtime enum range.
 template<typename EnumType>
     requires requires() {
         std::is_enum_v<EnumType>;
@@ -283,10 +291,11 @@ template<typename EnumType>
         std::is_same_v<typename EnumType::UPPER, EnumType>;
         std::is_same_v<typename EnumType::LOWER, EnumType>;
     }
-struct BoundEnumField : public BoundField<EnumType, EnumType, EnumType::LOWER, EnumType::UPPER>
+struct BoundEnumField : BoundField<EnumType, EnumType, EnumType::LOWER, EnumType::UPPER>
 {
 };
 
+/// Numeric field constrained to static compile-time min and max bounds.
 template<
     typename NumericType,
     NumericType Min = std::numeric_limits<NumericType>::min(),
@@ -295,6 +304,7 @@ struct NumericField : FixedField<NumericType, NumericType, Min, Max>
 {
 };
 
+/// Numeric field with runtime-configurable min and max bounds.
 template<
     typename NumericType,
     NumericType DefaultMin = std::numeric_limits<NumericType>::min(),
@@ -303,24 +313,28 @@ struct BoundNumericField : BoundField<NumericType, NumericType, DefaultMin, Defa
 {
 };
 
+/// Keepalive heartbeat packet.
 struct HeartBeat
 {
     static constexpr auto type = Type::HeartBeat;
     static constexpr auto fields = std::tuple{};
 };
 
+/// Stream reinitialization request packet.
 struct Reinit
 {
     static constexpr auto type = Type::Reinit;
     static constexpr auto fields = std::tuple{};
 };
 
+/// Requests the encryption key from the peer.
 struct RequestKey
 {
     static constexpr auto type = Type::RequestKey;
     static constexpr auto fields = std::tuple{};
 };
 
+/// Transmits an updated encryption key.
 struct KeyUpdate
 {
     static constexpr auto type = Type::KeyUpdate;
@@ -331,12 +345,14 @@ struct KeyUpdate
     static constexpr auto fields = std::tuple{ &KeyUpdate::keyStamp, &KeyUpdate::key };
 };
 
+/// Requests the audio stream source endpoint.
 struct RequestAudioSource
 {
     static constexpr auto type = Type::RequestAudioSource;
     static constexpr auto fields = std::tuple{};
 };
 
+/// Transmits the audio source endpoint.
 struct AudioSource
 {
     static constexpr auto type = Type::AudioSource;
@@ -348,12 +364,14 @@ struct AudioSource
     static constexpr auto fields = std::tuple{ &AudioSource::ip, &AudioSource::port, &AudioSource::isV4 };
 };
 
+/// Requests the video stream source endpoint.
 struct RequestVideoSource
 {
     static constexpr auto type = Type::RequestVideoSource;
     static constexpr auto fields = std::tuple{};
 };
 
+/// Transmits the video source endpoint.
 struct VideoSource
 {
     static constexpr auto type = Type::VideoSource;
@@ -365,22 +383,14 @@ struct VideoSource
     static constexpr auto fields = std::tuple{ &VideoSource::ip, &VideoSource::port, &VideoSource::isV4 };
 };
 
-struct ServerImage
-{
-    static constexpr auto type = Type::ServerImage;
-
-    VariableFixedField<QByteArray, quint64, 3, 4> format;
-    VariableBoundField<QByteArray, quint64, 1, 8 * 1024 * 1024> data;
-
-    static constexpr auto fields = std::tuple{ &ServerImage::format, &ServerImage::data };
-};
-
+/// Requests the client's supported display resolution.
 struct RequestClientResolution
 {
     static constexpr auto type = Type::RequestClientResolution;
     static constexpr auto fields = std::tuple{};
 };
 
+/// Transmits the client display resolution.
 struct ClientResolution
 {
     static constexpr auto type = Type::ClientResolution;
@@ -391,6 +401,7 @@ struct ClientResolution
     static constexpr auto fields = std::tuple{ &ClientResolution::width, &ClientResolution::height };
 };
 
+/// Transmits server display brightness level.
 struct ServerBrightness
 {
     static constexpr auto type = Type::ServerBrightness;
@@ -400,6 +411,7 @@ struct ServerBrightness
     static constexpr auto fields = std::tuple{ &ServerBrightness::brightness };
 };
 
+/// Transmits an encoded video frame chunk.
 struct ServerStream
 {
     static constexpr auto type = Type::ServerStream;
@@ -409,6 +421,7 @@ struct ServerStream
     static constexpr auto fields = std::tuple{ &ServerStream::data };
 };
 
+/// Transmits transmission speed metrics.
 struct SpeedInfo
 {
     static constexpr auto type = Type::SpeedInfo;
@@ -418,6 +431,7 @@ struct SpeedInfo
     static constexpr auto fields = std::tuple{ &SpeedInfo::speed };
 };
 
+/// Transmits client playback and rendering telemetry metrics.
 struct ClientTelemetry
 {
     static constexpr auto type = Type::ClientTelemetry;
@@ -448,6 +462,7 @@ struct ClientTelemetry
     };
 };
 
+/// Requests an immediate IDR keyframe from the encoder.
 struct RequestKeyframe
 {
     static constexpr auto type = Type::RequestKeyframe;
@@ -466,16 +481,16 @@ using PacketVariant = std::variant<
     RequestClientResolution,
     ClientResolution,
     ServerBrightness,
-    ServerImage,
     ServerStream,
     SpeedInfo,
     ClientTelemetry,
     RequestKeyframe>;
 
+/// Serializes structured packet types into big-endian byte buffers.
 class Writer
 {
     template<typename FieldType>
-        requires FieldType::__is_field and FieldType::__is_variable
+        requires FieldType::_is_field and FieldType::_is_variable
     static void updateSizeIfNeeded(FieldType &field)
     {
         field.size = static_cast<FieldType::size_type>(field.data.size());
@@ -486,14 +501,14 @@ class Writer
     {}
 
     template<typename FieldType>
-        requires FieldType::__is_field and FieldType::__is_variable
+        requires FieldType::_is_field and FieldType::_is_variable
     static void writeField(QDataStream &stream, const FieldType &field)
     {
         stream << field.size;
     }
 
     template<typename FieldType>
-        requires FieldType::__is_field and (not FieldType::__is_variable)
+        requires FieldType::_is_field and (not FieldType::_is_variable)
     static void writeField(QDataStream &stream, const FieldType &field)
     {
         stream << field.data;
@@ -510,27 +525,28 @@ class Writer
     {}
 
     template<typename FieldType>
-        requires FieldType::__is_field and FieldType::__is_variable
+        requires FieldType::_is_field and FieldType::_is_variable
     static void writeVariableField(QDataStream &stream, const FieldType &field)
     {
         stream.writeRawData(field.data.constData(), static_cast<qint64>(field.size));
     }
 
     template<typename FieldType>
-        requires FieldType::__is_field and FieldType::__is_variable
+        requires FieldType::_is_field and FieldType::_is_variable
     static qsizetype estimateFieldSize(const FieldType &f)
     {
         return sizeof(typename FieldType::size_type) + f.data.size();
     }
 
     template<typename FieldType>
-        requires FieldType::__is_field and (not FieldType::__is_variable)
+        requires FieldType::_is_field and (not FieldType::_is_variable)
     static qsizetype estimateFieldSize(const FieldType &)
     {
         return sizeof(typename FieldType::data_type);
     }
 
 public:
+    /// Serializes a packet instance into a binary QByteArray.
     template<typename T>
     static QByteArray generate(T &t)
     {
@@ -575,9 +591,10 @@ template<
     const int ErrorLimit = 2,
     size_t MaxVariableSize = 8 * 1024 * 1024,
     bool DebugParsed = false>
+/// Stateful streaming packet parser that deserializes and dispatches packets.
 class Parser
 {
-    using PacketTypes = typename details::variant_types<PacketVariant>::types;
+    using PacketTypes = details::variant_types<PacketVariant>::types;
 
     enum ParseOutput {
         False,
@@ -587,7 +604,7 @@ class Parser
 
     template<typename PacketType, size_t Index>
     using FieldType =
-        typename details::member_pointer_traits<std::tuple_element_t<Index, decltype(PacketType::fields)>>::member_type;
+        details::member_pointer_traits<std::tuple_element_t<Index, decltype(PacketType::fields)>>::member_type;
 
     QByteArray m_array{};
     Type m_state = Type::None;
@@ -601,7 +618,7 @@ class Parser
     int m_errorCount = 0;
     bool m_discardCurrent = false;
 
-    inline void resetToResync()
+    void resetToResync()
     {
         m_state = Type::None;
         m_parsed = 0;
@@ -611,8 +628,8 @@ class Parser
     }
 
     template<typename PacketType, size_t Index>
-        requires FieldType<PacketType, Index>::__is_variable and FieldType<PacketType, Index>::__has_limits
-    inline ParseOutput read()
+        requires FieldType<PacketType, Index>::_is_variable and FieldType<PacketType, Index>::_has_limits
+    ParseOutput read()
     {
         using Field = FieldType<PacketType, Index>;
         auto &packet = std::get<PacketType>(m_current);
@@ -636,8 +653,8 @@ class Parser
     }
 
     template<typename PacketType, size_t Index>
-        requires(not FieldType<PacketType, Index>::__is_variable) and FieldType<PacketType, Index>::__has_limits
-    inline ParseOutput read()
+        requires(not FieldType<PacketType, Index>::_is_variable) and FieldType<PacketType, Index>::_has_limits
+    ParseOutput read()
     {
         using Field = FieldType<PacketType, Index>;
         auto &packet = std::get<PacketType>(m_current);
@@ -658,8 +675,8 @@ class Parser
     }
 
     template<typename PacketType, size_t Index>
-        requires(not FieldType<PacketType, Index>::__is_variable) and (not FieldType<PacketType, Index>::__has_limits)
-    inline ParseOutput read()
+        requires(not FieldType<PacketType, Index>::_is_variable) and (not FieldType<PacketType, Index>::_has_limits)
+    ParseOutput read()
     {
         using Field = FieldType<PacketType, Index>;
         auto &packet = std::get<PacketType>(m_current);
@@ -680,7 +697,7 @@ class Parser
     }
 
     template<typename FieldType, size_t = 0>
-    inline ParseOutput read(FieldType &field)
+    ParseOutput read(FieldType &field)
     {
         if (m_array.size() >= static_cast<qsizetype>(sizeof(FieldType))) {
             QDataStream stream(m_array);
@@ -696,8 +713,8 @@ class Parser
     }
 
     template<typename PacketType, size_t Index>
-        requires FieldType<PacketType, Index>::__is_field and FieldType<PacketType, Index>::__is_variable
-    inline ParseOutput readVariable()
+        requires FieldType<PacketType, Index>::_is_field and FieldType<PacketType, Index>::_is_variable
+    ParseOutput readVariable()
     {
         auto &packet = std::get<PacketType>(m_current);
         auto &field = packet.*std::get<Index>(std::get<PacketType>(m_current).fields);
@@ -722,14 +739,14 @@ class Parser
     }
 
     template<typename PacketType, size_t Index>
-        requires(not(FieldType<PacketType, Index>::__is_field and FieldType<PacketType, Index>::__is_variable))
-    inline constexpr ParseOutput readVariable()
+        requires(not(FieldType<PacketType, Index>::_is_field and FieldType<PacketType, Index>::_is_variable))
+    constexpr ParseOutput readVariable()
     {
         return True;
     }
 
     template<typename T>
-    inline ParseOutput instanceParsing()
+    ParseOutput instanceParsing()
     {
         CTRACK;
 
@@ -750,8 +767,7 @@ class Parser
         }();
 
         while (m_parsed < fieldCount) {
-            const auto result = (this->*fieldTable[m_parsed])();
-            switch (result) {
+            switch (const auto result = (this->*fieldTable[m_parsed])()) {
             case True:
                 ++m_parsed;
                 continue;
@@ -761,8 +777,7 @@ class Parser
         }
 
         while (m_variablesParsed < fieldCount) {
-            const auto result = (this->*variableFieldTable[m_variablesParsed])();
-            switch (result) {
+            switch (const auto result = (this->*variableFieldTable[m_variablesParsed])()) {
             case True:
                 ++m_variablesParsed;
                 continue;
@@ -788,7 +803,7 @@ class Parser
     {
         CTRACK;
 
-        using Types = typename details::variant_types<PacketVariant>::types;
+        using Types = details::variant_types<PacketVariant>::types;
         constexpr size_t N = std::tuple_size_v<Types>;
         constexpr size_t TABLE_SIZE = static_cast<size_t>(Type::MAXIMUM) + 1;
 
@@ -819,7 +834,7 @@ class Parser
             r.max = r.max;
             r.setBounds(r.min, r.max);
         }
-    inline void setBoundsHelper(Returns Class::*member, const auto min, const auto max)
+    void setBoundsHelper(Returns Class::*member, const auto min, const auto max)
     {
         auto &field = std::get<details::Index<Class, PacketTypes>::value>(m_bounds).*member;
 
@@ -827,16 +842,19 @@ class Parser
     }
 
 public:
+    /// Constructs a parser dispatching parsed packets to the receiver.
     explicit Parser(Receiver &receiver)
         : m_receiver(receiver)
     {}
 
-    inline void pushData(const QByteArray &additional)
+    /// Feeds raw bytes into the parser and executes parsing.
+    void pushData(const QByteArray &additional)
     {
         m_array.append(additional);
         parse();
     }
 
+    /// Clears buffered data and resets parser state.
     void clear()
     {
         m_array.clear();
@@ -844,25 +862,30 @@ public:
         m_errorCount = 0;
     }
 
-    inline void waitFor(const Type t)
+    /// Discards incoming packets until the specified packet type is received.
+    void waitFor(const Type t)
     {
         m_waitsFor.insert(t);
     }
 
-    inline void disable(const Type t)
+    /// Disables processing for the given packet type.
+    void disable(const Type t)
     {
         m_disabled.insert(t);
     }
-    inline void enable(const Type t)
+    /// Enables processing for the given packet type.
+    void enable(const Type t)
     {
         m_disabled.erase(t);
     }
-    inline void clearRules()
+    /// Clears all packet wait and disable rules.
+    void clearRules()
     {
         m_disabled.clear();
         m_waitsFor.clear();
     }
 
+    /// Processes buffered bytes into complete packets.
     void parse()
     {
         while (true) {
@@ -874,12 +897,12 @@ public:
                     return;
                 }
 
-                quint16 type = static_cast<quint16>(Type::None);
+                auto type = static_cast<quint16>(Type::None);
                 if (read<quint16>(type) != True) {
                     return;
                 }
 
-                if ((type > static_cast<quint16>(Type::UPPER) || type < static_cast<quint16>(Type::LOWER)))
+                if (type > static_cast<quint16>(Type::UPPER) || type < static_cast<quint16>(Type::LOWER))
                     [[unlikely]] {
                     if constexpr (details::has_packetErrors<Receiver>::value) {
                         ++m_errorCount;
@@ -941,14 +964,16 @@ public:
         }
     }
 
+    /// Configures validation bounds for a packet field.
     template<auto ptr>
-    inline void setBounds(const auto min, const auto max)
+    void setBounds(const auto min, const auto max)
     {
         setBoundsHelper(ptr, min, max);
     }
 };
 
-// Limit is the maximum number of TS queues that can be handled simultaneously.
+/// Reassembles out-of-order and fragmented packet chunks.
+/// Limit is the maximum number of TS queues that can be handled simultaneously.
 template<
     typename OrderType = Ordering,
     typename TsType = Timestamp,
@@ -960,20 +985,20 @@ class JitterBuffer
     {
         std::vector<std::optional<QByteArray>> chunks{};
 
-        inline bool isComplete() const
+        [[nodiscard]] bool isComplete() const
         {
             return !chunks.empty()
                 && std::none_of(chunks.cbegin(), chunks.cend(), [](const auto &opt) { return !opt.has_value(); });
         }
 
-        inline QByteArray assemble() const
+        [[nodiscard]] QByteArray assemble() const
         {
             CTRACK;
 
             const auto total = std::accumulate(
                 chunks.cbegin(),
                 chunks.cend(),
-                qsizetype(0),
+                static_cast<qsizetype>(0),
                 [](qsizetype sum, const auto &opt) { return sum + (opt ? opt->size() : 0); }
             );
 
@@ -1014,7 +1039,7 @@ public:
                 m_entries.erase(m_entries.begin()); // remove oldest
             }
 
-            m_entries.push_back(Entry{ ts, ChunkQueue{} });
+            m_entries.push_back(Entry{ .ts = ts, .queue = ChunkQueue{} });
             it = std::prev(m_entries.end());
         }
 
@@ -1040,7 +1065,7 @@ public:
     // Attempt to retrieve a complete packet, oldest first.
     // Returns the assembled QByteArray if a complete timestamp is found,
     // otherwise std::nullopt.
-    inline std::optional<QByteArray> pullComplete(bool &outDroppedAny)
+    std::optional<QByteArray> pullComplete(bool &outDroppedAny)
     {
         CTRACK;
 
@@ -1050,7 +1075,7 @@ public:
 
         for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
             if (it->queue.isComplete()) {
-                const QByteArray assembled = it->queue.assemble();
+                QByteArray assembled = it->queue.assemble();
                 if (outDroppedAny && it != m_entries.begin()) {
                     outDroppedAny = true;
                 }
@@ -1063,13 +1088,13 @@ public:
 
         return std::nullopt;
     }
-    inline std::optional<QByteArray> pullComplete()
+    std::optional<QByteArray> pullComplete()
     {
         CTRACK;
 
         for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
             if (it->queue.isComplete()) {
-                const QByteArray assembled = it->queue.assemble();
+                QByteArray assembled = it->queue.assemble();
                 // Remove this timestamp and all older ones (they are no longer needed).
                 m_entries.erase(m_entries.begin(), std::next(it));
                 return assembled;
@@ -1080,13 +1105,13 @@ public:
     }
 
     // Clear all stored data.
-    inline void clear()
+    void clear()
     {
         m_entries.clear();
     }
 
     // Optional: check if a timestamp is already complete (for debugging).
-    inline bool isComplete(const TsType ts) const
+    [[nodiscard]] bool isComplete(const TsType ts) const
     {
         auto it = std::find_if(m_entries.begin(), m_entries.end(), [ts](const Entry &e) { return e.ts == ts; });
         return it != m_entries.end() && it->queue.isComplete();

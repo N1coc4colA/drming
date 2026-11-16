@@ -1,16 +1,18 @@
 #include "decode.h"
 
-#include <QDebug>
-
 #include <ctrack.hpp>
+
+#include <GLES2/gl2ext.h>
 
 #include "videoframeitem.h"
 
 #include "../net/telemetry.h"
+#include "../settings.h"
 
 namespace Platform {
 
 namespace {
+/// Finds the next Annex-B NAL unit in the byte stream.
 bool nextAnnexBNal(const uint8_t *data, const size_t size, size_t &cursor, size_t &nalStart, size_t &nalSize)
 {
     CTRACK;
@@ -54,6 +56,7 @@ bool nextAnnexBNal(const uint8_t *data, const size_t size, size_t &cursor, size_
     return false;
 }
 
+/// Checks whether an H.265 NAL unit is a key frame.
 bool isKeyFrameH265(const uint8_t *data, const size_t size)
 {
     CTRACK;
@@ -72,6 +75,7 @@ bool isKeyFrameH265(const uint8_t *data, const size_t size)
     return false;
 }
 
+/// Extracts codec configuration data from H.265 headers.
 void extractCSDH265(
     const uint8_t *data,
     const size_t size,
@@ -111,6 +115,8 @@ VideoDecoder::~VideoDecoder()
 
 bool VideoDecoder::init(const int width, const int height)
 {
+    std::lock_guard lock(m_codecMutex);
+
     if (m_initialized) {
         qDebug() << "Tried to re-init VideoDecoder while alreay init'd.";
         return true;
@@ -119,12 +125,13 @@ bool VideoDecoder::init(const int width, const int height)
     m_width = width;
     m_height = height;
     m_resolutionDetected = width > 0 && height > 0;
+    m_consecutiveTALs = 0;
 
     media_status_t status = AImageReader_new(
         width,
         height,
-        AIMAGE_FORMAT_YUV_420_888, // most common
-        kMaxCachedImages,
+        AIMAGE_FORMAT_PRIVATE, // most common
+        kImageReaderMaxImages,
         &m_imageReader
     );
     switch (status) {
@@ -158,7 +165,7 @@ bool VideoDecoder::init(const int width, const int height)
     // Set up the image listener (callback from decoder thread)
     AImageReader_ImageListener listener;
     listener.context = this;
-    listener.onImageAvailable = VideoDecoder::onImageAvailable;
+    listener.onImageAvailable = &onImageAvailable;
     AImageReader_setImageListener(m_imageReader, &listener);
 
     // Create MediaCodec decoder
@@ -209,6 +216,8 @@ bool VideoDecoder::init(const int width, const int height)
 
 void VideoDecoder::release()
 {
+    std::lock_guard lock(m_codecMutex);
+
     qDebug() << "release() called on" << this << "m_codec=" << (m_codec ? "non-null" : "null")
              << "m_initialized=" << m_initialized;
 
@@ -265,17 +274,19 @@ void VideoDecoder::release()
 
 void VideoDecoder::destroyEglImageCache()
 {
+    std::lock_guard lock(m_codecMutex);
+
     if (m_eglImageCache.empty()) {
         return;
     }
 
     const auto display = eglGetCurrentDisplay();
-    for (auto &[buffer, entry] : m_eglImageCache) {
-        if (display != EGL_NO_DISPLAY && entry.image != EGL_NO_IMAGE_KHR) {
-            eglDestroyImageKHR(display, entry.image);
+    for (auto& [image, bufferRef] : m_eglImageCache | std::views::values) {
+        if (display != EGL_NO_DISPLAY && image != EGL_NO_IMAGE_KHR) {
+            eglDestroyImageKHR(display, image);
         }
-        if (entry.bufferRef) {
-            AHardwareBuffer_release(entry.bufferRef);
+        if (bufferRef) {
+            AHardwareBuffer_release(bufferRef);
         }
     }
     m_eglImageCache.clear();
@@ -283,6 +294,8 @@ void VideoDecoder::destroyEglImageCache()
 
 bool VideoDecoder::flush()
 {
+    std::lock_guard lock(m_codecMutex);
+
     if (m_codec) {
         AMediaCodec_flush(m_codec);
         return true;
@@ -293,7 +306,21 @@ bool VideoDecoder::flush()
 
 bool VideoDecoder::decode(const uint8_t *data, const size_t size)
 {
+    const auto [status, needsIdr] = decode_locked(data, size);
+
+    if (needsIdr) {
+        Q_EMIT needsKeyframe();
+    }
+
+    return status;
+}
+
+VideoDecoder::RetWithIdr VideoDecoder::decode_locked(const uint8_t *data, const size_t size)
+{
     CTRACK;
+    std::lock_guard lock(m_codecMutex);
+
+    bool needsIdr = false;
 
     const bool needNalScan = m_needResync || !m_csdReady;
     const bool isKeyFrame = needNalScan ? isKeyFrameH265(data, size) : false;
@@ -321,12 +348,12 @@ bool VideoDecoder::decode(const uint8_t *data, const size_t size)
      * RequestKeyframe handler forces the next encoded frame to be an IDR,
      * which resets the clock.
      */
-    if (!m_csdReady) {
+    if (!m_csdReady || m_needResync) {
         const auto nowNs = steadyNowNs();
         if (m_lastKeyframeRequestNs == 0 || nowNs - m_lastKeyframeRequestNs > 250'000'000LL) {
             qDebug() << "No keyframe yet — requesting IDR";
             m_lastKeyframeRequestNs = nowNs;
-            Q_EMIT needsKeyframe();
+            needsIdr = true;
         }
     }
 
@@ -341,12 +368,11 @@ bool VideoDecoder::decode(const uint8_t *data, const size_t size)
     if (!m_initialized) [[unlikely]] {
         if (!m_csdReady) {
             qDebug() << "No CSD";
-            return true;
+            return { .status = true, .needsIdr = needsIdr };
         }
-        const auto ret = init(m_width, m_height);
-        if (!ret) [[unlikely]] {
+        if (!init(m_width, m_height)) [[unlikely]] {
             qDebug() << "Init failure";
-            return false;
+            return { .status = false, .needsIdr = needsIdr };
         }
     }
 
@@ -355,62 +381,84 @@ bool VideoDecoder::decode(const uint8_t *data, const size_t size)
     }
     if (m_needResync && !isKeyFrame) {
         qDebug() << "Resync stuff failed";
-        return true;
+        return { .status = true, .needsIdr = needsIdr };
     }
 
     const auto ret = decode_frame(data, size, isKeyFrame);
     if (!ret) [[unlikely]] {
         m_needResync = true;
         qDebug() << "Resync required.";
-        Q_EMIT needsKeyframe();
+        AMediaCodec_flush(m_codec);
+        m_framesInReader = 0;
+        needsIdr = true;
     }
 
-    return ret;
+    return { .status = ret, .needsIdr = needsIdr };
 }
 
 bool VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const bool isKeyFrame)
 {
+    const auto [status, needsIdr] = decode_frame_locked(data, size, isKeyFrame);
+
+    if (needsIdr) {
+        Q_EMIT needsKeyframe();
+    }
+
+    return status;
+}
+
+VideoDecoder::RetWithIdr
+VideoDecoder::decode_frame_locked(const uint8_t *data, const size_t size, const bool isKeyFrame)
+{
     CTRACK;
+    std::lock_guard lock(m_codecMutex);
+
+    bool needsIdr = false;
 
     // Always queue input buffer (works for both paths)
-    const auto inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 10000);
+    const auto inputIndex = AMediaCodec_dequeueInputBuffer(m_codec, 0);
     if (inputIndex >= 0) [[likely]] {
         // Most likely case, we have a buffer, just continue.
     } else if (inputIndex == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
         qDebug() << "Dequeue input TAL: frame lost, requesting IDR";
         /*
-         * MediaCodec's input queue was full for the whole 10 ms timeout.
+         * MediaCodec's input queue was full for the whole 0 ms timeout.
          * The frame is gone; count it so the server-side policy can react.
          */
-        if (m_telemetry) {
-            m_telemetry->recordDropped();
+        if (++m_consecutiveTALs >= Settings::consecutiveTALLimit) {
+            if (m_telemetry) {
+                m_telemetry->recordDropped();
+            }
+
+            m_needResync = true;
+            needsIdr = true;
         }
 
-        m_needResync = true;
-        Q_EMIT needsKeyframe();
-        return true;
+        return { .status = true, .needsIdr = needsIdr };
     } else {
         qWarning() << "Failed to dequeue input buffer, unexpected error occurred:" << inputIndex;
-        return false;
+        return { .status = false, .needsIdr = needsIdr };
     }
 
+    m_consecutiveTALs = 0;
+
     size_t bufferSize = 0;
-    const auto inputBuffer = AMediaCodec_getInputBuffer(m_codec, static_cast<size_t>(inputIndex), &bufferSize);
+    const auto inputBuffer = AMediaCodec_getInputBuffer(m_codec, to_unsigned<size_t>(inputIndex), &bufferSize);
     if (!inputBuffer) {
         qWarning() << "Failed to get input buffer: " << inputBuffer;
-        return false;
+        return { .status = false, .needsIdr = needsIdr };
     }
     if (size > bufferSize) [[unlikely]] {
         // [TODO] handle buffer resizing.
         qWarning() << "Input data too large:" << size << ">" << bufferSize;
-        return false;
+        return { .status = false, .needsIdr = needsIdr };
     }
     memcpy(inputBuffer, data, size);
 
     const uint32_t flags = isKeyFrame ? AMEDIACODEC_BUFFER_FLAG_KEY_FRAME : 0;
     const auto status = AMediaCodec_queueInputBuffer(
         m_codec,
-        static_cast<size_t>(inputIndex),
+        to_unsigned<size_t>(inputIndex),
         0,
         size,
         static_cast<uint64_t>(
@@ -421,36 +469,47 @@ bool VideoDecoder::decode_frame(const uint8_t *data, const size_t size, const bo
     );
     if (status != AMEDIA_OK) [[unlikely]] {
         qWarning() << "MC Failed to queue input buffer:" << status;
-        return false;
+        return { .status = false, .needsIdr = needsIdr };
     }
 
     AMediaCodecBufferInfo info{};
     for (;;) {
         const auto outIdx = AMediaCodec_dequeueOutputBuffer(m_codec, &info, 0);
-        if (outIdx >= 0) [[likely]] {
+
+        if (outIdx >= 0) {
             // render = true: hands the buffer to the ANativeWindow/AImageReader.
-            AMediaCodec_releaseOutputBuffer(m_codec, static_cast<size_t>(outIdx), true);
+            const bool render = m_framesInReader.load() < kImageReaderMaxImages - 1;
+            AMediaCodec_releaseOutputBuffer(m_codec, to_unsigned<size_t>(outIdx), render);
+            if (render) {
+                m_framesInReader.fetch_add(1);
+            }
+
             continue; // more than one frame may be ready
-        } else if (outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
-            break;
-        } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
-            qDebug() << "Format changed!";
-            continue;
-        } else if (outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
-            continue;
-        } else {
-            qWarning() << "Unexpected output result:" << outIdx;
+        }
+        if (outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
             break;
         }
+        if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
+            qDebug() << "Format changed!";
+            continue;
+        }
+        if (outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
+            continue;
+        }
+
+        qWarning() << "Unexpected output result:" << outIdx;
+        break;
     }
 
-    return true;
+    return { .status = true, .needsIdr = needsIdr };
 }
 
 void VideoDecoder::onImageAvailable(void *, AImageReader *) {}
 
 bool VideoDecoder::consumeFrame()
 {
+    std::lock_guard lock(m_codecMutex);
+
     if (!m_imageReader) {
         qDebug() << "Invalid consume.";
         return false;
@@ -510,6 +569,11 @@ bool VideoDecoder::consumeFrame()
         return false;
     }
 
+    m_framesInReader.fetch_sub(1);
+    if (m_telemetry) {
+        m_telemetry->setDecodeQueueDepth(m_framesInReader.load());
+    }
+
     updateTextureFromHardwareBuffer(hardwareBuffer);
     m_pendingImage = image;
 
@@ -519,6 +583,7 @@ bool VideoDecoder::consumeFrame()
 void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
 {
     CTRACK;
+    std::lock_guard lock(m_codecMutex);
 
     const auto display = eglGetCurrentDisplay();
     if (display == EGL_NO_DISPLAY) [[unlikely]] {
@@ -532,7 +597,7 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
         return;
     }
 
-    EGLImageKHR eglImage = EGL_NO_IMAGE_KHR;
+    auto eglImage = EGL_NO_IMAGE_KHR;
 
     const auto it = m_eglImageCache.find(buffer);
     if (it != m_eglImageCache.end()) [[likely]] {
@@ -545,15 +610,15 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
             return;
         }
 
-        if (m_eglImageCache.size() >= kMaxCachedImages) [[unlikely]] {
-            auto victim = m_eglImageCache.begin();
+        if (m_eglImageCache.size() >= kMaxCachedEglImages) [[unlikely]] {
+            const auto victim = m_eglImageCache.begin();
             eglDestroyImageKHR(display, victim->second.image);
             AHardwareBuffer_release(victim->second.bufferRef);
             m_eglImageCache.erase(victim);
         }
 
         AHardwareBuffer_acquire(buffer);
-        m_eglImageCache.insert({ buffer, CachedImage{ eglImage, buffer } });
+        m_eglImageCache.insert({ buffer, CachedImage{ .image = eglImage, .bufferRef = buffer } });
     }
 
     // Create both textures on first call, and set parameters on both.
@@ -582,6 +647,13 @@ void VideoDecoder::updateTextureFromHardwareBuffer(AHardwareBuffer *buffer)
     assert(m_oesTextureIds.has_value());
     glBindTexture(GL_TEXTURE_EXTERNAL_OES, m_oesTextureIds.value()[m_textureIndex]);
     glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, eglImage);
+}
+
+void VideoDecoder::invalidateGLResources()
+{
+    m_oesTextureIds = {};
+    m_eglImageCache.clear();
+    m_textureIndex = 0;
 }
 
 } // namespace Platform

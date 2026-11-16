@@ -3,8 +3,6 @@
 #include <QDebug>
 #include <QDtls>
 #include <QSslConfiguration>
-#include <QTimer>
-#include <qendian.h>
 
 #include "display.h"
 #include "parameters.h"
@@ -18,14 +16,14 @@ void NetworkClient::processPacket(const Packets::HeartBeat &)
 void NetworkClient::processPacket(const Packets::Reinit &)
 {
     if (m_display) [[likely]] {
-        m_display->reinit();
+        QMetaObject::invokeMethod(m_display, &Display::reinit, Qt::QueuedConnection);
     }
 }
 
 void NetworkClient::processPacket(const Packets::RequestClientResolution &)
 {
     if (m_display) [[likely]] {
-        m_display->requireResolutionInformation();
+        QMetaObject::invokeMethod(m_display, &Display::requireResolutionInformation, Qt::QueuedConnection);
     }
 }
 
@@ -46,11 +44,11 @@ void NetworkClient::processPacket(const Packets::RequestAudioSource &)
     const size_t size = isV4 ? 4 : 16;
 
     src.isV4.data = isV4;
-    src.ip.data.resize(static_cast<qsizetype>(size));
+    src.ip.data.resize(checked_cast<qsizetype>(size));
     std::memcpy(src.ip.data.data(), isV4 ? static_cast<const void *>(&v4) : static_cast<const void *>(&v6), size);
     src.port.data = Parameters::instance.audioPort;
 
-    write(std::move(Packets::Writer::generate(src)));
+    write(Packets::Writer::generate(src));
 }
 
 void NetworkClient::processPacket(const Packets::RequestVideoSource &)
@@ -65,11 +63,11 @@ void NetworkClient::processPacket(const Packets::RequestVideoSource &)
     const size_t size = isV4 ? 4 : 16;
 
     src.isV4.data = isV4;
-    src.ip.data.resize(static_cast<qsizetype>(size));
+    src.ip.data.resize(checked_cast<qsizetype>(size));
     std::memcpy(src.ip.data.data(), isV4 ? static_cast<const void *>(&v4) : static_cast<const void *>(&v6), size);
     src.port.data = Parameters::instance.videoPort;
 
-    write(std::move(Packets::Writer::generate(src)));
+    write(Packets::Writer::generate(src));
 }
 
 void NetworkClient::processPacket(const Packets::ClientTelemetry &t)
@@ -86,30 +84,35 @@ void NetworkClient::processPacket(const Packets::ClientTelemetry &t)
 #endif
 
     if (m_display) {
-        m_display->applyClientTelemetry(t);
+        QMetaObject::invokeMethod(
+            m_display,
+            [display = m_display, t] { display->applyClientTelemetry(t); },
+            Qt::QueuedConnection
+        );
     }
 }
 
 void NetworkClient::processPacket(const Packets::RequestKeyframe &)
 {
     if (m_display) {
-        m_display->forceKeyframe();
+        QMetaObject::invokeMethod(m_display, &Display::forceKeyframe, Qt::QueuedConnection);
     }
 }
 
 NetworkClient::NetworkClient(
     QDtls *dtls,
-    const QHostAddress &address,
+    QHostAddress address,
     const quint16 port,
     QPair<QUdpSocket, QMutex> &sharedSocket,
     QObject *parent
 )
     : QObject(parent)
-    , Packets::Parser<NetworkClient>(*this)
-    , m_address(address)
+    , Parser(*this)
+    , m_address(std::move(address))
     , m_port(port)
     , m_rw(*this, dtls, &sharedSocket.first, &sharedSocket.second)
     , m_timer(new QTimer(this))
+    , m_lastHeartBeat(std::chrono::steady_clock::now())
 {
     assert(dtls);
 
@@ -121,10 +124,7 @@ NetworkClient::NetworkClient(
     m_timer->setInterval(Settings::inactivityTimeout);
 }
 
-NetworkClient::~NetworkClient()
-{
-    // dtls deleted automatically via parent
-}
+NetworkClient::~NetworkClient() = default;
 
 void NetworkClient::incomingEncryptedData(const QByteArray &encrypted)
 {
@@ -155,12 +155,12 @@ QByteArray NetworkClient::digest() const
 void NetworkClient::notifyHeartBeat()
 {
     m_timer->start();
-    m_lastHeartBeat = std::chrono::system_clock::now();
+    m_lastHeartBeat = std::chrono::steady_clock::now();
 }
 
 void NetworkClient::checkHeartBeat()
 {
-    if ((std::chrono::system_clock::now() - m_lastHeartBeat) > systemTimeout) {
+    if (std::chrono::steady_clock::now() - m_lastHeartBeat > systemTimeout) {
         m_timer->stop();
         // Heartbeat timeout – close connection
         close();
@@ -169,23 +169,31 @@ void NetworkClient::checkHeartBeat()
 
 void NetworkClient::notifyKey()
 {
-    auto &ss = m_display->streamSocket();
+    if (!m_display) {
+        return;
+    }
 
-    Packets::KeyUpdate ku{};
-    ku.key.data = ss.getKey();
-    ku.keyStamp.data = ss.getKeystamp();
+    const auto &ss = m_display->streamSocket();
+
+    Packets::KeyUpdate ku{
+        .keyStamp{ ss.getKeystamp() },
+        .key{ { { ss.getKey() } } },
+    };
 
     qDebug() << "Sending key" << ku.keyStamp.data << ku.key.data;
 
-    write(std::move(Packets::Writer::generate(ku)));
+    write(Packets::Writer::generate(ku));
 }
 
 void NetworkClient::setDisplay(Display *disp)
 {
+    assert(disp);
+
     if (m_display) {
         disconnect(&m_display->streamSocket(), &StreamSocket::keyChanged, this, &NetworkClient::notifyKey);
     }
 
     m_display = disp;
     connect(&m_display->streamSocket(), &StreamSocket::keyChanged, this, &NetworkClient::notifyKey);
+    notifyKey();
 }

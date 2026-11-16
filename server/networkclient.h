@@ -2,9 +2,6 @@
 #define NETWORKCLIENT_H
 
 #include <QHostAddress>
-#include <QMutex>
-#include <QSslSocket>
-#include <QUdpSocket>
 
 #include <chrono>
 
@@ -28,8 +25,8 @@ class NetworkClient : public QObject, public Packets::Parser<NetworkClient>
 {
     Q_OBJECT
 
-    using TimePoint = std::chrono::time_point<std::chrono::system_clock>;
-    using Duration = std::chrono::system_clock::duration;
+    using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+    using Duration = std::chrono::steady_clock::duration;
 
     static constexpr Duration systemTimeout = std::chrono::duration_cast<Duration>(
         std::chrono::duration<double>(Settings::inactivityTimeout / 1000.0)
@@ -38,26 +35,31 @@ class NetworkClient : public QObject, public Packets::Parser<NetworkClient>
 public:
     explicit NetworkClient(
         QDtls *dtls,
-        const QHostAddress &address,
+        QHostAddress address,
         quint16 port,
         QPair<QUdpSocket, QMutex> &sharedSocket,
         QObject *parent = nullptr
     );
-    ~NetworkClient();
+    ~NetworkClient() override;
 
     /// Sends an encrypted datagram through the shared server socket.
     std::optional<qint64> write(const QByteArray &data);
+    /// Closes the DTLS session and disconnects the client.
     void close();
 
+    /// Returns the state of the underlying UDP socket.
     [[nodiscard]] QAbstractSocket::SocketState state() const;
+    /// Returns the remote peer IP address.
     [[nodiscard]] QHostAddress peerAddress() const
     {
         return m_address;
     }
+    /// Returns the remote peer port.
     [[nodiscard]] quint16 peerPort() const
     {
         return m_port;
     }
+    /// Returns the SHA-256 digest of the peer certificate.
     [[nodiscard]] QByteArray digest() const;
 
     // Packet processing stubs (only HeartBeat and Reinit are handled)
@@ -72,6 +74,7 @@ public:
     void onPacketErrors()
     {}
 
+    /// Updates the timestamp of the most recently received heartbeat.
     void notifyHeartBeat();
 
     /// Associates this client with the virtual display that serves its frames.
@@ -81,6 +84,7 @@ public:
     void incomingEncryptedData(const QByteArray &encrypted);
 
 Q_SIGNALS:
+    /// Emitted when the client is disconnected.
     void disconnected();
 
 private:
@@ -90,10 +94,13 @@ private:
 
     DtlsReaderWriter<NetworkClient> m_rw;
 
-    QTimer *m_timer;
-    TimePoint m_lastHeartBeat;
+    QTimer *m_timer = nullptr;
+    /// Timestamp of the last received client heartbeat.
+    TimePoint m_lastHeartBeat{};
 
+    /// Checks whether the client heartbeat has timed out and disconnects if so.
     void checkHeartBeat();
+    /// Sends the current session key update to the client.
     void notifyKey();
 };
 

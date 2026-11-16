@@ -9,9 +9,6 @@ namespace Opts {
 
 Q_NAMESPACE
 enum DisplayStreamType {
-    jpg,
-    png,
-    webp,
     h265,
 };
 
@@ -27,25 +24,25 @@ Q_ENUM_NS(DisplayStreamType);
  */
 struct Parameters
 {
-    QString targetScreen;
-    QString serviceName;
+    QString targetScreen{};
+    QString serviceName{};
 
-    QHostAddress serviceIp;
-    QHostAddress serviceAudioIp;
-    QHostAddress serviceVideoIp;
-    QNetworkInterface serviceIface;
+    QHostAddress serviceIp{};
+    QHostAddress serviceAudioIp{};
+    QHostAddress serviceVideoIp{};
+    QNetworkInterface serviceIface{};
 
-    int port;
-    unsigned short audioPort;
-    unsigned short videoPort;
+    int port = 0;
+    unsigned short audioPort = 0;
+    unsigned short videoPort = 0;
 
-    int qualityLevel;
+    int qualityLevel = 0;
     int servedScreens = 0;
-    bool advertise;
+    bool advertise = false;
 
-    QString trustedCertsPath;
-    QString serverCertPath;
-    QString serverKeyPath;
+    QString trustedCertsPath{};
+    QString serverCertPath{};
+    QString serverKeyPath{};
 
     Opts::DisplayStreamType streamFormat;
 
