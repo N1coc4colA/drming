@@ -70,6 +70,8 @@ jobs:
           -DANDROID_MULTI_MODE=OFF
 
       - name: Build and run client tests
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
           cmake --build build/client --target test_socket --parallel
           ctest --test-dir build/client --output-on-failure
