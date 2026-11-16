@@ -6,14 +6,10 @@ import QtQuick
 QtObject {
     id: root
 
-    // Shared UI state and device-scaled metrics used by every page.
     property var shaderBlurSource: null
-
     property var screen: null
-
     property real scaling: root.screen ? root.screen.pixelDensity/4 : 1
 
-    // Cached font sizes to avoid Math.max() calculations every frame
     property real fontSizeXSmall: Math.max(11, 11 * scaling)
     property real fontSizeSmall: Math.max(13, 13 * scaling)
     property real fontSizeMedium: Math.max(14, 14 * scaling)
@@ -21,7 +17,6 @@ QtObject {
     property real fontSizeLarge: Math.max(18, 18 * scaling)
     property real fontSizeXLarge: Math.max(24, 24 * scaling)
 
-    // Cached dimension sizes
     property real buttonHeightDefault: Math.max(34, 34 * scaling)
     property real rowHeightDefault: Math.max(40, 40 * scaling)
     property real spacingXSmall: Math.max(3, 3 * scaling)
@@ -35,8 +30,11 @@ QtObject {
     property real standardSpacing: 8
     property real innerSpacing: 5
 
-    // Cache common calculations
     readonly property real doubleOutterSpacing: outterSpacing * 2
     readonly property real doubleStandardSpacing: standardSpacing * 2
     readonly property real halfStandardSpacing: standardSpacing * 0.5
+
+    // Increased wide breakpoint so certificates/keys utilize more width on tablets & landscape phones
+    readonly property real wideBreakpoint: Math.max(850, 850 * scaling)
+    readonly property real compactHeaderBreakpoint: Math.max(300, 300 * scaling)
 }

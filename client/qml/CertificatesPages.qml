@@ -8,9 +8,7 @@ StandardPage {
     headerBar.rightContent: NewButton {
         implicitHeight: headerBar.centerHeight
         implicitWidth: headerBar.centerHeight
-
         icon.source: "qrc:/assets/document-new.svg"
-
         onClicked: fileProvider().addServerCert()
     }
 
@@ -18,77 +16,74 @@ StandardPage {
         emptyText: qsTr("No certificates loaded")
         model: fileProvider().serverCertsModel()
 
-        delegate: RowLayout {
-            height: visible ? Math.max(40, 40 * GlobalVars.scaling) : 0
+        delegate: Item {
+            id: delegateItem
+            height: visible ? Math.max(40, GlobalVars.rowHeightDefault) : 0
             width: root.width
-
             visible: model.name.toLowerCase().includes(root.searchText.toLowerCase())
 
-            // Cache breakpoint calculation to avoid recalculation per frame
-            property bool isWide: width > Math.max(500, 500 * GlobalVars.scaling)
+            property bool isWide: width > GlobalVars.wideBreakpoint
 
-            Item {
-                Layout.fillWidth: isWide
-            }
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: isWide ? GlobalVars.doubleStandardSpacing : GlobalVars.standardSpacing
+                anchors.rightMargin: isWide ? GlobalVars.doubleStandardSpacing : GlobalVars.standardSpacing
+                spacing: 0
 
-            Rectangle {
-                color: palette.mid
+                Item { Layout.fillWidth: true; visible: delegateItem.isWide }
 
-                anchors.leftMargin: isWide ? GlobalVars.standardSpacing : 0
-                border.color: palette.dark
-                border.width: 1
-                radius: GlobalVars.standardRounding
-                Layout.maximumWidth: Math.max(500, 500 * GlobalVars.scaling)
-                Layout.preferredHeight: parent.height
-                Layout.preferredWidth: parent.width - GlobalVars.doubleStandardSpacing
+                Rectangle {
+                    color: palette.mid
+                    border.color: palette.dark
+                    border.width: 1
+                    radius: GlobalVars.standardRounding
 
-                RowLayout {
-                    spacing: GlobalVars.standardSpacing
-                    anchors.fill: parent
-                    anchors.leftMargin: GlobalVars.doubleStandardSpacing
-                    anchors.rightMargin: GlobalVars.halfStandardSpacing
+                    Layout.fillHeight: true
+                    Layout.maximumWidth: GlobalVars.wideBreakpoint
+                    Layout.fillWidth: true
 
-                    Label {
-                        color: "#fcd757"
-                        elide: Text.ElideRight
-                        font.pixelSize: GlobalVars.fontSizeMedium
-                        text: model.datetime
-                    }
-                    Label {
-                        id: label
-                        elide: Text.ElideRight
-                        font.pixelSize: GlobalVars.fontSizeMedium
-                        text: model.name
+                    RowLayout {
+                        spacing: GlobalVars.standardSpacing
+                        anchors.fill: parent
+                        anchors.leftMargin: GlobalVars.doubleStandardSpacing
+                        anchors.rightMargin: GlobalVars.halfStandardSpacing
 
-                        Layout.fillWidth: true
-                    }
-                    EasyButton {
-                        display: AbstractButton.IconOnly
-                        icon.source: "qrc:/assets/document-save.svg"
-                        height: label.implicitHeight
-                        width: label.implicitHeight
-                        backgroundColor: "transparent"
-                        borderColor: "transparent"
-                        onClicked: fileProvider().exportServerCert(model.name)
-                    }
-                    EasyButton {
-                        display: AbstractButton.IconOnly
-                        icon.source: "qrc:/assets/edit-delete.svg"
-
-                        height: label.implicitHeight
-                        width: label.implicitHeight
-
-                        backgroundColor: "transparent"
-                        borderColor: "transparent"
-                        highlightColor: "#e33636"
-
-                        onClicked: fileProvider().deleteServerCert(model.name)
+                        Label {
+                            color: "#fcd757"
+                            elide: Text.ElideRight
+                            font.pixelSize: GlobalVars.fontSizeMedium
+                            text: model.datetime
+                        }
+                        Label {
+                            id: label
+                            elide: Text.ElideRight
+                            font.pixelSize: GlobalVars.fontSizeMedium
+                            text: model.name
+                            Layout.fillWidth: true
+                        }
+                        EasyButton {
+                            display: AbstractButton.IconOnly
+                            icon.source: "qrc:/assets/document-save.svg"
+                            implicitHeight: label.implicitHeight + 8
+                            implicitWidth: label.implicitHeight + 8
+                            backgroundColor: "transparent"
+                            borderColor: "transparent"
+                            onClicked: fileProvider().exportServerCert(model.name)
+                        }
+                        EasyButton {
+                            display: AbstractButton.IconOnly
+                            icon.source: "qrc:/assets/edit-delete.svg"
+                            implicitHeight: label.implicitHeight + 8
+                            implicitWidth: label.implicitHeight + 8
+                            backgroundColor: "transparent"
+                            borderColor: "transparent"
+                            highlightColor: "#e33636"
+                            onClicked: fileProvider().deleteServerCert(model.name)
+                        }
                     }
                 }
-            }
 
-            Item {
-                Layout.fillWidth: isWide
+                Item { Layout.fillWidth: true; visible: delegateItem.isWide }
             }
         }
     }

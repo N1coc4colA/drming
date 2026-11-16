@@ -8,115 +8,77 @@ Item {
     property int buttonsHeight: 120
     property int buttonsWidth: 120
     property int bounding: ((buttonsWidth < buttonsHeight) ? buttonsWidth : buttonsHeight) - 40
-    property bool largeEnough: root.width > (buttonsWidth * 3 + 90)
 
     signal keysViewNeeded
     signal certsViewNeeded
     signal servicesViewNeeded
 
-    Item {
+    // Check if screen is wide enough to fit 3 buttons side-by-side cleanly
+    readonly property bool isWideEnough: root.width > (buttonsWidth * 3 + GlobalVars.outterSpacing * 6)
+
+    ColumnLayout {
         id: container
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        height: gridLayout.height + label.height + 10 + 20
+        anchors.centerIn: parent
+        anchors.margins: GlobalVars.doubleOutterSpacing
+        spacing: GlobalVars.outterSpacing * 2
+        width: Math.min(parent.width - GlobalVars.doubleOutterSpacing * 2, implicitWidth)
 
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: GlobalVars.outterSpacing
-            spacing: GlobalVars.outterSpacing
+        Label {
+            id: label
+            font.bold: true
+            font.pixelSize: GlobalVars.fontSizeXLarge
+            horizontalAlignment: Text.AlignHCenter
+            text: qsTr("Welcome !")
+            Layout.alignment: Qt.AlignHCenter
+            Layout.fillWidth: true
+        }
 
-            Label {
-                id: label
-                font.bold: true
-                font.pixelSize: GlobalVars.fontSizeBase
-                horizontalAlignment: Text.AlignHCenter
-                text: qsTr("Welcome !")
+        // Responsive grid: 1 column on narrow portrait phones, 3 columns on landscape/tablets
+        GridLayout {
+            id: gridLayout
+            Layout.alignment: Qt.AlignHCenter
+            columns: root.isWideEnough ? 3 : 1
+            rowSpacing: GlobalVars.outterSpacing * 2
+            columnSpacing: GlobalVars.outterSpacing * 2
 
-                Layout.fillWidth: true
+            EasyButton {
+                bounding: root.bounding
+                display: AbstractButton.TextUnderIcon
+                icon.source: "qrc:/assets/user-desktop.svg"
+                text: qsTr("Connect")
+                implicitHeight: buttonsHeight
+                implicitWidth: buttonsWidth
+                Layout.preferredHeight: buttonsHeight
+                Layout.preferredWidth: buttonsWidth
+                Layout.alignment: Qt.AlignHCenter
+                onClicked: root.servicesViewNeeded()
             }
 
-            // Responsive grid: 3 columns when wide, 1 column when narrow
-            GridLayout {
-                id: gridLayout
-                columns: 3
+            EasyButton {
+                bounding: root.bounding
+                display: AbstractButton.TextUnderIcon
+                icon.source: "qrc:/assets/application-certificate.svg"
+                text: qsTr("Certificates")
+                implicitHeight: buttonsHeight
+                implicitWidth: buttonsWidth
+                Layout.preferredHeight: buttonsHeight
+                Layout.preferredWidth: buttonsWidth
+                Layout.alignment: Qt.AlignHCenter
+                onClicked: root.certsViewNeeded()
+            }
 
-                Layout.fillWidth: true
-
-                Item {
-                    Layout.fillHeight: false
-                    Layout.fillWidth: !largeEnough
-                }
-                GridLayout {
-                    columns: largeEnough ? 7 : 1
-                    columnSpacing: GlobalVars.outterSpacing
-                    rowSpacing: GlobalVars.outterSpacing
-
-                    Layout.fillWidth: largeEnough
-
-                    Item {
-                        Layout.fillHeight: false
-                        Layout.fillWidth: true
-                    }
-                    EasyButton {
-                        bounding: root.bounding
-                        display: AbstractButton.TextUnderIcon
-                        icon.source: "qrc:/assets/user-desktop.svg"
-                        text: qsTr("Connect")
-
-                        Layout.fillHeight: false
-                        Layout.maximumHeight: buttonsHeight
-                        Layout.preferredHeight: buttonsHeight
-                        Layout.preferredWidth: buttonsWidth
-
-                        onClicked: root.servicesViewNeeded()
-                    }
-                    Item {
-                        Layout.fillHeight: false
-                        Layout.fillWidth: true
-                        Layout.maximumWidth: 60
-                    }
-                    EasyButton {
-                        bounding: root.bounding
-                        display: AbstractButton.TextUnderIcon
-                        icon.source: "qrc:/assets/application-certificate.svg"
-                        text: qsTr("Certificates")
-
-                        Layout.fillHeight: false
-                        Layout.maximumHeight: buttonsHeight
-                        Layout.preferredHeight: buttonsHeight
-                        Layout.preferredWidth: buttonsWidth
-
-                        onClicked: root.certsViewNeeded()
-                    }
-                    Item {
-                        Layout.maximumWidth: 60
-                        Layout.fillHeight: false
-                        Layout.fillWidth: true
-                    }
-                    EasyButton {
-                        id: btn
-                        bounding: root.bounding
-                        display: AbstractButton.TextUnderIcon
-                        icon.source: "qrc:/assets/application-x-pem-key.svg"
-                        text: qsTr("Keys")
-
-                        Layout.fillHeight: false
-                        Layout.maximumHeight: buttonsHeight
-                        Layout.preferredHeight: buttonsHeight
-                        Layout.preferredWidth: buttonsWidth
-
-                        onClicked: root.keysViewNeeded()
-                    }
-                    Item {
-                        Layout.fillHeight: false
-                        Layout.fillWidth: true
-                    }
-                }
-                Item {
-                    Layout.fillHeight: false
-                    Layout.fillWidth: !largeEnough
-                }
+            EasyButton {
+                id: btn
+                bounding: root.bounding
+                display: AbstractButton.TextUnderIcon
+                icon.source: "qrc:/assets/application-x-pem-key.svg"
+                text: qsTr("Keys")
+                implicitHeight: buttonsHeight
+                implicitWidth: buttonsWidth
+                Layout.preferredHeight: buttonsHeight
+                Layout.preferredWidth: buttonsWidth
+                Layout.alignment: Qt.AlignHCenter
+                onClicked: root.keysViewNeeded()
             }
         }
     }
