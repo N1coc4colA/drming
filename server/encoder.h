@@ -45,9 +45,6 @@ public:
             return m_hasHWA;
         }
 
-        void init() const
-        {}
-
     private:
         const char *const m_name;
         const EncoderCreator m_creator;

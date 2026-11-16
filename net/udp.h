@@ -270,7 +270,7 @@ protected:
      * Called when the jitter buffer abandons an incomplete timestamp because
      * a chunk was lost in transit. Subclasses use this to request an IDR.
      */
-    virtual void onFrameSkipped() {};
+    virtual void onFrameSkipped() {}
 
 private:
     QHostAddress m_ipAddress{};
